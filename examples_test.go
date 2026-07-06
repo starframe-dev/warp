@@ -69,3 +69,45 @@ func ExampleNewSelectable() {
 	// has selection: true
 	// selected text: hello world
 }
+
+// ExampleNewInput shows a single-line text input.
+func ExampleNewInput() {
+	in := NewInput("> ")
+	in.Focus()
+	in.SetValue("hello")
+
+	fmt.Println("value:", in.Value)
+	fmt.Println("cursor:", in.Cursor)
+	fmt.Println("focused:", in.Focused())
+
+	// Output:
+	// value: hello
+	// cursor: 5
+	// focused: true
+}
+
+// ExampleFocusable demonstrates explicit focus switching.
+// The developer decides the key binding; warp only provides the API.
+func ExampleFocusable() {
+	w := New()
+	tab := w.ActiveTab()
+
+	name := NewInput("Name: ")
+	email := NewInput("Email: ")
+	tab.FlexRow(tab.RootPanel(), []FlexItemSpec{
+		{Panel: name, Grow: 1},
+		{Panel: email, Grow: 1},
+	})
+
+	tab.FocusFirst()
+	fmt.Println("first:", tab.Focus() == name)
+	tab.FocusNext()
+	fmt.Println("next:", tab.Focus() == email)
+	tab.FocusNext()
+	fmt.Println("wrap:", tab.Focus() == name)
+
+	// Output:
+	// first: true
+	// next: true
+	// wrap: true
+}

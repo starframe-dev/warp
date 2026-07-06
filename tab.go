@@ -215,6 +215,59 @@ func (t *Tab) SetFocus(panel Panel) tea.Cmd {
     return nil
 }
 
+// FocusNext moves focus to the next focusable panel in the layout tree.
+// The developer decides which key triggers this; warp does not bind Tab.
+func (t *Tab) FocusNext() {
+    t.focusStep(1)
+}
+
+// FocusPrev moves focus to the previous focusable panel.
+func (t *Tab) FocusPrev() {
+    t.focusStep(-1)
+}
+
+// FocusFirst moves focus to the first focusable panel.
+func (t *Tab) FocusFirst() {
+    focusables := collectFocusables(t.root)
+    if len(focusables) == 0 {
+        return
+    }
+    t.setFocusedFocusable(focusables[0])
+}
+
+// FocusPanel sets focus to a specific panel if it is focusable.
+func (t *Tab) FocusPanel(panel Panel) {
+    if f, ok := panel.(Focusable); ok {
+        t.setFocusedFocusable(f)
+    }
+}
+
+func (t *Tab) focusStep(delta int) {
+    focusables := collectFocusables(t.root)
+    if len(focusables) == 0 {
+        return
+    }
+    idx := focusIndex(focusables, t.focused)
+    idx += delta
+    if idx < 0 {
+        idx = len(focusables) - 1
+    } else if idx >= len(focusables) {
+        idx = 0
+    }
+    t.setFocusedFocusable(focusables[idx])
+}
+
+func (t *Tab) setFocusedFocusable(next Focusable) {
+    if current, ok := t.focused.(Focusable); ok && current != nil {
+        applyFocus(current, next)
+    } else if next != nil {
+        next.Focus()
+    }
+    if next != nil {
+        t.focused = next
+    }
+}
+
 // View implements warp.Panel for Tab so it can be queried as an element provider.
 func (t *Tab) View(width, height int) string {
     return t.renderContent(width, height)
@@ -482,14 +535,13 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 }
 
 // handleKeys forwards key messages to the focused panel.
+// Warp does NOT intercept Tab/Shift+Tab for focus traversal automatically.
+// Use tab.FocusNext() / tab.FocusPrev() explicitly if you want keyboard focus switching.
 func (t *Tab) handleKeys(msg tea.KeyMsg) tea.Cmd {
-    // Do not intercept Shift+Tab: all keys are proxied to the focused panel
-    // (typically a terminal emulator) so that TUI applications inside the PTY
-    // receive the exact same input they would in a standalone terminal.
-    if t.focused != nil {
-        return t.focused.Update(msg)
-    }
-    return nil
+	if t.focused != nil {
+		return t.focused.Update(msg)
+	}
+	return nil
 }
 
 // SetSplitFraction updates the fraction of the split that contains the given
