@@ -14,10 +14,15 @@ type testElementPanel struct {
 }
 
 func (testElementPanel) View(width, height int) string { return "" }
-func (testElementPanel) Update(msg tea.Msg) tea.Cmd { return nil }
+func (testElementPanel) Update(msg tea.Msg) tea.Cmd    { return nil }
 func (p testElementPanel) Elements(width, height int) []Element {
 	return p.elems
 }
+
+type testNonProviderPanel struct{}
+
+func (testNonProviderPanel) View(width, height int) string { return "" }
+func (testNonProviderPanel) Update(msg tea.Msg) tea.Cmd    { return nil }
 
 func TestHTTPElementsEndpoint(t *testing.T) {
 	w := New()
@@ -64,6 +69,14 @@ func TestBoundsCenter(t *testing.T) {
 	}
 }
 
+func TestBoundsCenterOdd(t *testing.T) {
+	b := Bounds{X: 0, Y: 0, W: 5, H: 3}
+	x, y := b.Center()
+	if x != 2 || y != 1 {
+		t.Fatalf("center = (%d,%d), want (2,1)", x, y)
+	}
+}
+
 func TestParsePort(t *testing.T) {
 	if got := parsePort("127.0.0.1:8080"); got != "8080" {
 		t.Fatalf("parsePort(127.0.0.1:8080) = %q, want 8080", got)
@@ -101,6 +114,78 @@ func TestCollectElementsNilSafe(t *testing.T) {
 	}
 	if got := collectElements(testElementPanel{}, 80, 24); len(got) != 0 {
 		t.Fatalf("collectElements(empty) = %v, want empty", got)
+	}
+	if got := collectElements(testNonProviderPanel{}, 80, 24); got != nil {
+		t.Fatalf("collectElements(nonProvider) = %v, want nil", got)
+	}
+}
+
+func TestElementProviderFunc(t *testing.T) {
+	fn := ElementProviderFunc(func(width, height int) []Element {
+		return []Element{
+			{Role: "label", Name: "ok", Bounds: Bounds{X: 0, Y: 0, W: width, H: height}},
+		}
+	})
+
+	elems := fn.Elements(100, 50)
+	if len(elems) != 1 {
+		t.Fatalf("expected 1 element, got %d", len(elems))
+	}
+	if elems[0].Role != "label" || elems[0].Bounds.W != 100 || elems[0].Bounds.H != 50 {
+		t.Fatalf("unexpected element: %+v", elems[0])
+	}
+
+	var ep ElementProvider = fn
+	elems = ep.Elements(10, 20)
+	if elems[0].Bounds.W != 10 || elems[0].Bounds.H != 20 {
+		t.Fatalf("unexpected element via interface: %+v", elems[0])
+	}
+}
+
+func TestFindElement(t *testing.T) {
+	elems := []Element{
+		{
+			Role:   "button",
+			Name:   "Save",
+			Action: "save",
+			Bounds: Bounds{X: 0, Y: 0, W: 4, H: 1},
+		},
+		{
+			Role: "group",
+			Name: "Toolbar",
+			Bounds: Bounds{X: 0, Y: 1, W: 10, H: 1},
+			Children: []Element{
+				{
+					Role:   "button",
+					Name:   "Open",
+					Action: "open",
+					Bounds: Bounds{X: 0, Y: 1, W: 4, H: 1},
+				},
+			},
+		},
+	}
+
+	cases := []struct {
+		role, name, action string
+		wantName           string
+		wantOK             bool
+	}{
+		{"button", "Save", "save", "Save", true},
+		{"button", "Open", "", "Open", true},
+		{"group", "", "", "Toolbar", true},
+		{"button", "", "", "Save", true},
+		{"", "", "missing", "", false},
+		{"", "", "", "Save", true},
+	}
+
+	for _, tc := range cases {
+		got, ok := FindElement(elems, tc.role, tc.name, tc.action)
+		if ok != tc.wantOK {
+			t.Fatalf("FindElement(%q,%q,%q) ok=%v, want %v", tc.role, tc.name, tc.action, ok, tc.wantOK)
+		}
+		if ok && got.Name != tc.wantName {
+			t.Fatalf("FindElement(%q,%q,%q) name=%q, want %q", tc.role, tc.name, tc.action, got.Name, tc.wantName)
+		}
 	}
 }
 

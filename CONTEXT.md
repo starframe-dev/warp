@@ -3,22 +3,24 @@
 ## Что это
 
 Warp — Go-библиотека (Bubbletea layout engine) для создания TUI с гибким управлением
-пространством: вкладки, сплиты, плавающие панели, flexbox. Пользователь реализует интерфейс
-`Panel`, а warp управляет их расположением.
+пространством: вкладки, сплиты, плавающие панели, flexbox, модальные окна, popover.
+Пользователь реализует интерфейс `Panel`, а warp управляет их расположением.
 
 ## Состояние проекта
 
-**v0.6** — TabGroup как Panel-компонент, tabs внутри splits/flex, 27 тестов.
+**v0.7** — Input component, explicit focus API, Modal, Popover, Element tree, 35 тестов.
 
-## Новое в v0.6
+## Новое в v0.7
 
-- **TabGroup как Panel** — табы больше не глобальны. `TabGroup` реализует `Panel` и может
-  быть вставлен внутри splits, flex layouts, или использован как root panel.
-- **Warp — тонкая обёртка** — `Warp` теперь хранит `root Panel` и делегирует сообщения.
-  `Warp.New()` создаёт root `TabGroup` для обратной совместимости.
-- **Backward-compatible API** — `w.NewTab()`, `w.ActiveTab()`, `w.SetTabPosition()`
-  делегируют root `TabGroup`.
-- **Tab.handleMouse(cw, ch)** — теперь принимает размеры контента явно, не зависит от `Warp`.
+- **Input component** — `NewInput(prompt)` с курсором, backspace, delete, стрелками, home/end
+- **Focus API** — `Focusable` interface, `FocusNext()`, `FocusPrev()`, `FocusFirst()`, `FocusPanel()`
+  Warp **не биндит** Tab/Shift+Tab автоматически — разработчик сам решает
+- **RawKeyReceiver** — интерфейс для PTY/терминалов, которым нужны все клавиши без перехвата
+- **Modal** — `ShowModalMsg`/`CloseModalMsg`, overlay поверх lines, drag, close, buttons
+- **Popover** — контекстное меню с Overlay, HandleMouse, HandleKey
+- **Element tree** — `ElementProvider` интерфейс для семантического UI-дерева (HTTP endpoint)
+- **ContextMenu удалён** — заменён на Popover
+- **35 тестов** (было 27)
 
 ## Демо (`cmd/demo/main.go`)
 
@@ -26,20 +28,17 @@ Warp — Go-библиотека (Bubbletea layout engine) для создани
 go run ./cmd/demo/
 ```
 
-**Tab 1 — «main»**: FlexRow с 4 колонками:
-- `Collapsible("Explorer")` — клик по ▶/▼ сворачивает
-- `Scrollable` — длинный текст с WordWrap + Selectable, колесо мыши для скролла
-- `DropdownMenu("Actions")` — клик открывает список
-- `Collapsible("Terminal")` — ещё один сворачиваемый
-- Float панель — drag за title bar, resize за края, × для закрытия
+**Tab 1 — «main»**: FlexRow с 3 input-полями (Name, Email, Search) + Preview panel.
+Tab/Shift+Tab переключает фокус между input'ами (через custom appRoot).
 
-**Tab 2 — «nested»**: Вложенные табы (Warp внутри сплита)
+**Tab 2 — «local-tabs»**: Local TabGroup(TabLeft) внутри FlexRow + Scrollable с Selectable.
 
-**Tab 3 — «columns»**: FlexColumn с collapsible
+**Tab 3 — «columns»**: FlexColumn с Collapsible + float.
 
-**Tab 4 — «splits»**: Классические split-панели
+**Tab 4 — «splits»**: Split-панели + float.
 
-**Горячие клавиши**:
+**Горячие клавиши** (определяет разработчик, не warp):
+- `Tab` / `Shift+Tab` — переключение фокуса (в demo)
 - `Ctrl+T` — новый таб
 - `Ctrl+W` — закрыть таб
 - `Ctrl+Tab` / `Ctrl+Shift+Tab` — следующий/предыдущий таб
@@ -47,43 +46,44 @@ go run ./cmd/demo/
 
 ## Модуль и зависимости
 
-- **Модуль:** `github.com/starframe-dev/warp` (renamed from `github.com/Starframe/warp`)
+- **Модуль:** `github.com/starframe-dev/warp`
 - **Директория:** `/Users/a/Space/Projects/Starframe/warp`
 - **Go:** 1.22+
-- **Зависимости:** `bubbletea v1.1.0`, `lipgloss v0.13.0`
-- **Тесты:** 27 тестов проходят, `go vet` чист.
+- **Зависимости:** `bubbletea v1.1.0`, `lipgloss v0.13.0`, `charmbracelet/x/ansi`, `rivo/uniseg`
+- **Тесты:** 35 тестов проходят, `go vet` чист.
 - **Git:** `https://github.com/starframe-dev/warp.git`, ветка `main`
 
 ## Архитектура
 
 ```
-warp.go       — tea.Model, тонкая обёртка вокруг root Panel
-tabgroup.go   — TabGroup: Panel с таб-баром, переключением табов, keyboard/mouse
-tab.go        — Tab: дерево splits, float-панели, фокус, mouse handling, рендеринг контента
-panel.go      — интерфейс Panel{View(w,h) string; Update(Msg) Cmd} + BasePanel
-split.go      — Node, SplitConfig, Direction (Vertical/Horizontal), MinPanelSize=3
-render.go     — renderNode (рекурсивный), findBorders (для drag hit-test), padContent
-float.go      — FloatPane: рендеринг рамки, перемещение, ресайз, overlayFloat
-styles.go     — lipgloss-стили для таб-бара, границ сплитов, float-рамок (Gruvbox Dark)
-collapsible.go — Collapsible Panel с заголовком и toggle
-scrollable.go  — Scrollable Panel с viewport и mouse wheel
-dropdown.go    — DropdownMenu Panel с кнопкой и раскрывающимся списком
-contextmenu.go — ContextMenu float Panel
-selectable.go  — Selectable Panel с text selection (mouse drag, Shift+arrows, Ctrl+A)
-wrap.go        — WordWrap, SpaceWrap утилиты для переноса текста
+warp.go         — tea.Model, тонкая обёртка вокруг root Panel
+tabgroup.go     — TabGroup: Panel с таб-баром, переключением табов, keyboard/mouse
+tab.go          — Tab: дерево splits/flex, float-панели, фокус, mouse handling, рендеринг
+panel.go        — интерфейс Panel{View(w,h) string; Update(Msg) Cmd}
+split.go        — Node, SplitConfig, FlexConfig, Direction, MinPanelSize=3
+render.go       — renderNode (рекурсивный), findBorders, padContent, computeFlexSizes
+float.go        — FloatPane: рамка, drag, resize, overlayFloat, StripANSI, CloseOnOutsideClick
+styles.go       — lipgloss-стили (Gruvbox Dark)
+collapsible.go  — Collapsible Panel с заголовком и toggle
+scrollable.go   — Scrollable Panel с viewport и mouse wheel
+dropdown.go     — DropdownMenu Panel с кнопкой и раскрывающимся списком
+selectable.go   — Selectable Panel с text selection (mouse drag, Shift+arrows, Ctrl+A, OSC 52)
+wrap.go         — WordWrap, SpaceWrap утилиты для переноса текста
+modal.go        — Modal dialog с overlay, drag, close, buttons
+popover.go      — Popover контекстное меню с Overlay, HandleMouse, HandleKey
+element.go      — Element, Bounds, ElementProvider для семантического UI-дерева
+focus.go        — Focusable interface, collectFocusables, RawKeyReceiver
+input.go        — Input Panel с курсором, backspace, delete, стрелками
+drag.go         — заглушка (drag-логика в tab.go)
 ```
 
 ### Дерево панелей
-
-Панели внутри Tab организованы в бинарное дерево:
 
 ```go
 Node { Panel Panel | Split *SplitConfig | Flex *FlexConfig }
 SplitConfig { Direction, Fraction, First *Node, Second *Node, Dragging bool }
 FlexConfig  { Direction, Items []FlexItem }
 ```
-
-Корень — всегда листовой узел с `emptyPanel` (если пользователь ничего не добавил).
 
 ### TabGroup как Panel
 
@@ -92,30 +92,58 @@ FlexConfig  { Direction, Items []FlexItem }
 w := warp.New()  // root = TabGroup с 1 табом
 
 // Табы как компонент внутри flex
-tg := warp.NewTabGroup(warp.TabTop)
+tg := warp.NewTabGroup(warp.TabLeft)
 tg.NewTab("code")
 tg.NewTab("debug")
-flex.Add(tg, 1)  // ← tabs inside flex!
+tab.FlexRow(root, []warp.FlexItemSpec{
+    {Panel: tg, Grow: 2},  // ← TabGroup внутри flex!
+})
 
 // Warp вообще без табов
 w := warp.New()
 w.SetRoot(myCustomPanel)
 ```
 
-### Рендеринг
-
-- **Split** — рекурсивный: leaf → `panel.View(w, h)`, split → рендерим детей, склеиваем с границей `│`/`─`.
-- **Flex** — распределение Grow-весов, drag resize через пересчёт Grow.
-- **Float** — рендерятся поверх через `overlayFloat` — ANSI-aware наложение с `StripANSI()` и CSI-aware позиционированием.
-- **Collapsible** — basis=1 когда Collapsed, иначе Grow.
-
-### TabPosition
+### Focus API
 
 ```go
-TabTop    — таб-бар сверху (1 строка), контент снизу
-TabBottom — таб-бар снизу (1 строка), контент сверху
-TabLeft   — таб-бар слева (вертикальный), контент справа
-TabRight  — таб-бар справа (вертикальный), контент слева
+// Разработчик сам решает, какие клавиши биндить:
+tab.FocusNext()      // следующая focusable панель
+tab.FocusPrev()      // предыдущая
+tab.FocusFirst()     // первая
+tab.FocusPanel(p)    // конкретная панель
+
+// Focusable interface
+type Focusable interface {
+    Panel
+    Focus()
+    Blur()
+    Focused() bool
+}
+```
+
+### Modal / Popover
+
+```go
+// Modal — через сообщения
+warp.ShowModalMsg{Title: "Confirm", Content: "Delete?", Buttons: [...]}
+
+// Popover — контекстное меню
+pop := &warp.Popover{
+    Items:   []warp.PopoverItem{{Name: "Copy", Action: ...}},
+    X:       x, Y: y,
+    OnClose: func() { ... },
+}
+lines = pop.Overlay(lines, totalW, totalH)
+```
+
+### Element tree
+
+```go
+type ElementProvider interface {
+    Elements(width, height int) []Element
+}
+// HTTP endpoint /elements возвращает JSON-дерево UI-элементов
 ```
 
 ## API
@@ -128,43 +156,42 @@ w.SetTabPosition(warp.TabBottom)
 // Layouts
 tab.SplitVertical(parent, 0.5, newPanel)
 tab.SplitHorizontal(parent, 0.5, newPanel)
-tab.FlexRow(parent, []warp.FlexItemSpec{{Panel: p1, Grow: 1}, {Panel: p2, Grow: 2}})
+tab.FlexRow(parent, []warp.FlexItemSpec{{Panel: p1, Grow: 1}, ...})
 tab.Float(panel, x, y, w, h)
 
-// Collapsible panels
+// Collapsible
 col := warp.NewCollapsible("Title", panel)
-tab.FlexRow(parent, []warp.FlexItemSpec{{Panel: col, Grow: 1}})
 tab.ToggleCollapsible(col)
 
-// Scrollable content
-scroll := warp.NewScrollable(panel) // mouse wheel / pgup/pgdown
+// Scrollable
+scroll := warp.NewScrollable(panel)
 
-// Dropdown menu
-dd := warp.NewDropdownMenu("Menu", []warp.DropdownItem{
-    {Label: "Item 1"}, {Label: "Item 2"},
-})
-dd.OnSelect = func(idx int) { /* ... */ }
+// Dropdown
+dd := warp.NewDropdownMenu("Menu", []warp.DropdownItem{...})
+dd.OnSelect = func(idx int) { ... }
 
-// Context menu (right-click)
-items := []warp.ContextMenuItem{
-    {Label: "Copy", Shortcut: "Ctrl+C", Action: func() { /* ... */ }},
-}
-fp := tab.ShowContextMenu(items, x, y)
+// Input
+in := warp.NewInput("Name: ")
+in.Focus()
+in.SetValue("hello")
 
-// Text selection
+// Selectable
 sel := warp.NewSelectable(panel)
-selected := sel.SelectedText()
-sel.ClearSelection()
-sel.SelectAll(w, h)
+sel.SelectedText()
+sel.Copy()  // OSC 52 clipboard
+
+// Focus
+tab.FocusNext()
+tab.FocusPrev()
+tab.FocusFirst()
+tab.FocusPanel(panel)
 
 // Word wrap
-lines := warp.WordWrap(text, 40)      // break at word boundaries
-lines := warp.SpaceWrap(text, 40)     // break at spaces only
-wrapped := warp.WrapToString(text, 40, false)
+lines := warp.WordWrap(text, 40)
+lines := warp.SpaceWrap(text, 40)
 
 // Nested warps
 inner := warp.New()
-inner.NewTab("inner")
 tab.SplitVertical(tab.RootPanel(), 0.5, inner.AsPanel())
 
 w.Run()
@@ -172,48 +199,49 @@ w.Run()
 
 ## Что не доделано / Ideas
 
-- **Стилизация** — цвета захардкожены в styles.go, нет публичного API для кастомизации.
-  lipgloss v0.13 требует `CLICOLOR_FORCE=1` для выдачи ANSI в не-TTY окружении.
+- **Стилизация** — цвета захардкожены в styles.go, нет публичного API для кастомизации
 - **Анимации** — нет (drag без анимации, переключение табов мгновенное)
 - **Nested float** — float внутри float не поддерживается
-- **Tab-close confirmation** — Ctrl+W закрывает без подтверждения
-- **Context menu закрытие по клику вне** — нужно добавить глобальный mouse handler
-- **OSC 52 clipboard** — копирование выделенного текста в системный clipboard
+- **List / Table** — нет компонентов для списков и таблиц
+- **Textarea** — нет многострочного ввода
+- **Subscriptions** — нет таймеров, Spinner, Progress
+- **Layout constraints** — нет padding, gap, align, justify как в CSS
+- **Help overlay** — нет встроенного help с key bindings
+- **HTTP element tree** — ElementProvider есть, но HTTP сервер не реализован в warp
 
 ## Changelog
+
+### v0.7
+- **Input** — `NewInput(prompt)` с курсором, backspace, delete, стрелками
+- **Focus API** — `Focusable`, `FocusNext()`, `FocusPrev()`, `FocusFirst()`, `FocusPanel()`
+- **RawKeyReceiver** — для PTY/терминалов
+- **Modal** — `ShowModalMsg`/`CloseModalMsg`, overlay, drag, close, buttons
+- **Popover** — контекстное меню с Overlay, HandleMouse, HandleKey
+- **Element tree** — `ElementProvider`, `Element`, `Bounds`
+- **ContextMenu удалён** — заменён на Popover
+- **Float close-on-outside-click** — `CloseOnOutsideClick`
+- **OSC 52 clipboard** — `Selectable.Copy()`
+- **35 тестов**
 
 ### v0.6
 - **TabGroup как Panel** — табы внутри splits/flex, Warp — thin wrapper
 - **Backward-compatible API** — `w.NewTab()`, `w.ActiveTab()` делегируют root TabGroup
 
-### v0.5.1
-- **ANSI isolation** — каждая строка панели завершается `ESC[0m`, границы сплитов обёрнуты в reset, чтобы цвета/стили не «утекали» в соседние панели. `padContent` теперь использует `ansi.StringWidth`/`ansi.Truncate` для согласования с Bubble Tea renderer.
-
 ### v0.5
-- **Табы не прыгают** — фиксированная ширина вкладок
-- **Scrollable** — `NewScrollable(panel)` с mouse wheel, pgup/pgdown
-- **DropdownMenu** — `NewDropdownMenu(label, items)` с кнопкой ▼
-- **ContextMenu** — `Tab.ShowContextMenu(items, x, y)`
-- **WordWrap / SpaceWrap** — корректный перенос через `lipgloss.Width()`
-- **Collapsible panels** — `NewCollapsible(title, panel)`
-- **Flexbox** — `FlexRow()` / `FlexColumn()` с `FlexItemSpec{Panel, Grow}`
-- **Gruvbox Dark тема**
-- **Вложенные табы** — `Warp.AsPanel()`
-- **WindowSizeMsg** — broadcast всем панелям
-- **Float overlay fix** — ANSI-aware, не удлиняет строки
-- **ANSI isolation** — `padContent` добавляет `ESC[0m` в конец каждой строки; границы сплитов обёрнуты reset, чтобы стили панелей не «утекали» в соседние панели/borders
-- **Float close button (×)** — детект клика, CloseRequested
-- **24→27 тестов**
+- Табы не прыгают, Scrollable, DropdownMenu, ContextMenu, WordWrap, Collapsible, Flexbox
+- Gruvbox Dark, вложенные табы, WindowSizeMsg broadcast
+- Float overlay fix, ANSI isolation, float close button
+- 24→27 тестов
 
 ## Правила кода
 
 - Не использовать `os.Exit()` — только `tea.Quit`
 - Не добавлять свои `signal.Notify` — Bubbletea сам обрабатывает SIGINT
-- Не shadow'ить receiver `w *Warp` в методах
 - Минимальный размер панели: `MinPanelSize = 3`
 - Fraction всегда через `clampFraction(0.1–0.9)`
 - Файлы завершаются переносом строки
 - Комментарии только на английском
+- Warp не биндит Tab/Shift+Tab — фокус управляется разработчиком
 
 ## Как запустить тесты
 
