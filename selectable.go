@@ -23,6 +23,11 @@ type Selectable struct {
 
 	HasSelection bool
 	Selecting    bool // true during active mouse drag
+
+	// Last rendered dimensions and content lines, used to extract selected
+	// text that matches exactly what is currently visible.
+	lastW, lastH int
+	lastLines    []string
 }
 
 // NewSelectable creates a new selectable wrapper.
@@ -36,10 +41,21 @@ func (s *Selectable) SelectedText() string {
 		return ""
 	}
 
-	// Render content at a large size to get full text, then extract selection.
-	// This is a simplified approach — for large content use scrollable.
-	content := s.Content.View(9999, 9999)
-	lines := strings.Split(content, "\n")
+	// Use the same rendered lines as in View so that coordinates match exactly.
+	lines := s.lastLines
+	if len(lines) == 0 {
+		// View hasn't been called yet (e.g. in unit tests). Fall back to a
+		// large render so that selection bounds still map to content lines.
+		w, h := s.lastW, s.lastH
+		if w <= 0 {
+			w = 9999
+		}
+		if h <= 0 {
+			h = 9999
+		}
+		content := s.Content.View(w, h)
+		lines = strings.Split(content, "\n")
+	}
 
 	sx, sy, ex, ey := s.sortedBounds()
 	var parts []string
@@ -102,7 +118,48 @@ func (s *Selectable) View(w, h int) string {
 		return strings.Repeat("\n", h)
 	}
 
+	// Get content first and remember the rendered lines so SelectedText can
+	// extract text using the exact same coordinate system.
 	content := s.Content.View(w, h)
+	s.lastW = w
+	s.lastH = h
+	s.lastLines = strings.Split(content, "\n")
+
+	// Clamp selection to panel bounds. Only clamp the cursor end; the anchor
+	// must stay where the user originally pressed so reverse-direction drag
+	// continues to work correctly.
+	if s.HasSelection || s.Selecting {
+		if s.AnchorX < 0 {
+			s.AnchorX = 0
+		}
+		if s.AnchorX >= w {
+			s.AnchorX = w - 1
+		}
+		if s.AnchorY < 0 {
+			s.AnchorY = 0
+		}
+		if s.AnchorY >= h {
+			s.AnchorY = h - 1
+		}
+		if s.CursorX < 0 {
+			s.CursorX = 0
+		}
+		if s.CursorX >= w {
+			s.CursorX = w - 1
+		}
+		if s.CursorY < 0 {
+			s.CursorY = 0
+		}
+		if s.CursorY >= h {
+			s.CursorY = h - 1
+		}
+		if s.CursorX == s.AnchorX && s.CursorY == s.AnchorY {
+			if !s.Selecting {
+				s.HasSelection = false
+			}
+		}
+	}
+
 	if !s.HasSelection {
 		return content
 	}
@@ -132,6 +189,11 @@ func (s *Selectable) View(w, h int) string {
 // Update handles mouse and keyboard for selection.
 func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
+	case ResizeMsg:
+		if s.Content != nil {
+			return s.Content.Update(msg)
+		}
+		return nil
 	case tea.MouseMsg:
 		switch msg.Button {
 		case tea.MouseButtonLeft:
@@ -164,8 +226,10 @@ func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 		key := msg.String()
 		handled := false
 
-		// Selection keys — shift-modified arrows
-		if strings.HasPrefix(key, "shift+") {
+		// Selection keys — shift-modified arrows. Shift+Tab is intentionally
+		// excluded and proxied to the wrapped panel (terminal) so TUI apps
+		// inside the PTY receive it.
+		if strings.HasPrefix(key, "shift+") && key != "shift+tab" {
 			switch key {
 			case "shift+up":
 				if s.CursorY > 0 {
@@ -193,12 +257,15 @@ func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 		if !handled {
 			switch key {
 			case "ctrl+a":
-				s.SelectAll(9999, 9999)
-				handled = true
-			case "ctrl+c":
-				if s.HasSelection {
-					return s.Copy()
+				w, h := s.lastW, s.lastH
+				if w <= 0 {
+					w = 80
 				}
+				if h <= 0 {
+					h = 24
+				}
+				s.SelectAll(w, h)
+				handled = true
 			case "esc":
 				if s.HasSelection {
 					s.ClearSelection()
@@ -264,30 +331,9 @@ func highlightRange(line string, startX, endX int) string {
 		return line
 	}
 
-	// Fast path: no ANSI in the line
-	if !strings.Contains(line, "\x1b") {
-		if startX <= 0 && endX >= len(line) {
-			return selectionStyleANSI + line + resetStyle
-		}
-		if startX >= len(line) {
-			return line
-		}
-		before := ""
-		if startX > 0 {
-			before = line[:startX]
-		}
-		selected := line[startX:]
-		if endX < len(line) {
-			selected = line[startX:endX]
-		}
-		after := ""
-		if endX < len(line) {
-			after = line[endX:]
-		}
-		return before + selectionStyleANSI + selected + resetStyle + after
-	}
-
-	// ANSI-aware path: walk through the line, tracking visual position.
+	// Walk through the line tracking visual rune position so that Unicode and
+	// ANSI sequences are handled correctly. The fast byte-index path is skipped
+	// because terminal lines may contain multi-byte UTF-8 runes.
 	var result strings.Builder
 	result.Grow(len(line) + 20)
 

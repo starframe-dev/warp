@@ -116,6 +116,8 @@ func (tg *TabGroup) contentOffset() (int, int) {
 		return tg.verticalTabWidth, 0
 	case TabRight:
 		return 0, 0
+	case TabNone:
+		return 0, 0
 	}
 	return 0, 0
 }
@@ -153,9 +155,43 @@ func (tg *TabGroup) View(w, h int) string {
 		content := tab.renderContent(cw, ch)
 		tabBar := tg.renderTabBar(tg.verticalTabWidth)
 		return lipgloss.JoinHorizontal(lipgloss.Top, content, tabBar)
+
+	case TabNone:
+		return tab.renderContent(cw, ch)
 	}
 
 	return ""
+}
+
+// Elements implements ElementProvider. It returns the active tab's elements
+// offset by the tab bar position, if any.
+func (tg *TabGroup) Elements(w, h int) []Element {
+	tg.width = w
+	tg.height = h
+
+	tab := tg.ActiveTab()
+	if tab == nil {
+		return nil
+	}
+
+	cw := tg.contentWidth(w)
+	ch := tg.contentHeight(h)
+	offX, offY := tg.contentOffset()
+	elems := collectElements(tab, cw, ch)
+	for i := range elems {
+		elems[i].Bounds.X += offX
+		elems[i].Bounds.Y += offY
+		shiftElements(elems[i].Children, offX, offY)
+	}
+	return elems
+}
+
+func shiftElements(elems []Element, dx, dy int) {
+	for i := range elems {
+		elems[i].Bounds.X += dx
+		elems[i].Bounds.Y += dy
+		shiftElements(elems[i].Children, dx, dy)
+	}
 }
 
 // Update handles keys, mouse, and window resize for the tab group.
@@ -170,22 +206,38 @@ func (tg *TabGroup) Update(msg tea.Msg) tea.Cmd {
 		tg.height = msg.Height
 		var cmds []tea.Cmd
 		for _, tab := range tg.tabs {
-			cmds = append(cmds, tab.broadcastMsg(msg)...)
+			if cmd := tab.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return tea.Batch(cmds...)
+	case ResizeMsg:
+		// Forward ResizeMsg to tabs so they can broadcast to child panels
+		// with correct allocated sizes (via broadcastResize).
+		tg.width = msg.Width
+		tg.height = msg.Height
+		var cmds []tea.Cmd
+		for _, tab := range tg.tabs {
+			if cmd := tab.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 		return tea.Batch(cmds...)
 	}
-	// Forward to active tab's focused panel
-	if tab := tg.ActiveTab(); tab != nil && tab.focused != nil {
-		return tab.focused.Update(msg)
+	// Broadcast unknown messages (PtyReadyMsg, PtyOutputMsg, etc.)
+	// to all panels so emulators can receive them.
+	var cmds []tea.Cmd
+	for _, tab := range tg.tabs {
+		cmds = append(cmds, tab.broadcastMsg(msg)...)
 	}
-	return nil
+	return tea.Batch(cmds...)
 }
 
 func (tg *TabGroup) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 	keyStr := msg.String()
 
 	switch keyStr {
-	case "ctrl+c", "q":
+	case "ctrl+c":
 		return tea.Quit
 	case "ctrl+tab":
 		tg.NextTab()
@@ -231,6 +283,8 @@ func (tg *TabGroup) isOnTabBar(x, y int) bool {
 		return x < tg.verticalTabWidth
 	case TabRight:
 		return x >= tg.width-tg.verticalTabWidth
+	case TabNone:
+		return false
 	}
 	return false
 }

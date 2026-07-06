@@ -47,12 +47,12 @@ go run ./cmd/demo/
 
 ## Модуль и зависимости
 
-- **Модуль:** `github.com/starframe-dev/wrap` (renamed from `github.com/Starframe/warp`)
+- **Модуль:** `github.com/starframe-dev/warp` (renamed from `github.com/Starframe/warp`)
 - **Директория:** `/Users/a/Space/Projects/Starframe/warp`
 - **Go:** 1.22+
 - **Зависимости:** `bubbletea v1.1.0`, `lipgloss v0.13.0`
 - **Тесты:** 27 тестов проходят, `go vet` чист.
-- **Git:** `https://github.com/starframe-dev/wrap.git`, ветка `main`
+- **Git:** `https://github.com/starframe-dev/warp.git`, ветка `main`
 
 ## Архитектура
 
@@ -186,6 +186,9 @@ w.Run()
 - **TabGroup как Panel** — табы внутри splits/flex, Warp — thin wrapper
 - **Backward-compatible API** — `w.NewTab()`, `w.ActiveTab()` делегируют root TabGroup
 
+### v0.5.1
+- **ANSI isolation** — каждая строка панели завершается `ESC[0m`, границы сплитов обёрнуты в reset, чтобы цвета/стили не «утекали» в соседние панели. `padContent` теперь использует `ansi.StringWidth`/`ansi.Truncate` для согласования с Bubble Tea renderer.
+
 ### v0.5
 - **Табы не прыгают** — фиксированная ширина вкладок
 - **Scrollable** — `NewScrollable(panel)` с mouse wheel, pgup/pgdown
@@ -198,6 +201,7 @@ w.Run()
 - **Вложенные табы** — `Warp.AsPanel()`
 - **WindowSizeMsg** — broadcast всем панелям
 - **Float overlay fix** — ANSI-aware, не удлиняет строки
+- **ANSI isolation** — `padContent` добавляет `ESC[0m` в конец каждой строки; границы сплитов обёрнуты reset, чтобы стили панелей не «утекали» в соседние панели/borders
 - **Float close button (×)** — детект клика, CloseRequested
 - **24→27 тестов**
 

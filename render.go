@@ -3,7 +3,7 @@ package warp
 import (
     "strings"
 
-    "github.com/charmbracelet/lipgloss"
+    "github.com/charmbracelet/x/ansi"
 )
 
 // renderNode renders a node tree into lines of the given dimensions.
@@ -35,23 +35,21 @@ func renderNode(node *Node, w, h int) []string {
 func renderVerticalSplit(split *SplitConfig, w, h int) []string {
     borderW := 1
     availW := w - borderW
-    firstW := int(float64(availW) * split.Fraction)
-    if firstW < MinPanelSize {
-        firstW = MinPanelSize
-    }
-    secondW := availW - firstW
-    if secondW < MinPanelSize {
-        secondW = MinPanelSize
-        firstW = availW - secondW
-    }
+    firstW, secondW := computeSplitSizes(availW, split.Fraction, split.First.IsCollapsed(), split.Second.IsCollapsed(), split.First.CollapsedSize(Vertical), split.Second.CollapsedSize(Vertical))
 
     firstLines := renderNode(split.First, firstW, h)
     secondLines := renderNode(split.Second, secondW, h)
+
+    // When one side is collapsed, omit the border so the collapsed panel
+    // sits flush against the expanded panel.
+    noBorder := split.First.IsCollapsed() || split.Second.IsCollapsed()
 
     borderChar := borderStyle.Render("│")
     if split.Dragging {
         borderChar = borderDragStyle.Render("│")
     }
+    // Isolate the border from panel styles on either side.
+    borderChar = ansi.ResetStyle + borderChar + ansi.ResetStyle
 
     result := make([]string, h)
     for y := 0; y < h; y++ {
@@ -63,7 +61,11 @@ func renderVerticalSplit(split *SplitConfig, w, h int) []string {
         if y < len(secondLines) {
             right = secondLines[y]
         }
-        result[y] = left + borderChar + right
+        if noBorder {
+            result[y] = left + right
+        } else {
+            result[y] = left + borderChar + right
+        }
     }
     return result
 }
@@ -71,27 +73,26 @@ func renderVerticalSplit(split *SplitConfig, w, h int) []string {
 func renderHorizontalSplit(split *SplitConfig, w, h int) []string {
     borderH := 1
     availH := h - borderH
-    firstH := int(float64(availH) * split.Fraction)
-    if firstH < MinPanelSize {
-        firstH = MinPanelSize
-    }
-    secondH := availH - firstH
-    if secondH < MinPanelSize {
-        secondH = MinPanelSize
-        firstH = availH - secondH
-    }
+    firstH, secondH := computeSplitSizes(availH, split.Fraction, split.First.IsCollapsed(), split.Second.IsCollapsed(), split.First.CollapsedSize(Horizontal), split.Second.CollapsedSize(Horizontal))
 
     firstLines := renderNode(split.First, w, firstH)
     secondLines := renderNode(split.Second, w, secondH)
+
+    // When one side is collapsed, omit the border.
+    noBorder := split.First.IsCollapsed() || split.Second.IsCollapsed()
 
     borderLine := borderStyle.Render(strings.Repeat("─", w))
     if split.Dragging {
         borderLine = borderDragStyle.Render(strings.Repeat("─", w))
     }
+    // Isolate the border from panel styles above/below.
+    borderLine = ansi.ResetStyle + borderLine + ansi.ResetStyle
 
     result := make([]string, 0, h)
     result = append(result, firstLines...)
-    result = append(result, borderLine)
+    if !noBorder {
+        result = append(result, borderLine)
+    }
     result = append(result, secondLines...)
     return result
 }
@@ -203,6 +204,8 @@ func renderFlexRow(flex *FlexConfig, w, h int, sizes []int) []string {
     if flex.Dragging {
         borderChar = borderDragStyle.Render("│")
     }
+    // Isolate the border from panel styles on either side.
+    borderChar = ansi.ResetStyle + borderChar + ansi.ResetStyle
 
     // Render each item
     itemLines := make([][]string, len(flex.Items))
@@ -214,7 +217,7 @@ func renderFlexRow(flex *FlexConfig, w, h int, sizes []int) []string {
     for y := 0; y < h; y++ {
         var buf strings.Builder
         for i := range flex.Items {
-            if i > 0 {
+            if i > 0 && !flex.Items[i-1].Collapsed && !flex.Items[i].Collapsed {
                 buf.WriteString(borderChar)
             }
             line := ""
@@ -237,6 +240,8 @@ func renderFlexColumn(flex *FlexConfig, w, h int, sizes []int) []string {
     if flex.Dragging {
         borderLine = borderDragStyle.Render(strings.Repeat("─", w))
     }
+    // Isolate the border from panel styles above/below.
+    borderLine = ansi.ResetStyle + borderLine + ansi.ResetStyle
 
     // Render each item
     itemLines := make([][]string, len(flex.Items))
@@ -246,7 +251,7 @@ func renderFlexColumn(flex *FlexConfig, w, h int, sizes []int) []string {
 
     result := make([]string, 0, h)
     for i := range flex.Items {
-        if i > 0 {
+        if i > 0 && !flex.Items[i-1].Collapsed && !flex.Items[i].Collapsed {
             result = append(result, borderLine)
         }
         result = append(result, itemLines[i]...)
@@ -255,8 +260,15 @@ func renderFlexColumn(flex *FlexConfig, w, h int, sizes []int) []string {
 }
 
 // padContent ensures content has exactly w×h dimensions.
-// Truncates by visual width (not bytes) to avoid breaking UTF-8 or ANSI sequences.
+// Truncates by visual width (not bytes) to avoid breaking UTF-8 or ANSI
+// sequences. The width is measured with ansi.StringWidth to match Bubble Tea's
+// renderer and avoid a mismatch with lipgloss.Width on true-color SGR.
+// Each returned line ends with an ANSI reset so styles from one panel do not
+// leak into adjacent panels or borders.
 func padContent(content string, w, h int) []string {
+    if w <= 0 || h <= 0 {
+        return makeEmptyLines(w, h)
+    }
     lines := strings.Split(content, "\n")
     result := make([]string, h)
 
@@ -265,54 +277,60 @@ func padContent(content string, w, h int) []string {
         if y < len(lines) {
             line = lines[y]
         }
-        lineW := lipgloss.Width(line)
+        line = ansi.Truncate(line, w, "")
+        lineW := ansi.StringWidth(line)
         if lineW < w {
             line += strings.Repeat(" ", w-lineW)
-        } else if lineW > w {
-            line = truncateVisual(line, w)
         }
-        result[y] = line
+        // Reset styles at end of line so they cannot leak into neighbors.
+        result[y] = line + ansi.ResetStyle
     }
     return result
 }
 
-// truncateVisual truncates a string to at most w visual columns.
-// It never breaks UTF-8 runes or ANSI escape sequences.
-func truncateVisual(s string, w int) string {
-    if w <= 0 {
-        return ""
+// computeSplitSizes calculates first/second sizes for a split.
+// If a child is collapsed, it uses its fixed collapsed size.
+func computeSplitSizes(avail int, fraction float64, firstCollapsed, secondCollapsed bool, firstSize, secondSize int) (first, second int) {
+    if firstCollapsed {
+        first = firstSize
+        if first <= 0 {
+            first = 1
+        }
+        second = avail - first
+        if second < MinPanelSize {
+            second = MinPanelSize
+            first = avail - second
+        }
+        return first, second
     }
-    var buf strings.Builder
-    vis := 0
-    inEsc := false
-    for i := 0; i < len(s); i++ {
-        b := s[i]
-        if inEsc {
-            buf.WriteByte(b)
-            if b >= 0x40 && b <= 0x7E {
-                inEsc = false
-            }
-            continue
+    if secondCollapsed {
+        second = secondSize
+        if second <= 0 {
+            second = 1
         }
-        if b == '\x1b' {
-            buf.WriteByte(b)
-            inEsc = true
-            continue
+        first = avail - second
+        if first < MinPanelSize {
+            first = MinPanelSize
+            second = avail - first
         }
-        if vis >= w {
-            break
-        }
-        buf.WriteByte(b)
-        // UTF-8 lead byte check: if high bit is set, this is a multi-byte rune.
-        // We count it as one visual column regardless of byte length.
-        if b < 0x80 || (b&0xC0) != 0x80 {
-            vis++
-        }
+        return first, second
     }
-    return buf.String()
+    first = int(float64(avail) * fraction)
+    if first < MinPanelSize {
+        first = MinPanelSize
+    }
+    second = avail - first
+    if second < MinPanelSize {
+        second = MinPanelSize
+        first = avail - second
+    }
+    return first, second
 }
 
 func makeEmptyLines(w, h int) []string {
+    if w <= 0 || h <= 0 {
+        return nil
+    }
     lines := make([]string, h)
     empty := strings.Repeat(" ", w)
     for i := range lines {
@@ -344,46 +362,36 @@ func findBorders(node *Node, x, y, w, h int) []BorderHit {
         case Vertical:
             borderW := 1
             availW := w - borderW
-            firstW := int(float64(availW) * split.Fraction)
-            if firstW < MinPanelSize {
-                firstW = MinPanelSize
-            }
-            secondW := availW - firstW
-            if secondW < MinPanelSize {
-                secondW = MinPanelSize
-                firstW = availW - secondW
-            }
+            firstW, secondW := computeSplitSizes(availW, split.Fraction, split.First.IsCollapsed(), split.Second.IsCollapsed(), split.First.CollapsedSize(Vertical), split.Second.CollapsedSize(Vertical))
             borderX := x + firstW
-            borders = append(borders, BorderHit{
-                Split:     split,
-                Direction: Vertical,
-                X:         borderX,
-                Y:         y,
-                Length:    h,
-            })
+            // Omit the border when one side is collapsed.
+            if !split.First.IsCollapsed() && !split.Second.IsCollapsed() {
+                borders = append(borders, BorderHit{
+                    Split:     split,
+                    Direction: Vertical,
+                    X:         borderX,
+                    Y:         y,
+                    Length:    h,
+                })
+            }
             borders = append(borders, findBorders(split.First, x, y, firstW, h)...)
             borders = append(borders, findBorders(split.Second, borderX+borderW, y, secondW, h)...)
 
         case Horizontal:
             borderH := 1
             availH := h - borderH
-            firstH := int(float64(availH) * split.Fraction)
-            if firstH < MinPanelSize {
-                firstH = MinPanelSize
-            }
-            secondH := availH - firstH
-            if secondH < MinPanelSize {
-                secondH = MinPanelSize
-                firstH = availH - secondH
-            }
+            firstH, secondH := computeSplitSizes(availH, split.Fraction, split.First.IsCollapsed(), split.Second.IsCollapsed(), split.First.CollapsedSize(Horizontal), split.Second.CollapsedSize(Horizontal))
             borderY := y + firstH
-            borders = append(borders, BorderHit{
-                Split:     split,
-                Direction: Horizontal,
-                X:         x,
-                Y:         borderY,
-                Length:    w,
-            })
+            // Omit the border when one side is collapsed.
+            if !split.First.IsCollapsed() && !split.Second.IsCollapsed() {
+                borders = append(borders, BorderHit{
+                    Split:     split,
+                    Direction: Horizontal,
+                    X:         x,
+                    Y:         borderY,
+                    Length:    w,
+                })
+            }
             borders = append(borders, findBorders(split.First, x, y, w, firstH)...)
             borders = append(borders, findBorders(split.Second, x, borderY+borderH, w, secondH)...)
         }
@@ -412,13 +420,16 @@ func findFlexBorders(flex *FlexConfig, x, y, w, h int) []BorderHit {
         cx := x
         for i := 0; i < len(flex.Items)-1; i++ {
             cx += sizes[i]
-            borders = append(borders, BorderHit{
-                Flex:      flex,
-                Direction: Vertical,
-                X:         cx,
-                Y:         y,
-                Length:    h,
-            })
+            // Omit border when either adjacent item is collapsed.
+            if !flex.Items[i].Collapsed && !flex.Items[i+1].Collapsed {
+                borders = append(borders, BorderHit{
+                    Flex:      flex,
+                    Direction: Vertical,
+                    X:         cx,
+                    Y:         y,
+                    Length:    h,
+                })
+            }
             borders = append(borders, findBorders(flex.Items[i].Node, cx-sizes[i], y, sizes[i], h)...)
             cx += borderSize
         }
@@ -432,13 +443,16 @@ func findFlexBorders(flex *FlexConfig, x, y, w, h int) []BorderHit {
         cy := y
         for i := 0; i < len(flex.Items)-1; i++ {
             cy += sizes[i]
-            borders = append(borders, BorderHit{
-                Flex:      flex,
-                Direction: Horizontal,
-                X:         x,
-                Y:         cy,
-                Length:    w,
-            })
+            // Omit border when either adjacent item is collapsed.
+            if !flex.Items[i].Collapsed && !flex.Items[i+1].Collapsed {
+                borders = append(borders, BorderHit{
+                    Flex:      flex,
+                    Direction: Horizontal,
+                    X:         x,
+                    Y:         cy,
+                    Length:    w,
+                })
+            }
             borders = append(borders, findBorders(flex.Items[i].Node, x, cy-sizes[i], w, sizes[i])...)
             cy += borderSize
         }

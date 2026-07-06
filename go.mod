@@ -1,4 +1,4 @@
-module github.com/starframe-dev/wrap
+module github.com/starframe-dev/warp
 
 go 1.22
 

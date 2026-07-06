@@ -15,6 +15,7 @@ var (
 	gbRed    = lipgloss.Color("#fb4934")
 	gbGreen  = lipgloss.Color("#b8bb26")
 	gbYellow = lipgloss.Color("#fabd2f")
+	gbBlue   = lipgloss.Color("#83a598")
 )
 
 // Tab bar colors
@@ -33,6 +34,15 @@ var (
 	borderDragColor  = gbYellow
 	borderHoverColor = gbDark3
 )
+
+// BorderStyle returns the style used for normal split borders.
+func BorderStyle() lipgloss.Style { return borderStyle }
+
+// BorderDragStyle returns the style used while dragging a split border.
+func BorderDragStyle() lipgloss.Style { return borderDragStyle }
+
+// BorderHoverStyle returns the style used when the mouse hovers a split border.
+func BorderHoverStyle() lipgloss.Style { return borderHoverStyle }
 
 // Float pane colors
 var (
@@ -124,16 +134,4 @@ var (
             Bold(true)
 )
 
-// Context menu styles
-var (
-    contextMenuBorderStyle = lipgloss.NewStyle().
-            Foreground(gbDark4)
-
-    contextMenuItemStyle = lipgloss.NewStyle().
-            Background(gbDark1).
-            Foreground(gbLight1)
-
-    contextMenuItemHoverStyle = lipgloss.NewStyle().
-            Background(gbDark2).
-            Foreground(gbYellow)
-)
+// Popover styles in popover.go

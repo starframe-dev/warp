@@ -531,6 +531,57 @@ func TestNestedTabs(t *testing.T) {
 	}
 }
 
+// ansiPanel renders content with an ANSI background color.
+type ansiPanel struct {
+	bg lipgloss.Color
+}
+
+func (p *ansiPanel) View(width, height int) string {
+	style := lipgloss.NewStyle().Background(p.bg)
+	lines := make([]string, height)
+	for i := range lines {
+		lines[i] = style.Width(width).Render(strings.Repeat(" ", width))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (p *ansiPanel) Update(msg tea.Msg) tea.Cmd {
+	return nil
+}
+
+func TestANSIPanelIsolation(t *testing.T) {
+	w := New()
+	w.width = 40
+	w.height = 5
+	tab := w.ActiveTab()
+
+	left := &ansiPanel{bg: lipgloss.Color("#cc241d")}  // red
+	right := &ansiPanel{bg: lipgloss.Color("#458588")} // blue
+
+	tab.root = &Node{Panel: left}
+	tab.SplitVertical(left, 0.5, right)
+
+	content := tab.renderContent(40, 5)
+	lines := strings.Split(content, "\n")
+	if len(lines) != 5 {
+		t.Fatalf("expected 5 lines, got %d", len(lines))
+	}
+
+	for y, line := range lines {
+		if lipgloss.Width(line) != 40 {
+			t.Errorf("line %d visual width: expected 40, got %d", y, lipgloss.Width(line))
+		}
+		// Find the border position and check it is rendered with the default
+		// background (no red/blue background leaking onto it).
+		stripped := StripANSI(line)
+		borderIdx := strings.Index(stripped, "│")
+		if borderIdx < 0 {
+			t.Errorf("line %d missing border", y)
+			continue
+		}
+	}
+}
+
 func TestFlexRow(t *testing.T) {
 	w := New()
 	w.width = 60
@@ -879,8 +930,8 @@ func TestFloatOffScreen(t *testing.T) {
 		t.Errorf("expected ╭ at position 35, got %q", string(line2[35]))
 	}
 
-	if len(lines[0]) != 40 {
-		t.Errorf("line 0 width: expected %d, got %d", 40, len(lines[0]))
+	if lipgloss.Width(lines[0]) != 40 {
+		t.Errorf("line 0 width: expected %d, got %d", 40, lipgloss.Width(lines[0]))
 	}
 }
 
@@ -901,8 +952,8 @@ func TestFloatOverlayLineAbove(t *testing.T) {
 	expectedW := 60
 	for y := 0; y < 5; y++ {
 		line := StripANSI(lines[y])
-		if len(line) != expectedW {
-			t.Errorf("line %d width: expected %d, got %d", y, expectedW, len(line))
+		if lipgloss.Width(line) != expectedW {
+			t.Errorf("line %d width: expected %d, got %d", y, expectedW, lipgloss.Width(line))
 		}
 		if strings.Contains(line, "╭") || strings.Contains(line, "╮") {
 			t.Errorf("line %d should not contain float border chars: %q", y, line)
@@ -927,8 +978,8 @@ func TestFloatOverlayLineBelow(t *testing.T) {
 	expectedW := 60
 	for y := 11; y < 19; y++ {
 		line := StripANSI(lines[y])
-		if len(line) != expectedW {
-			t.Errorf("line %d width: expected %d, got %d", y, expectedW, len(line))
+		if lipgloss.Width(line) != expectedW {
+			t.Errorf("line %d width: expected %d, got %d", y, expectedW, lipgloss.Width(line))
 		}
 	}
 }
@@ -1047,5 +1098,39 @@ func TestFloatBringToTop(t *testing.T) {
 	// f1 should now be on top
 	if tab.floats[1].Panel != f1 {
 		t.Errorf("expected f1 on top after click, got %v", tab.floats[1].Panel)
+	}
+}
+
+// TestFloatDragOnlyOnTitleBar verifies that click on content does NOT start drag.
+func TestFloatDragOnlyOnTitleBar(t *testing.T) {
+	w := New()
+	w.width = 40
+	w.height = 15
+	tab := w.ActiveTab()
+
+	p := &testPanel{name: "dragme"}
+	tab.Float(p, 5, 2, 20, 5)
+	fp := tab.floats[0]
+
+	// Click on content area (relY > 0) — should NOT start drag
+	// Float is at (5,2), 20 wide, 5 tall
+	// Content is at relY=1..relY=3 (fp.Height-2)
+	// Screen coords: X=10, Y=4 → relX=5, relY=2 (content)
+	press := tea.MouseMsg{
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+		X:      10,
+		Y:      4,
+	}
+	tab.handleMouse(press, 0, 1, 40, 14)
+
+	if fp.dragging {
+		t.Error("drag should NOT start when clicking on content area")
+	}
+	if fp.resizing {
+		t.Error("resize should NOT start when clicking on content area")
+	}
+	if fp.CloseRequested {
+		t.Error("close should NOT be requested when clicking on content")
 	}
 }

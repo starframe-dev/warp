@@ -10,6 +10,14 @@ const (
     Horizontal
 )
 
+// ResizeMsg is sent by the layout engine to a panel when its allocated
+// rectangle changes. It carries the panel's content size in cells (without
+// borders or padding).
+type ResizeMsg struct {
+	Width  int
+	Height int
+}
+
 // MinPanelSize is the minimum size in characters for any panel.
 const MinPanelSize = 3
 
@@ -21,6 +29,50 @@ type SplitConfig struct {
     First     *Node
     Second    *Node
     Dragging  bool // true during drag-and-drop
+}
+
+// NodeCollapse holds the collapsed state for a node.
+// When Collapsed is true, the node renders with a fixed size.
+type NodeCollapse struct {
+    Active bool
+    Width  int     // fixed width when collapsed (for vertical layouts)
+    Height int     // fixed height when collapsed (for horizontal layouts)
+    Saved  float64 // saved fraction to restore on expand
+}
+
+// Node is a node in the panel tree — either a terminal (Panel) or internal (Split/Flex).
+type Node struct {
+    Panel    Panel
+    Split    *SplitConfig
+    Flex     *FlexConfig
+    Collapse *NodeCollapse
+}
+
+// IsLeaf returns true if this node contains a Panel (not a Split or Flex).
+func (n *Node) IsLeaf() bool {
+    return n.Panel != nil
+}
+
+// IsCollapsed returns true if the node is currently collapsed.
+func (n *Node) IsCollapsed() bool {
+    return n.Collapse != nil && n.Collapse.Active
+}
+
+// CollapsedSize returns the collapsed size for the given direction, or 0 if not collapsed.
+func (n *Node) CollapsedSize(d Direction) int {
+    if n.Collapse == nil || !n.Collapse.Active {
+        return 0
+    }
+    if d == Vertical {
+        if n.Collapse.Width > 0 {
+            return n.Collapse.Width
+        }
+        return 1
+    }
+    if n.Collapse.Height > 0 {
+        return n.Collapse.Height
+    }
+    return 1
 }
 
 // FlexItem is a single item inside a FlexConfig.
@@ -39,17 +91,7 @@ type FlexConfig struct {
     Dragging  bool
 }
 
-// Node is a node in the panel tree — either a terminal (Panel) or internal (Split/Flex).
-type Node struct {
-    Panel Panel
-    Split *SplitConfig
-    Flex  *FlexConfig
-}
 
-// IsLeaf returns true if this node contains a Panel (not a Split or Flex).
-func (n *Node) IsLeaf() bool {
-    return n.Panel != nil
-}
 
 // findNode locates the node containing the given panel in the tree.
 // Returns nil if not found.

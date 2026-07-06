@@ -59,9 +59,9 @@ func (fp *FloatPane) render(w, h int) []string {
     if dashesW < 0 {
         dashesW = 0
     }
-    topBorder := "╭" + floatTitleStyle.Render(title) +
+    topBorder := floatBgStyle.Render("╭") + floatTitleStyle.Render(title) +
         floatBorderStyle.Render(strings.Repeat("─", dashesW)) +
-        " " + closeBtn + "╮"
+        floatBgStyle.Render(" ") + closeBtn + floatBgStyle.Render("╮")
     lines[0] = topBorder
 
     // Content
@@ -75,7 +75,7 @@ func (fp *FloatPane) render(w, h int) []string {
     }
 
     // Bottom border
-    bottomBorder := "╰" + floatBorderStyle.Render(strings.Repeat("─", fp.Width-2)) + "╯"
+    bottomBorder := floatBgStyle.Render("╰") + floatBorderStyle.Render(strings.Repeat("─", fp.Width-2)) + floatBgStyle.Render("╯")
     lines[fp.Height-1] = bottomBorder
 
     return lines
@@ -99,8 +99,8 @@ func (fp *FloatPane) handleMouse(msg tea.MouseMsg, mx, my int) tea.Cmd {
     case tea.MouseButtonLeft:
         switch msg.Action {
         case tea.MouseActionPress:
-            // Check close button (×) — area: fp.Width-3 to fp.Width-1 on title row
-            if relY == 0 && relX >= fp.Width-3 && relX < fp.Width {
+            // Check close button (×) — area: just the × character at fp.Width-2
+            if relY == 0 && relX == fp.Width-2 {
                 fp.CloseRequested = true
                 return nil
             }
@@ -304,6 +304,9 @@ func overlayFloat(lines []string, fp *FloatPane, totalW, totalH int) {
                 visCount++
             }
             fl = fl[:bytePos]
+            // Ensure the truncated line ends with a reset so incomplete
+            // ANSI sequences don't bleed into the suffix.
+            fl += "\x1b[0m"
         }
 
         // Build new line: prefix (up to visual X) + styled float + suffix (after float)
@@ -338,8 +341,10 @@ func overlayFloat(lines []string, fp *FloatPane, totalW, totalH int) {
             visPos++
         }
 
-        // Write the styled float line (already truncated)
+        // Write the styled float line (already truncated), then reset styles
+        // so the suffix is not affected by the float's ANSI sequences.
         buf.WriteString(fl)
+        buf.WriteString("\x1b[0m")
 
         // Skip original content covered by float
         visPos = fp.X
