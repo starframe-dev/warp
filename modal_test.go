@@ -287,3 +287,45 @@ func TestModalButton(t *testing.T) {
 		t.Errorf("Label = %q, want Cancel", btn.Label)
 	}
 }
+
+func TestStripANSI(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		output string
+	}{
+		{"plain text", "hello", "hello"},
+		{"with reset", "\x1b[0mreset\x1b[0m", "reset"},
+		{"with color", "\x1b[31mred\x1b[0m", "red"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := stripANSI(tt.input)
+			if result != tt.output {
+				t.Errorf("stripANSI(%q) = %q, want %q", tt.input, result, tt.output)
+			}
+		})
+	}
+}
+
+func TestMax(t *testing.T) {
+	tests := []struct {
+		name   string
+		a, b   int
+		want   int
+	}{
+		{"a greater", 5, 3, 5},
+		{"b greater", 3, 5, 5},
+		{"equal", 5, 5, 5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := max(tt.a, tt.b)
+			if got != tt.want {
+				t.Errorf("max(%d, %d) = %d, want %d", tt.a, tt.b, got, tt.want)
+			}
+		})
+	}
+}

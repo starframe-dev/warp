@@ -288,35 +288,35 @@ func TestSelectableUpdateShiftArrows(t *testing.T) {
 	p := &staticPanel{content: "hello\nworld\nfoo"}
 	s := NewSelectable(p)
 
-	// Shift+arrow keys are processed in two places, so the cursor moves two
-	// cells per press. The selection is half-open from the anchor to cursor.
+	// Shift+arrow keys move the cursor one cell per press. The selection is
+	// half-open from the anchor to the cursor.
 	s.Update(tea.KeyMsg{Type: tea.KeyShiftRight})
 	if !s.HasSelection {
 		t.Fatal("Shift+right should create selection")
 	}
-	if s.CursorX != 2 {
-		t.Errorf("Shift+right cursor: got %d, want 2", s.CursorX)
+	if s.CursorX != 1 {
+		t.Errorf("Shift+right cursor: got %d, want 1", s.CursorX)
 	}
 	s.View(5, 3)
-	if s.SelectedText() != "he" {
+	if s.SelectedText() != "h" {
 		t.Errorf("Shift+right selection: got %q", s.SelectedText())
 	}
 
 	s.Update(tea.KeyMsg{Type: tea.KeyShiftRight})
-	if s.CursorX != 4 {
-		t.Errorf("Second shift+right cursor: got %d, want 4", s.CursorX)
+	if s.CursorX != 2 {
+		t.Errorf("Second shift+right cursor: got %d, want 2", s.CursorX)
 	}
 	s.View(5, 3)
-	if s.SelectedText() != "hell" {
+	if s.SelectedText() != "he" {
 		t.Errorf("Second shift+right selection: got %q", s.SelectedText())
 	}
 
 	s.Update(tea.KeyMsg{Type: tea.KeyShiftLeft})
-	if s.CursorX != 2 {
-		t.Errorf("Shift+left cursor: got %d, want 2", s.CursorX)
+	if s.CursorX != 1 {
+		t.Errorf("Shift+left cursor: got %d, want 1", s.CursorX)
 	}
 	s.View(5, 3)
-	if s.SelectedText() != "he" {
+	if s.SelectedText() != "h" {
 		t.Errorf("Shift+left selection: got %q", s.SelectedText())
 	}
 
@@ -326,8 +326,8 @@ func TestSelectableUpdateShiftArrows(t *testing.T) {
 	}
 
 	s.Update(tea.KeyMsg{Type: tea.KeyShiftDown})
-	if s.CursorY != 2 {
-		t.Errorf("Shift+down cursor Y: got %d, want 2", s.CursorY)
+	if s.CursorY != 1 {
+		t.Errorf("Shift+down cursor Y: got %d, want 1", s.CursorY)
 	}
 }
 

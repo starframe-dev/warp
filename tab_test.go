@@ -164,30 +164,42 @@ func TestTabFocusAndSetFocus(t *testing.T) {
 	}
 }
 
-func TestTabFocusTraversal(t *testing.T) {
+func TestTabFocusNextPrevFirst(t *testing.T) {
 	tab := NewTab("test")
 	p1 := &tabFocusablePanel{id: 1}
 	p2 := &tabFocusablePanel{id: 2}
+	p3 := &tabFocusablePanel{id: 3}
 	tab.SetRootPanel(p1)
 	tab.SplitVertical(p1, 0.5, p2)
+	tab.SplitVertical(p2, 0.5, p3)
 
+	// FocusFirst should focus the first panel
 	tab.FocusFirst()
 	if tab.Focus() != p1 || !p1.focused {
 		t.Fatal("FocusFirst should focus first panel")
 	}
 
+	// FocusNext
 	tab.FocusNext()
 	if tab.Focus() != p2 || !p2.focused || p1.focused {
 		t.Fatal("FocusNext should move to second panel")
 	}
 
+	// FocusNext wrap
+	tab.FocusNext()
+	if tab.Focus() != p3 || !p3.focused || p2.focused {
+		t.Fatal("FocusNext should move to third panel")
+	}
+
+	// FocusNext wrap around
 	tab.FocusNext()
 	if tab.Focus() != p1 {
 		t.Fatal("FocusNext should wrap to first panel")
 	}
 
+	// FocusPrev
 	tab.FocusPrev()
-	if tab.Focus() != p2 {
+	if tab.Focus() != p3 {
 		t.Fatal("FocusPrev should wrap to last panel")
 	}
 }
@@ -462,5 +474,255 @@ func TestTabBroadcastResize(t *testing.T) {
 	msg := tab.BroadcastResize()
 	if _, ok := msg.(tea.BatchMsg); !ok {
 		t.Fatalf("expected BatchMsg, got %T", msg)
+	}
+}
+
+func TestTabHandleKeys(t *testing.T) {
+	tab := NewTab("test")
+	rec := &tabRecordingPanel{}
+	tab.SetRootPanel(rec)
+	tab.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+
+	key := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
+	tab.HandleKeys(key)
+
+	if rec.last == nil {
+		t.Fatal("expected panel to receive forwarded key message")
+	}
+	if _, ok := rec.last.(tea.KeyMsg); !ok {
+		t.Fatalf("expected KeyMsg, got %T", rec.last)
+	}
+}
+
+func TestTabHandleKeysNoFocus(t *testing.T) {
+	tab := NewTab("test")
+	rec := &tabRecordingPanel{}
+	tab.SetRootPanel(rec)
+	tab.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+
+	key := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
+	tab.HandleKeys(key)
+
+	if rec.last != nil {
+		t.Fatal("expected no message when tab has no focus")
+	}
+}
+
+func TestTabHandleMouseMotionWithoutDrag(t *testing.T) {
+	tab := NewTab("test")
+	p := tabMockPanel{id: 1}
+	tab.SetRootPanel(p)
+	tab.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+
+	// Motion without a drag should forward to panel
+	msg := tea.MouseMsg{
+		X:      5,
+		Y:      5,
+		Action: tea.MouseActionMotion,
+		Button: tea.MouseButtonLeft,
+		Type:   tea.MouseEventType(0),
+	}
+	tab.HandleMouse(msg)
+
+	// Panel should receive the motion message
+	if pNode := tab.root.findNode(p); pNode == nil || pNode.Panel == nil {
+		t.Fatal("expected to find panel node")
+	}
+}
+
+func TestTabHandleMouseReleaseWithoutDrag(t *testing.T) {
+	tab := NewTab("test")
+	rec := &tabRecordingPanel{}
+	tab.SetRootPanel(rec)
+	tab.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+
+	// Release without a drag should forward to panel
+	msg := tea.MouseMsg{
+		X:      5,
+		Y:      5,
+		Action: tea.MouseActionRelease,
+		Button: tea.MouseButtonLeft,
+		Type:   tea.MouseEventType(0),
+	}
+	tab.HandleMouse(msg)
+
+	// Panel should receive the release message
+	if rec.last == nil {
+		t.Fatal("expected panel to receive forwarded release message")
+	}
+}
+
+func TestTabHandleMousePressWithoutBorder(t *testing.T) {
+	tab := NewTab("test")
+	rec := &tabRecordingPanel{}
+	tab.SetRootPanel(rec)
+	tab.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+
+	// Press in center of panel (not on border)
+	msg := tea.MouseMsg{
+		X:      5,
+		Y:      5,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+		Type:   tea.MouseEventType(0),
+	}
+	tab.HandleMouse(msg)
+
+	if rec.last == nil {
+		t.Fatal("expected panel to receive press message")
+	}
+}
+
+func TestTabClampFraction(t *testing.T) {
+	if got := clampFraction(0.05); got != 0.1 {
+		t.Fatalf("clampFraction(0.05) = %f, want 0.1", got)
+	}
+	if got := clampFraction(0.09); got != 0.09 {
+		t.Fatalf("clampFraction(0.09) = %f, want 0.09", got)
+	}
+	if got := clampFraction(0.1); got != 0.1 {
+		t.Fatalf("clampFraction(0.1) = %f, want 0.1", got)
+	}
+	if got := clampFraction(0.5); got != 0.5 {
+		t.Fatalf("clampFraction(0.5) = %f, want 0.5", got)
+	}
+	if got := clampFraction(0.9); got != 0.9 {
+		t.Fatalf("clampFraction(0.9) = %f, want 0.9", got)
+	}
+	if got := clampFraction(0.95); got != 0.9 {
+		t.Fatalf("clampFraction(0.95) = %f, want 0.9", got)
+	}
+}
+
+func TestTabHandleMouseWithMultipleFloats(t *testing.T) {
+	tab := NewTab("test")
+	p1 := tabMockPanel{id: 1}
+	p2 := tabMockPanel{id: 2}
+	tab.Float(p1, 0, 0, 10, 3)
+	tab.Float(p2, 0, 0, 5, 2)
+	tab.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+
+	msg := tea.MouseMsg{
+		X:      1,
+		Y:      1,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+		Type:   tea.MouseEventType(0),
+	}
+	tab.HandleMouse(msg)
+
+	// Should focus the top-most float (p2 comes after p1 in list, so p1 is top)
+	// Actually p2 was added last, so p2 is top
+	if tab.Focus() != p2 {
+		t.Fatalf("expected to focus top float p2, got %v", tab.Focus())
+	}
+}
+
+func TestTabBroadcastResizeReturnsEmpty(t *testing.T) {
+	tab := NewTab("test")
+	// With no panels, broadcast should return empty batch
+	msg := tab.BroadcastResize()
+	if _, ok := msg.(tea.BatchMsg); !ok {
+		t.Fatalf("expected BatchMsg, got %T", msg)
+	}
+}
+
+func TestTabSplitVerticalWithEmptyItems(t *testing.T) {
+	tab := NewTab("test")
+	p1 := tabMockPanel{id: 1}
+	tab.SetRootPanel(p1)
+	tab.SplitVertical(p1, 0.5, &tabMockPanel{id: 2})
+	// Should not panic even if subsequent operations are done
+	if tab.root.Split == nil {
+		t.Fatal("expected vertical split to be created")
+	}
+}
+
+func TestTabFlexRowWithEmptyItems(t *testing.T) {
+	tab := NewTab("test")
+	p1 := tabMockPanel{id: 1}
+	tab.SetRootPanel(p1)
+	tab.FlexRow(tab.RootPanel(), []FlexItemSpec{})
+	// Should not panic with empty items
+	if tab.root.Flex != nil {
+		t.Fatal("expected flex to not be created with empty items")
+	}
+}
+
+func TestTabFlexColumnWithEmptyItems(t *testing.T) {
+	tab := NewTab("test")
+	p1 := tabMockPanel{id: 1}
+	tab.SetRootPanel(p1)
+	tab.FlexColumn(tab.RootPanel(), []FlexItemSpec{})
+	// Should not panic with empty items
+	if tab.root.Flex != nil {
+		t.Fatal("expected flex to not be created with empty items")
+	}
+}
+
+func TestTabFloatWithZeroSize(t *testing.T) {
+	tab := NewTab("test")
+	p := tabMockPanel{id: 1}
+	tab.Float(p, 0, 0, 0, 0)
+	if len(tab.floats) != 1 {
+		t.Fatalf("expected float to be added with zero size, got %d", len(tab.floats))
+	}
+}
+
+func TestTabFloatWithNegativeGrow(t *testing.T) {
+	tab := NewTab("test")
+	p1 := tabMockPanel{id: 1}
+	p2 := tabMockPanel{id: 2}
+	tab.FlexRow(tab.RootPanel(), []FlexItemSpec{
+		{Panel: p1, Grow: 1},
+		{Panel: p2, Grow: -100},
+	})
+	if len(tab.root.Flex.Items) != 2 {
+		t.Fatal("expected 2 flex items")
+	}
+	if tab.root.Flex.Items[1].Grow != 0 {
+		t.Fatalf("expected negative grow clamped to 0, got %d", tab.root.Flex.Items[1].Grow)
+	}
+}
+
+func TestTabFocusPanelWithNilPanel(t *testing.T) {
+	tab := NewTab("test")
+	tab.SetRootPanel(&tabMockPanel{id: 1})
+	tab.FocusPanel(nil)
+	// Should not panic
+}
+
+func TestTabToggleCollapsibleOnNonCollapsible(t *testing.T) {
+	tab := NewTab("test")
+	p := tabMockPanel{id: 1}
+	tab.SetRootPanel(p)
+	tab.FlexRow(tab.RootPanel(), []FlexItemSpec{{Panel: p, Grow: 1}})
+	// Should not panic when toggling non-collapsible panel
+	tab.ToggleCollapsible(p)
+}
+
+func TestTabElementsWithFlexLayout(t *testing.T) {
+	tab := NewTab("test")
+	p1 := &tabElementPanel{elems: []Element{{Role: "left", Bounds: Bounds{X: 0, Y: 0, W: 5, H: 1}}}}
+	p2 := &tabElementPanel{elems: []Element{{Role: "right", Bounds: Bounds{X: 0, Y: 0, W: 5, H: 1}}}}
+	tab.SetRootPanel(p1)
+	tab.FlexRow(tab.RootPanel(), []FlexItemSpec{{Panel: p1, Grow: 1}, {Panel: p2, Grow: 1}})
+	tab.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+	elems := tab.Elements(20, 10)
+	if len(elems) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(elems))
+	}
+}
+
+func TestTabElementsWithFlexColumn(t *testing.T) {
+	tab := NewTab("test")
+	p1 := &tabElementPanel{elems: []Element{{Role: "top", Bounds: Bounds{X: 0, Y: 0, W: 1, H: 5}}}}
+	p2 := &tabElementPanel{elems: []Element{{Role: "bottom", Bounds: Bounds{X: 0, Y: 0, W: 1, H: 5}}}}
+	tab.SetRootPanel(p1)
+	tab.FlexColumn(tab.RootPanel(), []FlexItemSpec{{Panel: p1, Grow: 1}, {Panel: p2, Grow: 1}})
+	tab.Update(tea.WindowSizeMsg{Width: 10, Height: 20})
+	elems := tab.Elements(10, 20)
+	if len(elems) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(elems))
 	}
 }

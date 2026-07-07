@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>drag</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>drag.go</h1>
+
+        <h2>Overview</h2>
+
+        <p>This file is intentionally minimal and serves as a documentation placeholder. It explicitly documents that drag-and-drop interactions for split borders are NOT implemented in this file.</p>
+
+        <p>The actual drag-and-drop functionality for warp layout split borders is implemented in other files:</p>
+
+        <ul>
+            <li><strong>tab.go</strong> — Implements input handling and state management for dragging a border between split panes. The relevant functions are <code>handleMouse</code>, <code>updateDrag</code>, and <code>hitBorder</code>.</li>
+            <li><strong>render.go</strong> — Computes the screen positions of borders via <code>findBorders</code>.</li>
+        </ul>
+
+        <h2>File Status</h2>
+
+        <div class="signature">
+<pre><code class="language-go">// Drag-and-drop interactions for split borders are not implemented in this
+// file. They are handled in tab.go and rendered in render.go:
+//
+//   - tab.go implements the input handling and state management for dragging a
+//     border between split panes. The relevant functions are handleMouse,
+//     updateDrag, and hitBorder.
+//   - render.go computes the screen positions of borders via findBorders.
+</code></pre></div>
+
+        <h2>Related Files</h2>
+
+        <h3>tab.go</h3>
+
+        <p>Contains the core drag state and interaction logic:</p>
+
+        <ul>
+            <li><code>handleMouse</code> — Processes mouse events for this tab, detecting border hits and initiating drag operations.</li>
+            <li><code>updateDrag</code> — Updates the drag state and adjusts split/flex fractions as the user drags.</li>
+            <li><code>hitBorder</code> — Checks if a mouse click is on a border (for vertical/horizontal directions).</li>
+            <li><code>updateSplitDrag</code> — Adjusts the fraction of a split pane during dragging.</li>
+            <li><code>updateFlexDrag</code> — Adjusts flex layout weights during dragging.</li>
+        </ul>
+
+        <pre><code class="language-go">func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cmd {
+    // Detect if cursor is inside this float before calling handleMouse
+    // (handleMouse skips bounds check during active drag/resize)
+    if msg.Type != tea.MouseWheelMsg {
+        if t.dragging != nil || t.flexDragging != nil {
+            // Skips bounds check during active drag/resize
+        }
+    }
+    // ...
+}
+
+func (t *Tab) hitBorder(bh BorderHit, mx, my int) bool {
+    switch bh.Direction {
+    case Vertical:
+        return mx == bh.X && my >= bh.Y && my < bh.Y+bh.Length
+    case Horizontal:
+        return my == bh.Y && mx >= bh.X && mx < bh.X+bh.Length
+    }
+    return false
+}
+
+func (t *Tab) updateDrag(mx, my, cw, ch int) {
+    if t.dragging != nil {
+        t.updateSplitDrag(mx, my, cw, ch)
+    }
+    if t.flexDragging != nil {
+        t.updateFlexDrag(mx, my, cw, ch)
+    }
+    // Send live ResizeMsg so panels update while dragging.
+    t.broadcastResize(t.root, 0, 0, cw, ch)
+}
+</code></pre>
+
+        <h3>render.go</h3>
+
+        <p>Contains the border position computation logic:</p>
+
+        <ul>
+            <li><code>findBorders</code> — Recursively collects all border positions from the node tree.</li>
+            <li><code>findFlexBorders</code> — Computes flex layout border positions.</li>
+        </ul>
+
+        <pre><code class="language-go">// findBorders recursively collects all border positions from the node tree.
+func findBorders(node *Node, x, y, w, h int) []BorderHit {
+    if node == nil || node.IsLeaf() {
+        return nil
+    }
+
+    var borders []BorderHit
+
+    if node.Split != nil {
+        split := node.Split
+        switch split.Direction {
+        case Vertical:
+            borderW := 1
+            availW := w - borderW
+            firstW, secondW := computeSplitSizes(...)
+            borderX := x + firstW
+            // Omit the border when one side is collapsed.
+            if !split.First.IsCollapsed() && !split.Second.IsCollapsed() {
+                borders = append(borders, BorderHit{
+                    Split:     split,
+                    Direction: Vertical,
+                    X:         borderX,
+                    Y:         y,
+                    Length:    h,
+                })
+            }
+            // ...
+        case Horizontal:
+            // Similar logic for horizontal splits
+        }
+    }
+
+    if node.Flex != nil {
+        borders = append(borders, findFlexBorders(node.Flex, x, y, w, h)...)
+    }
+
+    return borders
+}
+</code></pre>
+
+        <h2>BorderHit Structure</h2>
+
+        <p>The <code>BorderHit</code> type represents a detected border position for drag interaction:</p>
+
+        <pre><code class="language-go">type BorderHit struct {
+    Split     *SplitConfig
+    Flex      *FlexConfig
+    Direction Direction  // Vertical or Horizontal
+    X, Y      int        // Screen coordinates
+    Length    int        // Border length
+}
+</code></pre>
+
+        <h2>Drag State</h2>
+
+        <p>The <code>Tab</code> struct contains drag state fields:</p>
+
+        <pre><code class="language-go">type Tab struct {
+    // ...
+    dragging     *SplitConfig    // Currently dragged split
+    flexDragging *FlexConfig     // Currently dragged flex border
+    flexDragIdx  int             // Index of the border being dragged in flex
+    lastBorders  []BorderHit     // Previously found borders
+}
+</code></pre>
+
+        <h2>See Also</h2>
+
+        <ul>
+            <li><a href="../render.html">render.go</a> — Border rendering and position computation</li>
+            <li><a href="../tab.go">tab.go</a> — Mouse handling and drag state management</li>
+            <li><a href="../split.go">split.go</a> — Split configuration and rendering</li>
+        </ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

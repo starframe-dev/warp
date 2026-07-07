@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>warp</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Warp Module</h1>
+
+        <p><strong>Warp</strong> is a terminal UI toolkit built on top of <a href="https://github.com/charmbracelet/bubbletea">Bubble Tea</a> that provides a root application manager for terminal applications.</p>
+
+        <p>The module exposes a <code>Warp</code> root component for managing layouts and an HTTP server for exposing the element tree as JSON.</p>
+
+        <h2>Core Types</h2>
+
+        <h3>Warp</h3>
+
+        <div class="signature"><pre><code class="language-typescript">type Warp struct {
+    root   Panel
+    width  int
+    height int
+    httpServer *http.Server
+    httpAddr   string
+    httpMu     sync.Mutex
+}</code></pre></div>
+
+        <p>The root Warp component that manages the entire application layout.</p>
+
+        <h4>Methods</h4>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Method</th>
+                    <th>Signature</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>New</td>
+                    <td><code>New() *Warp</code></td>
+                    <td>Creates a new Warp with a TabGroup root.</td>
+                </tr>
+                <tr>
+                    <td>SetRoot</td>
+                    <td><code>SetRoot(panel Panel)</code></td>
+                    <td>Replaces the root panel with a custom layout.</td>
+                </tr>
+                <tr>
+                    <td>Root</td>
+                    <td><code>Root() Panel</code></td>
+                    <td>Returns the current root panel.</td>
+                </tr>
+                <tr>
+                    <td>Width</td>
+                    <td><code>Width() int</code></td>
+                    <td>Returns the last known terminal width.</td>
+                </tr>
+                <tr>
+                    <td>Height</td>
+                    <td><code>Height() int</code></td>
+                    <td>Returns the last known terminal height.</td>
+                </tr>
+                <tr>
+                    <td>tabGroup</td>
+                    <td><code>tabGroup() *TabGroup</code></td>
+                    <td>Returns the TabGroup if root is a TabGroup (helper function).</td>
+                </tr>
+                <tr>
+                    <td>NewTab</td>
+                    <td><code>NewTab(name string) *Tab</code></td>
+                    <td>Creates a new tab (delegates to TabGroup if root is TabGroup).</td>
+                </tr>
+                <tr>
+                    <td>ActiveTab</td>
+                    <td><code>ActiveTab() *Tab</code></td>
+                    <td>Returns the currently active tab.</td>
+                </tr>
+                <tr>
+                    <td>SetTabPosition</td>
+                    <td><code>SetTabPosition(pos TabPosition)</code></td>
+                    <td>Sets tab bar position (Top, Bottom, Left, Right, None).</td>
+                </tr>
+                <tr>
+                    <td>NextTab</td>
+                    <td><code>NextTab()</code></td>
+                    <td>Switches to next tab.</td>
+                </tr>
+                <tr>
+                    <td>PrevTab</td>
+                    <td><code>PrevTab()</code></td>
+                    <td>Switches to previous tab.</td>
+                </tr>
+                <tr>
+                    <td>Init</td>
+                    <td><code>Init() tea.Cmd</code></td>
+                    <td>Bubble Tea initialization (currently returns <code>nil</code>).</td>
+                </tr>
+                <tr>
+                    <td>Update</td>
+                    <td><code>Update(msg tea.Msg) (tea.Model, tea.Cmd)</code></td>
+                    <td>Handles window size changes and forwards messages to root panel.</td>
+                </tr>
+                <tr>
+                    <td>View</td>
+                    <td><code>View() string</code></td>
+                    <td>Renders the root panel (shows "Loading..." if width/height are 0).</td>
+                </tr>
+                <tr>
+                    <td>Run</td>
+                    <td><code>Run() error</code></td>
+                    <td>Starts the Bubble Tea program.</td>
+                </tr>
+                <tr>
+                    <td>ServeHTTP</td>
+                    <td><code>ServeHTTP(addr string) error</code></td>
+                    <td>Starts an HTTP server exposing elements at /elements and /healthz.</td>
+                </tr>
+                <tr>
+                    <td>CloseHTTP</td>
+                    <td><code>CloseHTTP() error</code></td>
+                    <td>Shuts down the HTTP server.</td>
+                </tr>
+                <tr>
+                    <td>HTTPAddr</td>
+                    <td><code>HTTPAddr() string</code></td>
+                    <td>Returns the current HTTP listening address.</td>
+                </tr>
+                <tr>
+                    <td>AsPanel</td>
+                    <td><code>AsPanel() Panel</code></td>
+                    <td>Returns a Panel adapter for nested Warp instances.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Panel Interface</h3>
+
+        <div class="signature"><pre><code class="language-typescript">type Panel interface {
+    View(width, height int) string
+    Update(msg tea.Msg) tea.Cmd
+}</code></pre></div>
+
+        <p>The fundamental building block of Warp. Any type implementing this interface can be used as terminal content.</p>
+
+        <h4>Methods</h4>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Method</th>
+                    <th>Signature</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>View</td>
+                    <td><code>View(width, height int) string</code></td>
+                    <td>Renders terminal content at the given size.</td>
+                </tr>
+                <tr>
+                    <td>Update</td>
+                    <td><code>Update(msg tea.Msg) tea.Cmd</code></td>
+                    <td>Handles Bubble Tea messages (keys, mouse, resize).</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>HTTP Server</h2>
+
+        <p>When <code>ServeHTTP(addr string)</code> is called, an HTTP server starts on the given address (or environment variable <code>WARP_HTTP_PORT</code>, or port 0).</p>
+
+        <h3>Endpoints</h3>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Path</th>
+                    <th>Method</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>/elements</td>
+                    <td>GET</td>
+                    <td>Returns the element tree as JSON.</td>
+                </tr>
+                <tr>
+                    <td>/healthz</td>
+                    <td>GET</td>
+                    <td>Health check endpoint returning "ok".</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>The response to /elements includes CORS headers (<code>Access-Control-Allow-Origin: *</code>).</p>
+
+        <h2>Utilities</h2>
+
+        <h3>parsePort</h3>
+
+        <div class="signature"><pre><code class="language-typescript">func parsePort(addr string) string</code></pre></div>
+
+        <p>Extracts the port from a network address. Returns empty string if addr is not a valid host:port.</p>
+
+        <h2>Example Usage</h2>
+
+        <pre><code class="language-go">package main
+
+import (
+    "fmt"
+    warp "yourmodule/warp"
+)
+
+type MyPanel struct {
+    title string
+}
+
+func (m *MyPanel) View(width, height int) string {
+    return fmt.Sprintf("Hello %s!\n", m.title)
+}
+
+func (m *MyPanel) Update(msg tea.Msg) tea.Cmd {
+    return nil
+}
+
+func main() {
+    // Create warp with default tab
+    w := warp.New()
+
+    // Create custom panel
+    mp := &MyPanel{title: "World"}
+
+    // Set it as root
+    w.SetRoot(mp)
+
+    // Run the application
+    if err := w.Run(); err != nil {
+        fmt.Println("Error:", err)
+    }
+}
+        </code></pre>
+
+        <p>Or with tabs:</p>
+
+        <pre><code class="language-go">package main
+
+import (
+    "fmt"
+    warp "yourmodule/warp"
+)
+
+func main() {
+    // Create tab group with tabs on top
+    tg := warp.NewTabGroup(warp.TabTop)
+
+    // Add a second tab
+    tg.NewTab("secondary")
+
+    // Set as root
+    w := warp.New()
+    w.SetRoot(tg)
+
+    // Run
+    w.Run()
+}
+        </code></pre>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

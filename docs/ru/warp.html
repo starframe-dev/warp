@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>warp</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Модуль Warp</h1>
+
+        <p><strong>Warp</strong> — это инструмент UI для терминала, построенный на <a href="https://github.com/charmbracelet/bubbletea">Bubble Tea</a>, который предоставляет менеджер корневых приложений для терминальных приложений.</p>
+
+        <p>Модуль предоставляет корневой компонент <code>Warp</code> для управления макетами и HTTP-сервер для экспонирования древовидной структуры элементов в виде JSON.</p>
+
+        <h2>Основные типы</h2>
+
+        <h3>Warp</h3>
+
+        <div class="signature"><pre><code class="language-typescript">type Warp struct {
+    root   Panel
+    width  int
+    height int
+    httpServer *http.Server
+    httpAddr   string
+    httpMu     sync.Mutex
+}</code></pre></div>
+
+        <p>Корневой компонент Warp, который управляет всей структурой приложения.</p>
+
+        <h4>Методы</h4>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Метод</th>
+                    <th>Сигнатура</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>New</td>
+                    <td><code>New() *Warp</code></td>
+                    <td>Создает новый Warp с корнем TabGroup.</td>
+                </tr>
+                <tr>
+                    <td>SetRoot</td>
+                    <td><code>SetRoot(panel Panel)</code></td>
+                    <td>Заменяет корневую панель пользовательским макетом.</td>
+                </tr>
+                <tr>
+                    <td>Root</td>
+                    <td><code>Root() Panel</code></td>
+                    <td>Возвращает текущую корневую панель.</td>
+                </tr>
+                <tr>
+                    <td>Width</td>
+                    <td><code>Width() int</code></td>
+                    <td>Возвращает последнюю известную ширину терминала.</td>
+                </tr>
+                <tr>
+                    <td>Height</td>
+                    <td><code>Height() int</code></td>
+                    <td>Возвращает последнюю известную высоту терминала.</td>
+                </tr>
+                <tr>
+                    <td>tabGroup</td>
+                    <td><code>tabGroup() *TabGroup</code></td>
+                    <td>Возвращает TabGroup, если корень — TabGroup (вспомогательная функция).</td>
+                </tr>
+                <tr>
+                    <td>NewTab</td>
+                    <td><code>NewTab(name string) *Tab</code></td>
+                    <td>Создает новую вкладку (делегирование в TabGroup, если корень — TabGroup).</td>
+                </tr>
+                <tr>
+                    <td>ActiveTab</td>
+                    <td><code>ActiveTab() *Tab</code></td>
+                    <td>Возвращает активную вкладку.</td>
+                </tr>
+                <tr>
+                    <td>SetTabPosition</td>
+                    <td><code>SetTabPosition(pos TabPosition)</code></td>
+                    <td>Устанавливает позицию панели вкладок (Top, Bottom, Left, Right, None).</td>
+                </tr>
+                <tr>
+                    <td>NextTab</td>
+                    <td><code>NextTab()</code></td>
+                    <td>Переключается на следующую вкладку.</td>
+                </tr>
+                <tr>
+                    <td>PrevTab</td>
+                    <td><code>PrevTab()</code></td>
+                    <td>Переключается на предыдущую вкладку.</td>
+                </tr>
+                <tr>
+                    <td>Init</td>
+                    <td><code>Init() tea.Cmd</code></td>
+                    <td>Инициализация Bubble Tea (в настоящее время возвращает <code>nil</code>).</td>
+                </tr>
+                <tr>
+                    <td>Update</td>
+                    <td><code>Update(msg tea.Msg) (tea.Model, tea.Cmd)</code></td>
+                    <td>Обрабатывает изменения размера окна и перенаправляет сообщения на корневую панель.</td>
+                </tr>
+                <tr>
+                    <td>View</td>
+                    <td><code>View() string</code></td>
+                    <td>Возвращает корневую панель (показывает "Загрузка..." если ширина/высота равны 0).</td>
+                </tr>
+                <tr>
+                    <td>Run</td>
+                    <td><code>Run() error</code></td>
+                    <td>Запускает программу Bubble Tea.</td>
+                </tr>
+                <tr>
+                    <td>ServeHTTP</td>
+                    <td><code>ServeHTTP(addr string) error</code></td>
+                    <td>Запускает HTTP-сервер, экспонирующий элементы по /elements и /healthz.</td>
+                </tr>
+                <tr>
+                    <td>CloseHTTP</td>
+                    <td><code>CloseHTTP() error</code></td>
+                    <td>Останавливает HTTP-сервер.</td>
+                </tr>
+                <tr>
+                    <td>HTTPAddr</td>
+                    <td><code>HTTPAddr() string</code></td>
+                    <td>Возвращает текущий адрес HTTP-слушателя.</td>
+                </tr>
+                <tr>
+                    <td>AsPanel</td>
+                    <td><code>AsPanel() Panel</code></td>
+                    <td>Возвращает адаптер Panel для вложенных экземпляров Warp.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Интерфейс Panel</h3>
+
+        <div class="signature"><pre><code class="language-typescript">type Panel interface {
+    View(width, height int) string
+    Update(msg tea.Msg) tea.Cmd
+}</code></pre></div>
+
+        <p>Основной строительный блок Warp. Любой тип, реализующий этот интерфейс, может использоваться как содержимое терминала.</p>
+
+        <h4>Методы</h4>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Метод</th>
+                    <th>Сигнатура</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>View</td>
+                    <td><code>View(width, height int) string</code></td>
+                    <td>Отображает содержимое терминала заданного размера.</td>
+                </tr>
+                <tr>
+                    <td>Update</td>
+                    <td><code>Update(msg tea.Msg) tea.Cmd</code></td>
+                    <td>Обрабатывает сообщения Bubble Tea (клавиши, мышь, изменение размера).</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>HTTP-сервер</h2>
+
+        <p>При вызове <code>ServeHTTP(addr string)</code> запускается HTTP-сервер на указанном адресе (или переменной окружения <code>WARP_HTTP_PORT</code>, или порту 0).</p>
+
+        <h3>Конечные точки</h3>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Путь</th>
+                    <th>Метод</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>/elements</td>
+                    <td>GET</td>
+                    <td>Возвращает дерево элементов в виде JSON.</td>
+                </tr>
+                <tr>
+                    <td>/healthz</td>
+                    <td>GET</td>
+                    <td>Точка проверки работоспособности, возвращающая "ok".</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p>Ответ на /elements включает заголовки CORS (<code>Access-Control-Allow-Origin: *</code>).</p>
+
+        <h2>Утилиты</h2>
+
+        <h3>parsePort</h3>
+
+        <div class="signature"><pre><code class="language-typescript">func parsePort(addr string) string</code></pre></div>
+
+        <p>Извлекает порт из сетевого адреса. Возвращает пустую строку, если addr не является валидным host:port.</p>
+
+        <h2>Пример использования</h2>
+
+        <pre><code class="language-go">package main
+
+import (
+    "fmt"
+    warp "yourmodule/warp"
+)
+
+type MyPanel struct {
+    title string
+}
+
+func (m *MyPanel) View(width, height int) string {
+    return fmt.Sprintf("Привет %s!\n", m.title)
+}
+
+func (m *MyPanel) Update(msg tea.Msg) tea.Cmd {
+    return nil
+}
+
+func main() {
+    // Создание warp с дефолтной вкладкой
+    w := warp.New()
+
+    // Создание пользовательской панели
+    mp := &MyPanel{title: "Мир"}
+
+    // Установка в качестве корня
+    w.SetRoot(mp)
+
+    // Запуск приложения
+    if err := w.Run(); err != nil {
+        fmt.Println("Ошибка:", err)
+    }
+        </code></pre>
+
+        <p>Или с вкладками:</p>
+
+        <pre><code class="language-go">package main
+
+import (
+    "fmt"
+    warp "yourmodule/warp"
+)
+
+func main() {
+    // Создание группы вкладок с вкладками сверху
+    tg := warp.NewTabGroup(warp.TabTop)
+
+    // Добавление второй вкладки
+    tg.NewTab("вторичная")
+
+    // Установка в качестве корня
+    w := warp.New()
+    w.SetRoot(tg)
+
+    // Запуск
+    w.Run()
+}
+        </code></pre>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

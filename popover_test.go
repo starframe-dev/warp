@@ -123,6 +123,54 @@ func TestPopoverContentPreserved(t *testing.T) {
 	}
 }
 
+func TestVisualBytePos(t *testing.T) {
+	t.Run("simple string", func(t *testing.T) {
+		pos := visualBytePos("hello world", 5)
+		if pos != 6 {
+			t.Errorf("expected pos 6, got %d", pos)
+		}
+	})
+
+	t.Run("zero column", func(t *testing.T) {
+		pos := visualBytePos("hello world", 0)
+		if pos != 1 {
+			t.Errorf("expected pos 1, got %d", pos)
+		}
+	})
+
+	t.Run("beyond string length", func(t *testing.T) {
+		pos := visualBytePos("hi", 100)
+		if pos != 2 {
+			t.Errorf("expected pos 2, got %d", pos)
+		}
+	})
+
+	t.Run("contains ANSI codes", func(t *testing.T) {
+		// ANSI escape code \x1b[31m is 4 chars but renders as 1 visual char
+		redText := "\x1b[31mhello\x1b[0m"
+		pos := visualBytePos(redText, 4)
+		// Should skip ANSI codes, so pos 4 should be after 'hello'
+		// The ANSI codes are between 'h' and 'e', so visual counting skips them
+		if pos != 5 {
+			t.Errorf("expected pos 5 (skipping ANSI), got %d", pos)
+		}
+	})
+
+	t.Run("empty string", func(t *testing.T) {
+		pos := visualBytePos("", 5)
+		if pos != 0 {
+			t.Errorf("expected pos 0, got %d", pos)
+		}
+	})
+
+	t.Run("single character", func(t *testing.T) {
+		pos := visualBytePos("a", 0)
+		if pos != 1 {
+			t.Errorf("expected pos 1, got %d", pos)
+		}
+	})
+}
+
 func TestPopoverHandleMouse(t *testing.T) {
 	itemClicked := ""
 	closed := false

@@ -1,75 +1,49 @@
-# Specification: `split.go`
+# Split
 
-File: `warp/split.go`  
-Package: `warp`  
-Language: Go
+## Роль
 
-## Overview
+Внутренний узел дерева панелей для разделения пространства между двумя дочерними узлами (Split/Flex). Используется для создания гибких сеточных макетов в Warp UI.
 
-`split.go` defines the core tree data structures used by the `warp` package to model a hierarchical panel layout. It supports binary splits (fixed fraction of available space), flex layouts (weighted distribution), and collapsing nodes to a minimal size. The file also provides tree navigation helpers used to locate, replace, and enumerate leaf nodes.
+## API
 
-## Types
+### Типы
 
-### `Direction`
+#### Direction
 
 ```go
 type Direction int
 ```
 
-Orientation constant for a split or flex layout.
+Указывает направление разделения:
 
-| Constant | Value | Meaning |
-|---|---|---|
-| `Vertical` | `0` | Splits/layout runs left-to-right (children side by side). |
-| `Horizontal` | `1` | Splits/layout runs top-to-bottom (children stacked). |
+| Константа | Значение | Описание |
+|-----------|----------|----------|
+| Vertical  | 0        | Вертикальное деление (слева/справа) |
+| Horizontal| 1        | Горизонтальное деление (сверху/снизу) |
 
-### `ResizeMsg`
-
-```go
-type ResizeMsg struct {
-    Width  int
-    Height int
-}
-```
-
-Message sent by the layout engine to a panel when its allocated content rectangle changes. Dimensions are in cells, excluding borders and padding.
-
-### `MinPanelSize`
-
-```go
-const MinPanelSize = 3
-```
-
-Minimum allowed size in characters for any panel.
-
-### `SplitConfig`
+#### SplitConfig
 
 ```go
 type SplitConfig struct {
     Direction Direction
-    Fraction  float64 // 0.0–1.0, share of First child
+    Fraction  float64 // Доля первого дочернего узла (0.0–1.0)
     First     *Node
     Second    *Node
     Dragging  bool
 }
 ```
 
-Internal binary-split node. The area is divided between `First` and `Second` according to `Fraction`. `Dragging` is set to `true` during drag-and-drop operations (layout-specific behavior, not interpreted by this file).
+**Поля:**
 
-### `NodeCollapse`
+| Поле | Тип | Описание |
+|------|-----|----------|
+| Direction | Direction | Направление разделения |
+| Fraction | float64 | Доля пространства для первого узла |
+| First | *Node | Первый дочерний узел |
+| Second | *Node | Второй дочерний узел |
+| Dragging | bool | true во время drag-and-drop |
 
-```go
-type NodeCollapse struct {
-    Active bool
-    Width  int
-    Height int
-    Saved  float64
-}
-```
-
-Holds the collapsed state of a node. When `Active` is `true`, the node renders with a fixed size: `Width` for vertical layouts and `Height` for horizontal layouts. `Saved` stores the previous layout fraction so it can be restored on expand.
-
-### `Node`
+#### Node
 
 ```go
 type Node struct {
@@ -80,20 +54,52 @@ type Node struct {
 }
 ```
 
-Tree node that is either a terminal panel (`Panel != nil`) or an internal layout node (`Split != nil` or `Flex != nil`).
+**Поля:**
 
-#### Methods
+| Поле | Тип | Описание |
+|------|-----|----------|
+| Panel | Panel | Лист дерева (терминальный узел) |
+| Split | *SplitConfig | Разделение пространства |
+| Flex | *FlexConfig | Гибкая верстка |
+| Collapse | *NodeCollapse | Свёртывание узла |
 
-- `func (n *Node) IsLeaf() bool`  
-  Returns `true` if the node is a terminal panel.
+#### NodeCollapse
 
-- `func (n *Node) IsCollapsed() bool`  
-  Returns `true` if `n.Collapse` is non-nil and `Active` is `true`.
+```go
+type NodeCollapse struct {
+    Active bool
+    Width  int
+    Height int
+    Saved  float64
+}
+```
 
-- `func (n *Node) CollapsedSize(d Direction) int`  
-  Returns the collapsed size for the given direction, or `0` if the node is not collapsed. If the configured size is not positive, returns `1` as a fallback.
+**Поля:**
 
-### `FlexItem`
+| Поле | Тип | Описание |
+|------|-----|----------|
+| Active | bool | true — узел свернут |
+| Width | int | Фиксированная ширина при свёртке (для Vertical) |
+| Height | int | Фиксированная высота при свёртке (для Horizontal) |
+| Saved | float64 | Сохранённая доля для восстановления при развёртке |
+
+#### ResizeMsg
+
+```go
+type ResizeMsg struct {
+    Width  int
+    Height int
+}
+```
+
+**Поле:**
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| Width | int | Ширина панели в ячейках |
+| Height | int | Высота панели в ячейках |
+
+#### FlexItem
 
 ```go
 type FlexItem struct {
@@ -105,36 +111,138 @@ type FlexItem struct {
 }
 ```
 
-Single child inside a flex layout. `Grow` is the weight used to distribute extra space. `Shrink` is reserved but currently unused. `Basis` is the minimum size, where `0` means auto. `Collapsed` reduces the item to one line/character when `true`.
+**Поля:**
 
-### `FlexConfig`
+| Поле | Тип | Описание |
+|------|-----|----------|
+| Node | *Node | Узел элемента |
+| Grow | int | Вес flex-grow |
+| Shrink | int | Вес flex-shrink (не используется) |
+| Basis | int | Flex-basis, 0 = auto |
+| Collapsed | bool | true — элемент занимает 1 линию/символ |
+
+## Поведение
+
+### findNode
 
 ```go
-type FlexConfig struct {
-    Direction Direction
-    Items     []*FlexItem
-    Dragging  bool
-}
+func (n *Node) findNode(panel Panel) *Node
 ```
 
-Flex container that lays out children in a row or column according to `Direction`. Items are distributed based on their `Grow` weights, subject to their `Basis` minimums. `Dragging` is set during drag-and-drop.
+Локализирует узел, содержащий указанный Panel в дереве.
 
-## Public API (methods on `Node`)
+**Возвращает:**
+- `*Node` — найденный узел, если Panel найден
+- `nil` — если Panel не найден
 
-| Method | Signature | Behavior |
-|---|---|---|
-| `IsLeaf` | `func (n *Node) IsLeaf() bool` | True when `Panel != nil`. |
-| `IsCollapsed` | `func (n *Node) IsCollapsed() bool` | True when collapse is active. |
-| `CollapsedSize` | `func (n *Node) CollapsedSize(d Direction) int` | Returns the effective collapsed size for a direction, or `0` if not collapsed. |
-| `findNode` | `func (n *Node) findNode(panel Panel) *Node` | Recursively searches the tree for the node containing the given `Panel`. Returns `nil` if not found. |
-| `replaceNode` | `func (n *Node) replaceNode(old, new *Node) bool` | Replaces `old` with `new` in the tree. Returns `true` if the replacement occurred. |
-| `collectLeafNodes` | `func (n *Node) collectLeafNodes() []*Node` | Returns all leaf nodes in order (left-to-right or top-to-bottom). |
+**Алгоритм:**
+1. Проверяет текущий узел на равенство Panel
+2. Если это Split — рекурсивно ищет в First и Second
+3. Если это Flex — ищет во всех Items
+4. Возвращает первый найденный узел или nil
 
-## Important Implementation Details
+### replaceNode
 
-- A node is considered a leaf only by `n.Panel != nil`. The other fields (`Split`, `Flex`, `Collapse`) do not affect leaf status.
-- `CollapsedSize` falls back to `1` when the configured width/height is zero or negative, ensuring collapsed nodes always consume at least one cell in the appropriate direction.
-- `findNode` and `replaceNode` traverse `Split` first, then `Flex`, and finally return `nil`/`false` if the target is not found.
-- `collectLeafNodes` preserves the natural order of children: `First` then `Second` for splits, and item order for flex layouts.
-- `Shrink` in `FlexItem` is documented but not used by the layout logic in this file.
-- `Dragging` fields on `SplitConfig` and `FlexConfig` are boolean markers; their exact semantics are defined by the surrounding layout/rendering code.
+```go
+func (n *Node) replaceNode(old, new *Node) bool
+```
+
+Заменяет oldNode на newNode в дереве.
+
+**Возвращает:**
+- `true` — замена успешна
+- `false` — oldNode не найден
+
+**Алгоритм:**
+1. Проверяет Split.First и Split.Second
+2. Рекурсивно ищет в поддеревах Split
+3. Ищет в Items Flex
+4. Возвращает результат первой успешной замены
+
+### collectLeafNodes
+
+```go
+func (n *Node) collectLeafNodes() []*Node
+```
+
+Собирает все листы (Panel) в порядке глубинного обхода.
+
+**Возвращает:**
+- `[]*Node` — срез указателей на листы
+
+**Алгоритм:**
+1. Если узел — лист, возвращает срез из одного элемента
+2. Если Split — собирает из First, затем из Second
+3. Если Flex — собирает из всех Items
+
+### IsLeaf
+
+```go
+func (n *Node) IsLeaf() bool
+```
+
+Проверяет, является ли узел листом (содержит Panel).
+
+**Возвращает:**
+- `true` — узел содержит Panel
+- `false` — узел внутренний (Split/Flex)
+
+### IsCollapsed
+
+```go
+func (n *Node) IsCollapsed() bool
+```
+
+Проверяет, свернут ли узел.
+
+**Возвращает:**
+- `true` — Collapse активен
+- `false` — Collapse не активен или отсутствует
+
+### CollapsedSize
+
+```go
+func (n *Node) CollapsedSize(d Direction) int
+```
+
+Возвращает размер узла в свернутом состоянии для заданного направления.
+
+**Параметры:**
+- `d` — Direction (Vertical/Horizontal)
+
+**Возвращает:**
+- `int` — размер (Width для Vertical, Height для Horizontal), 0 если не свернут
+
+## Реализация
+
+### Структура данных
+
+Дерево панелей представляет собой иерархическую структуру:
+- **Node** — корневой или промежуточный узел
+- **Split** — делит пространство на две части
+- **Flex** — гибкая верстка с весами
+- **Panel** — терминальный узел с контентом
+
+### Иерархия
+
+```
+Node (root)
+├─ Split
+│  ├─ First (Node)
+│  └─ Second (Node)
+└─ Flex
+   └─ Items []*FlexItem
+      └─ Node (First/Second)
+```
+
+### Константы
+
+| Константа | Значение | Описание |
+|-----------|----------|----------|
+| MinPanelSize | 3 | Минимальный размер панели в символах |
+
+## Примечания
+
+- `Dragging` в SplitConfig используется только во время drag-and-drop операций
+- `Fraction` не может выходить за границы 0.0–1.0
+- `Node` может содержать только один тип внутреннего узла (Split, Flex, Collapse, Panel — не более одного одновременно)

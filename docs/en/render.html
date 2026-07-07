@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>render</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>render.go - Warp Rendering Engine</h1>
+
+        <h2>Overview</h2>
+
+        <p>The <code>render</code> package provides rendering functionality for the Warp terminal multiplexer. It handles the conversion of a node tree representing the UI layout into lines of text that can be displayed in the terminal.</p>
+
+        <p>The rendering system supports:</p>
+
+        <ul>
+            <li><strong>Leaf nodes</strong> - Panels with views (rendered via their View method)</li>
+            <li><strong>Split layouts</strong> - Vertical and horizontal splits between panels</li>
+            <li><strong>Flex layouts</strong> - Weighted flexbox-style layouts with multiple children</li>
+            <li><strong>Collapsed panels</strong> - Panels that can be collapsed to a fixed size</li>
+            <li><strong>Drag states</strong> - Visual feedback when dragging borders between panels</li>
+        </ul>
+
+        <p>The rendering is done entirely in memory and returns a 2D slice of strings representing the terminal buffer, with each line properly styled with ANSI sequences.</p>
+
+        <h2>Public API</h2>
+
+        <h3>renderNode</h3>
+        <div class="signature"><pre><code class="language-typescript">func renderNode(node *Node, w, h int) []string</code></pre></div>
+
+        <p>Main entry point for rendering a node tree. Takes a root node and dimensions (width and height in characters), returns a slice of strings representing the rendered output.</p>
+
+        <p><strong>Behavior:</strong></p>
+        <ul>
+            <li>If the node is nil, returns empty lines matching the dimensions</li>
+            <li>If the node is a leaf (has a Panel), calls its View method and pads the content</li>
+            <li>If the node has a Split, delegates to renderVerticalSplit or renderHorizontalSplit</li>
+            <li>If the node has a Flex, delegates to renderFlex</li>
+        </ul>
+
+        <h3>findBorders</h3>
+        <div class="signature"><pre><code class="language-typescript">func findBorders(node *Node, x, y, w, h int) []BorderHit</code></pre></div>
+
+        <p>Recursively collects all draggable border positions from a node tree. Returns a slice of BorderHit describing each border with its position and the Split or Flex configuration it belongs to.</p>
+
+        <p><strong>Use case:</strong> Used to identify which borders can be grabbed for splitting/reshaping panels.</p>
+
+        <h3>padContent</h3>
+        <div class="signature"><pre><code class="language-typescript">func padContent(content string, w, h int) []string</code></pre></div>
+
+        <p>Ensures content has exactly w×h dimensions by padding with spaces and truncating with ansi.Truncate. Each line ends with an ANSI reset style to prevent style leakage between panels.</p>
+
+        <h2>Types</h2>
+
+        <h3>BorderHit</h3>
+
+        <div class="signature"><pre><code class="language-typescript">type BorderHit struct {
+    Split     *SplitConfig
+    Flex      *FlexConfig
+    Direction Direction
+    X, Y      int
+    Length    int
+}</code></pre></div>
+
+        <p>Describes a draggable border at a given position in the terminal buffer.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Split</td>
+                    <td>*SplitConfig</td>
+                    <td>Pointer to the SplitConfig that owns this border (for split layouts)</td>
+                </tr>
+                <tr>
+                    <td>Flex</td>
+                    <td>*FlexConfig</td>
+                    <td>Pointer to the FlexConfig that owns this border (for flex layouts)</td>
+                </tr>
+                <tr>
+                    <td>Direction</td>
+                    <td>Direction</td>
+                    <td>Border direction (Vertical or Horizontal)</td>
+                </tr>
+                <tr>
+                    <td>X, Y</td>
+                    <td>int</td>
+                    <td>Start position of the border in terminal coordinates</td>
+                </tr>
+                <tr>
+                    <td>Length</td>
+                    <td>int</td>
+                    <td>Length of the border in cells</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Internal Functions</h2>
+
+        <h3>renderVerticalSplit</h3>
+        <div class="signature"><pre><code class="language-typescript">func renderVerticalSplit(split *SplitConfig, w, h int) []string</code></pre></div>
+
+        <p>Renders a vertical split layout. Renders the first and second children side by side with a vertical border between them.</p>
+
+        <p><strong>Key implementation details:</strong></p>
+        <ul>
+            <li>Calculates available width after accounting for the border</li>
+            <li>Uses computeSplitSizes to allocate space between first and second children</li>
+            <li>When either child is collapsed, omits the border to make panels sit flush</li>
+            <li>Uses different border characters for normal vs dragging state</li>
+        </ul>
+
+        <h3>renderHorizontalSplit</h3>
+        <div class="signature"><pre><code class="language-typescript">func renderHorizontalSplit(split *SplitConfig, w, h int) []string</code></pre></div>
+
+        <p>Renders a horizontal split layout. Renders the first and second children one above the other with a horizontal border between them.</p>
+
+        <p><strong>Key implementation details:</strong></p>
+        <ul>
+            <li>Calculates available height after accounting for the border</li>
+            <li>Uses computeSplitSizes to allocate space between first and second children</li>
+            <li>When either child is collapsed, omits the border</li>
+            <li>Borders are drawn as horizontal lines using strings.Repeat</li>
+        </ul>
+
+        <h3>renderFlex</h3>
+        <div class="signature"><pre><code class="language-typescript">func renderFlex(flex *FlexConfig, w, h int) []string</code></pre></div>
+
+        <p>Renders a flex layout with weighted children. Supports both horizontal (row) and vertical (column) flex directions.</p>
+
+        <p><strong>Key implementation details:</strong></p>
+        <ul>
+            <li>Calculates borders between flex items (one less than number of items)</li>
+            <li>Uses computeFlexSizes to determine each item's size</li>
+            <li>For horizontal flex: renders items in a row with vertical borders</li>
+            <li>For vertical flex: renders items in a column with horizontal borders</li>
+        </ul>
+
+        <h3>computeFlexSizes</h3>
+        <div class="signature"><pre><code class="language-typescript">func computeFlexSizes(avail int, items []*FlexItem) []int</code></pre></div>
+
+        <p>Computes the size allocation for flex items. Implements a flexbox-like sizing algorithm that:</p>
+        <ol>
+            <li>First allocates basis size (1 for collapsed items, item.Basis or MinPanelSize for non-collapsed)</li>
+            <li>Calculates remaining space after basis allocation</li>
+            <li>Distributes remaining space by grow weights among non-collapsed items</li>
+            <li>If total grow is 0, distributes equally among non-collapsed items</li>
+            <li>Distributes leftover pixels to the last non-collapsed item</li>
+        </ol>
+
+        <h3>computeSplitSizes</h3>
+        <div class="signature"><pre><code class="language-typescript">func computeSplitSizes(avail int, fraction float64, firstCollapsed, secondCollapsed bool, firstSize, secondSize int) (first, second int)</code></pre></div>
+
+        <p>Calculates sizes for a split's two children. Handles collapsed panels by using their fixed collapsed size.</p>
+
+        <p><strong>Behavior:</strong></p>
+        <ul>
+            <li>If first child is collapsed: allocates firstSize (minimum 1), second gets remaining space</li>
+            <li>If second child is collapsed: allocates secondSize (minimum 1), first gets remaining space</li>
+            <li>Otherwise: splits by fraction, enforcing minimum panel sizes</li>
+        </ul>
+
+        <h3>makeEmptyLines</h3>
+        <div class="signature"><pre><code class="language-typescript">func makeEmptyLines(w, h int) []string</code></pre></div>
+
+        <p>Creates a 2D slice of empty strings with given dimensions. Returns nil if w or h is <= 0.</p>
+
+        <h2>Implementation Details</h2>
+
+        <h3>ANSI Style Handling</h3>
+
+        <p>All rendering uses the <code>charmbracelet/x/ansi</code> package for ANSI style handling. Key patterns:</p>
+
+        <ul>
+            <li><strong>Border characters</strong> are wrapped in ansi.ResetStyle to prevent style leakage</li>
+            <li><strong>padContent</strong> appends ansi.ResetStyle at the end of each line</li>
+            <li><strong>Truncation</strong> uses ansi.Truncate which preserves UTF-8 and ANSI sequences</li>
+        </ul>
+
+        <h3>Collapsed Panel Handling</h3>
+
+        <p>When a panel is collapsed:</p>
+        <ul>
+            <li>The border between panels is omitted to make panels sit flush</li>
+            <li>Collapsed panels use their fixed CollapsedSize instead of computed size</li>
+            <li>This applies to both split and flex layouts</li>
+        </ul>
+
+        <h3>Border Dragging State</h3>
+
+        <p>When a border is being dragged (split.Dragging or flex.Dragging is true):</p>
+        <ul>
+            <li>Different border characters/styles are used</li>
+            <li>borderDragStyle is used instead of borderStyle</li>
+        </ul>
+
+        <h3>Coordinate System</h3>
+
+        <p>The rendering uses 0-indexed terminal coordinates:</p>
+        <ul>
+            <li><strong>X</strong> is the column position (0 to width-1)</li>
+            <li><strong>Y</strong> is the row position (0 to height-1)</li>
+            <li>Borders are positioned relative to the containing area</li>
+        </ul>
+
+        <h3>MinPanelSize</h3>
+
+        <p>A constant representing the minimum panel size. Used to ensure panels don't become too small when computing split/flex sizes.</p>
+
+        <h2>Example</h2>
+
+        <pre><code class="language-go">// Example: Render a simple vertical split
+lines := renderNode(rootNode, 80, 24)
+// lines is []string representing the terminal buffer
+for _, line := range lines {
+    fmt.Println(line)
+}
+
+// Example: Find all draggable borders
+borders := findBorders(rootNode, 0, 0, 80, 24)
+for _, border := range borders {
+    fmt.Printf("Border at (%d, %d), length %d\n", border.X, border.Y, border.Length)
+}</code></pre>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

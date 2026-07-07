@@ -1,218 +1,360 @@
-# Modal Specification
+# Modal
 
-**File:** `warp/modal.go`  
-**Package:** `warp`  
-**Language:** Go
+## Роль
 
-## Overview
+Диалоговое окно, отображаемое поверх контента панели (panel). Предоставляет пользователю модальное взаимодействие с ограниченной областью внимания.
 
-`modal.go` provides a draggable, mouse-aware modal dialog that can be rendered on top of any panel's content. It is built on top of [Charm](https://charm.sh/) libraries (`bubbletea`, `lipgloss`, `x/ansi`) and supports ANSI-styled content, clickable buttons, a close button, and background dimming.
+## API
 
-A modal is typically embedded in a panel and rendered in that panel's `View()` method via `Overlay`. Mouse events are forwarded from the panel's `Update`/`handleMouse` logic through `HandleMouse`.
+### Типы
 
----
+#### ShowModalMsg
 
-## Messages
+Сообщение для отображения модалки.
 
-### `ShowModalMsg`
+| Поле | Тип | Описание |
+| :---- | :---- | :---- |
+| Title | string | Заголовок модалки (отображается в верхней области границы) |
+| Content | string | Рендеримый контент (ANSI-строка) |
+| Buttons | []ModalButton | Кнопки в нижней части модалки |
+| OnClose | func() | Вызывается при закрытии модалки (✕ или Esc) |
+| Width | int | Ширина рамки (0 = авто: 3/5 экрана, clamp 30-50) |
 
-```go
-type ShowModalMsg struct {
-    Title   string
-    Content string
-    Buttons []ModalButton
-    OnClose func()
-    Width   int
-}
-```
+#### CloseModalMsg
 
-A `tea.Msg` that instructs a panel to display a modal dialog.
+Сообщение для закрытия текущей модалки.
 
-| Field | Description |
-|-------|-------------|
-| `Title` | Title shown in the top border / title bar. |
-| `Content` | Body text (ANSI-aware string). |
-| `Buttons` | Zero or more bottom buttons. |
-| `OnClose` | Optional callback invoked when the modal is closed via the `✕` button or `Esc`. |
-| `Width` | Desired box width. `0` means auto-width (3/5 of screen, clamped to 30–50). |
+| Поле | Тип | Описание |
+| :---- | :---- | :---- |
+| — | — | — |
 
-### `CloseModalMsg`
+#### Modal
 
-```go
-type CloseModalMsg struct{}
-```
+Структура модалого окна.
 
-A `tea.Msg` that instructs a panel to close the current modal.
+| Поле | Тип | Описание |
+| :---- | :---- | :---- |
+| Title | string | Заголовок (топ-бorders) |
+| Content | string | Рендеримый ANSI-контент |
+| Buttons | []ModalButton | Кнопки внизу |
+| OnClose | func() | Callback при закрытии |
+| Width | int | Ширина рамки |
+| startX | int | X-позиция рамки (после Overlay) |
+| startY | int | Y-позиция рамки (после Overlay) |
+| boxWidth | int | Ширина рамки |
+| boxHeight | int | Высота рамки |
+| dragging | bool | Флаг перетаскивания |
+| dragX | int | X-позиция при drag |
+| dragY | int | Y-позиция при drag |
+| offsetX | int | Смещение X |
+| offsetY | int | Смещение Y |
+| dimsSet | bool | Дименшены вычислены |
+| totalW | int | Общая ширина экрана |
+| totalH | int | Общая высота экрана |
 
----
+#### ModalButton
 
-## Types
+Описание кнопки в модалке.
 
-### `ModalButton`
+| Поле | Тип | Описание |
+| :---- | :---- | :---- |
+| Label | string | Текст кнопки |
+| Action | func() | Action при клике |
 
-```go
-type ModalButton struct {
-    Label  string
-    Action func()
-}
-```
+### Функции
 
-A single button rendered as `[Label]` at the bottom of the modal. When clicked, `Action` is called.
+#### NewModal
 
-### `Modal`
-
-```go
-type Modal struct {
-    Title   string
-    Content string
-    Buttons []ModalButton
-    OnClose func()
-    Width   int
-    // ... internal fields
-}
-```
-
-The main modal widget. It stores state for content, layout, position, and drag.
-
----
-
-## Public API
-
-### `NewModal`
+Создаёт новый Modal из его частей.
 
 ```go
 func NewModal(title, content string, buttons []ModalButton, onClose func()) *Modal
 ```
 
-Creates a new `Modal` value with the given title, content, buttons, and close callback. Width is left at `0` (auto).
+**Параметры:**
 
-### `EnsureDimensions`
+- `title` — заголовок модалки
+- `content` — рендеримый ANSI-контент
+- `buttons` — массив кнопок
+- `onClose` — callback при закрытии
+
+**Возвращает:**
+
+- `*Modal` — новый экземпляр модалки
+
+#### EnsureDimensions
+
+Вычисляет и хранит дименшены рамки, если они ещё не установлены.
 
 ```go
 func (m *Modal) EnsureDimensions(totalW, totalH int)
 ```
 
-Computes and stores the modal's box dimensions and centered position. Safe to call multiple times; only runs once unless `m.dimsSet` resets. Must be called before `HandleMouse` if `Overlay` has not yet been called.
+**Параметры:**
 
-**Width rules:**
+- `totalW` — общая ширина экрана
+- `totalH` — общая высота экрана
 
-- If `m.Width > 0`, use it.
-- Otherwise use `totalW * 3 / 5`.
-- Clamp to minimum `30` and maximum `50`.
-- Never exceed `totalW`.
+**Поведение:**
 
-**Height:** fixed at `7` lines for the current border + padding + 3 content lines layout.
+- Вызывается перед HandleMouse, если Overlay ещё не был вызван
+- Вычисляет boxWidth: 3/5 от totalW, clamp 30-50
+- boxHeight фиксирован: 7 линий (RoundedBorder + Padding(1,2) + 3 content lines)
+- Центрирует модалку с учётом offsetX/offsetY
+- Устанавливает dimsSet = true после вычисления
 
-**Position:** centered, plus any accumulated drag offsets (`offsetX`, `offsetY`).
+#### Overlay
 
-### `Overlay`
+Рендерит модалку поверх существующих строк контента.
 
 ```go
 func (m *Modal) Overlay(lines []string, totalW, totalH int) []string
 ```
 
-Renders the modal on top of the supplied content lines. Returns a new slice of lines with the modal composited.
+**Параметры:**
 
-Behavior:
+- `lines` — исходные строки контента
+- `totalW` — общая ширина экрана
+- `totalH` — общая высота экрана
 
-1. Calls `EnsureDimensions` to set up position/size.
-2. Builds three content lines internally: title line (with `✕`), content line, and button line.
-3. Truncates content with `…` if it exceeds the inner width.
-4. Dims the entire background using `dimStyle` and strips ANSI from the background first.
-5. Overlays the box, preserving dimmed content left and right of the box.
-6. Returns the modified line slice.
+**Возвращает:**
 
-### `HandleMouse`
+- `[]string` — строки с модалкой наложенной поверх
+
+**Поведение:**
+
+- Если totalW <= 0 или lines пуста — возвращает lines как есть
+- Вызывает EnsureDimensions перед рендерингом
+- Затемняет фон (lines[i] = dimStyle.Background(gbDark0).Render(stripANSI(lines[i])))
+- Рендерит рамку с RoundedBorder и Padding(1,2)
+- Внутренняя ширина = boxWidth - 6 (2 бордеры + 4 padding)
+- Строит три линии контента:
+  - Заголовок + ✕ в конце
+  - Контент (с обрезкой если длиннее innerWidth)
+  - Кнопки в формате [Label] [Label] ...
+- Накладывает рамку на затемнённые строки, сохраняя контент слева/справа
+
+#### HandleMouse
+
+Обработка мыши для модалки.
 
 ```go
 func (m *Modal) HandleMouse(msg tea.MouseMsg) bool
 ```
 
-Processes mouse events for the modal. Returns `true` if the event was consumed.
+**Параметры:**
 
-Supported interactions:
+- `msg` — событие мыши (tea.MouseMsg)
 
-| Action | Behavior |
-|--------|----------|
-| Left click on `✕` | Calls `OnClose` and consumes the event. |
-| Left click on a button | Calls the button's `Action` and consumes the event. |
-| Left click on top padding strip | Starts dragging the modal. |
-| Mouse motion while dragging | Moves the modal and clamps it inside the screen. |
-| Mouse release while dragging | Stops dragging. |
+**Возвращает:**
 
-Coordinates are expected to be relative to the content lines (i.e., screen Y adjusted by the caller before invocation).
+- `bool` — true если событие было обработано (consumed)
 
-### Position / Size Accessors
+**Поведение:**
+
+- Если boxHeight == 0 — возвращает false
+- Поддерживает:
+  - Клик по ✕ (закрытие)
+  - Клик по кнопкам (вызов Action)
+  - Перетаскивание за верхней полоской (startY+1)
+- ✕ находится на позиции `startX + boxWidth - 4` в строке заголовка
+- Кнопки находятся в строке `startY + 4` (и `startY + 5` если wrap)
+- Drag работает только на полоске `startY + 1`, не на заголовке
+- При motion обновляет offsetX/offsetY/startX/startY
+- При release сбрасывает dragging = false
+
+#### StartX
+
+Возвращает X-позицию модалки.
 
 ```go
 func (m *Modal) StartX() int
+```
+
+**Возвращает:**
+
+- `int` — startX
+
+#### StartY
+
+Возвращает Y-позицию модалки.
+
+```go
 func (m *Modal) StartY() int
+```
+
+**Возвращает:**
+
+- `int` — startY
+
+#### BoxWidth
+
+Возвращает ширину модалки.
+
+```go
 func (m *Modal) BoxWidth() int
+```
+
+**Возвращает:**
+
+- `int` — boxWidth
+
+#### BoxHeight
+
+Возвращает высоту модалки.
+
+```go
 func (m *Modal) BoxHeight() int
 ```
 
-Return the box position and size computed by `Overlay` / `EnsureDimensions`. Useful for tests or external hit-testing.
+**Возвращает:**
 
----
+- `int` — boxHeight
 
-## Important Implementation Details
+## Вспомогательные функции
 
-### Layout
+### buildButtonLine
 
-The modal is rendered with:
+Создаёт строку с кнопками.
 
 ```go
-modalBorderStyle = lipgloss.NewStyle().
-    Background(lipgloss.Color(gbDark1)).
-    Foreground(lipgloss.Color(gbLight1)).
-    BorderStyle(lipgloss.RoundedBorder()).
-    BorderForeground(lipgloss.Color(gbBlue)).
-    Padding(1, 2)
+func (m *Modal) buildButtonLine() string
 ```
 
-With rounded border, 1 vertical padding and 2 horizontal padding, the visible box has 7 rows for 3 content lines. The inner content width is `boxWidth - 6` (2 border columns + 4 horizontal padding columns).
+**Поведение:**
 
-### Content Lines
+- Форматирует кнопки как `[Label]`
+- Объединяет их с разделителем "  "
 
-1. **Title line:** `Title` padded to inner width, followed by `✕`.
-2. **Content line:** `Content` truncated with `…` if too long, then padded.
-3. **Button line:** buttons joined as `[Label]  [Label]`, padded.
+### findBracketPair
 
-### Background Dimming
+Находит пару скобок в строке.
 
-Before compositing the box, every input line is passed through `dimStyle` and `stripANSI` to produce a uniform dimmed background. The box is then spliced back in, leaving the dimmed left/right gutters intact.
+```go
+func findBracketPair(s string, pos int) (int, int)
+```
 
-### ANSI-Aware Truncation
+**Параметры:**
 
-- `ansi.Truncate` is used to truncate content to the inner width.
-- `visualBytePos` walks the string using `x/ansi/parser` and `uniseg.FirstGraphemeCluster` to find the byte index corresponding to a target visual width. This preserves ANSI sequences and multi-cell characters when splitting the background line.
-- `stripANSI` removes ANSI escape sequences from the dimmed background.
+- `s` — строка для поиска
+- `pos` — позиция для начала поиска
+
+**Возвращает:**
+
+- `start` — позиция открытия скобки
+- `end` — позиция закрытия скобки
+
+**Поведение:**
+
+- Ищет "[" начиная с pos
+- Ищет "]" после "["
+- Возвращает (-1, -1) если пар нет
+
+### visualBytePos
+
+Возвращает byte-позицию в строке, где визуальная ширина достигает targetW.
+
+```go
+func visualBytePos(s string, targetW int) int
+```
+
+**Параметры:**
+
+- `s` — строка
+- `targetW` — целевая визуальная ширина
+
+**Возвращает:**
+
+- `int` — byte-позицию
+
+**Поведение:**
+
+- Использует ansi/parser для обработки ANSI-секвенций
+- Использует uniseg для обработки графем
+- Если визуальная ширина никогда не достигает targetW — возвращает len(s)
+
+### stripANSI
+
+Удаляет ANSI-секвенции из строки.
+
+```go
+func stripANSI(s string) string
+```
+
+**Поведение:**
+
+- Удаляет все escape-секвенции через regexp
+
+### max
+
+Возвращает максимум из двух значений.
+
+```go
+func max(a, b int) int
+```
+
+## Стили
+
+### modalBorderStyle
+
+Стиль рамки модалки.
+
+| Свойство | Значение |
+| :---- | :---- |
+| Background | gbDark1 |
+| Foreground | gbLight1 |
+| BorderStyle | RoundedBorder() |
+| BorderForeground | gbBlue |
+| Padding | (1, 2) |
+
+### dimStyle
+
+Стиль затемнения фона.
+
+| Свойство | Значение |
+| :---- | :---- |
+| Foreground | gbGray |
+| Background | gbDark0 |
+
+## Поведение
 
 ### Dragging
 
-Dragging is initiated only on the top padding strip (`startY + 1`), not the title line. The modal position is stored as `startX`/`startY` and an additional `offsetX`/`offsetY` is maintained to recompute position after dimension changes. Dragging is clamped so the box cannot move outside the total viewport.
+- Dragging работает только на полоске заголовка (`startY + 1`)
+- Не работает на строке заголовка (`startY + 2`)
+- При движении обновляется offsetX/offsetY
+- При выходе за границы экрана clamp позиция
 
-### Button Hit-Testing
+### Button Layout
 
-The button line is reconstructed with `buildButtonLine`, and bracket pairs are found with `findBracketPair`. Click coordinates are compared against the button's visual span inside the content area (which starts at `startX + 3`, after the left border and padding).
+```
+box[0]: top border
+box[1]: top padding ← draggable strip
+box[2]: title + ✕
+box[3]: content
+box[4]: buttons ← first row
+box[5]: bottom pad
+box[6]: bottom border
+```
 
-### Close Button Hit-Testing
+### Close Button Position
 
-The `✕` is expected at visual column `startX + boxWidth - 4` on the title line (`startY + 2`). A left click there invokes `OnClose`.
+- ✕ находится на позиции `startX + boxWidth - 4` в строке заголовка
+- Это последняя визуальная колонка внутреннего контента
 
----
+## Ограничения
 
-## Dependencies
+- `Width <= 0` — автоширина: 3/5 экрана, clamp 30-50
+- `Width > totalW` — clamp до totalW
+- `totalW <= 0` — Overlay возвращает lines как есть
+- `boxHeight` фиксирован: 7 линий
+- Dragging clamp не позволяет выйти за границы экрана
 
-- `github.com/charmbracelet/bubbletea` — `tea.Msg`, `tea.MouseMsg`, `tea.MouseAction`, `tea.MouseButton`.
-- `github.com/charmbracelet/lipgloss` — styling, borders, width calculation.
-- `github.com/charmbracelet/x/ansi` — ANSI-aware truncation and width measurement.
-- `github.com/charmbracelet/x/ansi/parser` — ANSI state machine for `visualBytePos`.
-- `github.com/rivo/uniseg` — grapheme cluster handling for `visualBytePos`.
-- Standard library: `regexp`, `strings`.
+## Ключевые Правила
 
-## Notes
-
-- `Width` of `0` triggers auto-sizing; explicit widths outside the 30–50 clamp or larger than the viewport are adjusted automatically.
-- The modal is stateful: position and drag offsets persist across `Overlay` calls as long as the same `*Modal` is reused.
-- `HandleMouse` requires `EnsureDimensions` (or a prior `Overlay`) to have run; otherwise the box height is zero and the event is not consumed.
+1. **EnsureDimensions** должен быть вызван перед первым `HandleMouse`
+1. **Overlay** должен быть вызван перед рендерингом контента
+1. **Width** может быть авто (0) или явно заданным (30-50)
+1. **OnClose** вызывается только один раз при закрытии
+1. **Button Action** вызывается при первом клике в пределах кнопки
+1. **Dragging** работает только на верхней полоске, не на заголовке

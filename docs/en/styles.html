@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>styles</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>styles</h1>
+        <p>The <code>warp</code> <code>styles</code> package provides a comprehensive set of terminal UI (TUI) styles based on the Gruvbox Dark color palette. It uses the <code>lipgloss</code> library to create rich terminal UI components with support for background colors, foreground colors, bold text, and more.</p>
+
+        <h2>Overview</h2>
+        <p>This package defines color palettes and pre-configured styles for various UI components including:</p>
+        <ul>
+            <li><strong>Tab bar</strong> - styles for active, inactive, new, and close tabs</li>
+            <li><strong>Splitters/borders</strong> - styles for normal borders, hover states, and drag states</li>
+            <li><strong>Float panes</strong> - styles for floating window borders and titles</li>
+            <li><strong>Collapsible headers</strong> - styles for collapsible UI elements</li>
+            <li><strong>Dropdown menus</strong> - styles for dropdown buttons and items with hover/selected states</li>
+        </ul>
+
+        <h2>Color Palette</h2>
+        <p>All colors are based on the <a href="https://github.com/morhetz/gruvbox">Gruvbox Dark</a> color scheme. The package exports the following color constants:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Hex Value</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>gbDark0</code></td>
+                    <td><code>#282828</code></td>
+                    <td>Darkest background (primary background)</td>
+                </tr>
+                <tr>
+                    <td><code>gbDark1</code></td>
+                    <td><code>#3c3836</code></td>
+                    <td>Dark background (borders, subtle backgrounds)</td>
+                </tr>
+                <tr>
+                    <td><code>gbDark2</code></td>
+                    <td><code>#504945</code></td>
+                    <td>Medium-dark background</td>
+                </tr>
+                <tr>
+                    <td><code>gbDark3</code></td>
+                    <td><code>#665c54</code></td>
+                    <td>Medium background</td>
+                </tr>
+                <tr>
+                    <td><code>gbDark4</code></td>
+                    <td><code>#7c6f64</code></td>
+                    <td>Light background</td>
+                </tr>
+                <tr>
+                    <td><code>gbGray</code></td>
+                    <td><code>#928374</code></td>
+                    <td>Gray text</td>
+                </tr>
+                <tr>
+                    <td><code>gbLight1</code></td>
+                    <td><code>#ebdbb2</code></td>
+                    <td>Light text (primary text color)</td>
+                </tr>
+                <tr>
+                    <td><code>gbRed</code></td>
+                    <td><code>#fb4934</code></td>
+                    <td>Red accent (errors, close buttons)</td>
+                </tr>
+                <tr>
+                    <td><code>gbGreen</code></td>
+                    <td><code>#b8bb26</code></td>
+                    <td>Green accent (success, new items)</td>
+                </tr>
+                <tr>
+                    <td><code>gbYellow</code></td>
+                    <td><code>#fabd2f</code></td>
+                    <td>Yellow accent (warnings, hover states)</td>
+                </tr>
+                <tr>
+                    <td><code>gbBlue</code></td>
+                    <td><code>#83a598</code></td>
+                    <td>Blue accent (links, info)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Public API</h2>
+
+        <h3>Tab Styles</h3>
+        <p>Styles for the tab bar component:</p>
+
+        <div class="signature"><pre><code class="language-typescript">var tabBarStyle = lipgloss.NewStyle().
+        Background(tabBarBg)
+
+var activeTabStyle = lipgloss.NewStyle().
+        Background(activeTabBg).
+        Foreground(activeTabFg).
+        Bold(true)
+
+var inactiveTabStyle = lipgloss.NewStyle().
+        Background(tabBarBg).
+        Foreground(inactiveTabFg)
+
+var newTabStyle = lipgloss.NewStyle().
+        Foreground(newTabFg)
+
+var closeTabStyle = lipgloss.NewStyle().
+        Foreground(closeTabFg)</code></pre></div>
+
+        <ul>
+            <li><code>tabBarStyle</code> - Background style for the entire tab bar</li>
+            <li><code>activeTabStyle</code> - Style for the currently active tab (bold foreground)</li>
+            <li><code>inactiveTabStyle</code> - Style for inactive tabs</li>
+            <li><code>newTabStyle</code> - Style for new tab indicators (green foreground)</li>
+            <li><code>closeTabStyle</code> - Style for close button indicators (red foreground)</li>
+        </ul>
+
+        <h3>Border Styles</h3>
+        <p>Styles for split/border components:</p>
+
+        <div class="signature"><pre><code class="language-typescript">var borderStyle = lipgloss.NewStyle().
+        Foreground(borderColor)
+
+var borderHoverStyle = lipgloss.NewStyle().
+        Foreground(borderHoverColor)
+
+var borderDragStyle = lipgloss.NewStyle().
+        Foreground(borderDragColor)</code></pre></div>
+
+        <ul>
+            <li><code>BorderStyle()</code> - Returns the style used for normal split borders</li>
+            <li><code>BorderDragStyle()</code> - Returns the style used while dragging a split border</li>
+            <li><code>BorderHoverStyle()</code> - Returns the style used when the mouse hovers a split border</li>
+        </ul>
+
+        <h3>Float Pane Styles</h3>
+        <p>Styles for floating window components:</p>
+
+        <div class="signature"><pre><code class="language-typescript">var floatBorderStyle = lipgloss.NewStyle().
+        Foreground(floatBorderColor)
+
+var floatTitleStyle = lipgloss.NewStyle().
+        Background(floatTitleBg).
+        Foreground(floatTitleFg).
+        Bold(true)
+
+var floatCloseStyle = lipgloss.NewStyle().
+        Foreground(floatCloseFg).
+        Bold(true)
+
+var floatBgStyle = lipgloss.NewStyle().
+        Background(floatBg)</code></pre></div>
+
+        <ul>
+            <li><code>floatBorderStyle</code> - Border style for floating panes</li>
+            <li><code>floatTitleStyle</code> - Title bar style for floating panes</li>
+            <li><code>floatCloseStyle</code> - Close button style for floating panes</li>
+            <li><code>floatBgStyle</code> - Background style for floating panes</li>
+        </ul>
+
+        <h3>Collapsible Styles</h3>
+        <p>Styles for collapsible UI elements:</p>
+
+        <div class="signature"><pre><code class="language-typescript">var collapsibleStyle = lipgloss.NewStyle().
+        Foreground(gbLight1).
+        Background(gbDark1)
+
+var collapsibleBorderStyle = lipgloss.NewStyle().
+        Foreground(gbDark4)</code></pre></div>
+
+        <ul>
+            <li><code>collapsibleStyle</code> - Style for collapsible content areas</li>
+            <li><code>collapsibleBorderStyle</code> - Border style for collapsible sections</li>
+        </ul>
+
+        <h3>Dropdown Styles</h3>
+        <p>Styles for dropdown menu components:</p>
+
+        <div class="signature"><pre><code class="language-typescript">var dropdownButtonStyle = lipgloss.NewStyle().
+        Background(gbDark2).
+        Foreground(gbLight1)
+
+var dropdownItemStyle = lipgloss.NewStyle().
+        Background(gbDark0).
+        Foreground(gbLight1)
+
+var dropdownItemHoverStyle = lipgloss.NewStyle().
+        Background(gbDark2).
+        Foreground(gbYellow)
+
+var dropdownItemSelectedStyle = lipgloss.NewStyle().
+        Background(gbDark2).
+        Foreground(gbGreen).
+        Bold(true)</code></pre></div>
+
+        <ul>
+            <li><code>dropdownButtonStyle</code> - Style for dropdown button</li>
+            <li><code>dropdownItemStyle</code> - Style for normal dropdown items</li>
+            <li><code>dropdownItemHoverStyle</code> - Style for hover state on dropdown items</li>
+            <li><code>dropdownItemSelectedStyle</code> - Style for selected dropdown items</li>
+        </ul>
+
+        <h2>Implementation Details</h2>
+
+        <h3>Using lipgloss</h3>
+        <p>All styles are created using the <code>lipgloss</code> library, which provides a simple API for creating rich terminal UI components. The library supports:</p>
+        <ul>
+            <li>Background colors</li>
+            <li>Foreground colors</li>
+            <li>Bold text</li>
+            <li>Underline, blink, reverse, etc.</li>
+            <li>Padding and spacing</li>
+        </ul>
+
+        <h3>Style Composition</h3>
+        <p>Styles are composed using method chaining:</p>
+
+        <pre><code class="language-go">
+style := lipgloss.NewStyle().
+        Background(bgColor).
+        Foreground(fgColor).
+        Bold(true)
+        </code></pre>
+
+        <h3>Color Variables</h3>
+        <p>Individual color variables can be used directly in styles or exported for customization:</p>
+
+        <pre><code class="language-go">
+// Example: Creating a custom style with existing color variables
+customStyle := lipgloss.NewStyle().
+        Background(gbDark1).
+        Foreground(gbLight1).
+        Bold(true)
+        </code></pre>
+
+        <h2>Usage Examples</h2>
+
+        <h3>Creating a Tab Bar</h3>
+        <pre><code class="language-go">
+tabBar := lipgloss.JoinHorizontal(
+    lipgloss.Top,
+    tabBarStyle.Render("Tabs"),
+    activeTabStyle.Render("1"),
+    inactiveTabStyle.Render("2"),
+    inactiveTabStyle.Render("3"),
+)
+        </code></pre>
+
+        <h3>Creating Split Borders</h3>
+        <pre><code class="language-go">
+border := lipgloss.NewStyle().
+        BorderStyle(BorderStyle()).
+        Render("Content")
+
+borderHover := lipgloss.NewStyle().
+        BorderStyle(BorderHoverStyle()).
+        Render("Hovered Border")
+        </code></pre>
+
+        <h2>Package Organization</h2>
+        <p>The package is organized into the following sections:</p>
+        <ol>
+            <li><strong>Gruvbox Dark colors</strong> - Raw color definitions</li>
+            <li><strong>Tab bar colors</strong> - Tab-specific color variables</li>
+            <li><strong>Split border colors</strong> - Border color variables</li>
+            <li><strong>Border styles</strong> - Pre-configured border styles with getter functions</li>
+            <li><strong>Float pane colors</strong> - Floating window color variables</li>
+            <li><strong>Tab bar styles</strong> - Pre-configured tab bar styles</li>
+            <li><strong>Border styles</strong> - Pre-configured border styles</li>
+            <li><strong>Float pane styles</strong> - Pre-configured float pane styles</li>
+            <li><strong>Collapsible styles</strong> - Collapsible UI element styles</li>
+            <li><strong>Dropdown styles</strong> - Dropdown menu component styles</li>
+        </ol>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

@@ -204,3 +204,75 @@ func TestInputCursorRender(t *testing.T) {
 		t.Errorf("expected cursor highlight ANSI code, got %q", rendered)
 	}
 }
+
+func TestInputViewInline(t *testing.T) {
+	in := NewInput("> ")
+	in.SetValue("test")
+
+	rendered := in.View(20, 1)
+	lines := strings.Split(rendered, "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(lines))
+	}
+
+	if !strings.Contains(rendered, "test") {
+		t.Errorf("expected value 'test' in rendered line, got %q", rendered)
+	}
+}
+
+func TestInputEmptyValue(t *testing.T) {
+	in := NewInput("> ")
+	in.SetValue("")
+
+	if in.Value != "" {
+		t.Errorf("expected empty value, got %q", in.Value)
+	}
+	if in.Cursor != 0 {
+		t.Errorf("expected cursor 0, got %d", in.Cursor)
+	}
+
+	rendered := in.View(20, 1)
+	if rendered != "" {
+		t.Errorf("expected empty rendered output, got %q", rendered)
+	}
+}
+
+func TestInputLongValueTruncation(t *testing.T) {
+	in := NewInput("> ")
+	in.Focus()
+	longValue := strings.Repeat("x", 100)
+	in.SetValue(longValue)
+
+	if in.Cursor != 100 {
+		t.Errorf("expected cursor 100, got %d", in.Cursor)
+	}
+
+	rendered := in.View(10, 1)
+	if strings.Count(rendered, "x") > 10 {
+		t.Errorf("expected truncated value, got %q", rendered)
+	}
+}
+
+func TestInputClampCursorOnSetValue(t *testing.T) {
+	in := NewInput("> ")
+	in.SetValue("abc")
+
+	if in.Cursor != 3 {
+		t.Errorf("expected cursor 3 after setValue, got %d", in.Cursor)
+	}
+}
+
+func TestInputClampCursorOnSetCursor(t *testing.T) {
+	in := NewInput("> ")
+	in.SetValue("abc")
+
+	in.SetCursor(100)
+	if in.Cursor != 3 {
+		t.Errorf("expected cursor clamped to 3, got %d", in.Cursor)
+	}
+
+	in.SetCursor(-5)
+	if in.Cursor != 0 {
+		t.Errorf("expected cursor clamped to 0, got %d", in.Cursor)
+	}
+}

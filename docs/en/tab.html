@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tab</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Tab API Documentation</h1>
+
+        <p><code>tab.go</code> implements the <code>Tab</code> type and related functionality for managing terminal tabs with flexible panel layouts. It provides APIs for splitting panels, flex layouts, floating panes, focus management, and mouse/keyboard event handling.</p>
+
+        <h2>Types</h2>
+
+        <h3>TabPosition</h3>
+        <p>Enum specifying where the tab bar is rendered.</p>
+        <div class="signature">
+            <pre><code class="language-go">type TabPosition int
+
+const (
+    TabTop    TabPosition = iota
+    TabBottom
+    TabLeft
+    TabRight
+    TabNone
+)</code></pre>
+        </div>
+
+        <h3>Tab</h3>
+        <p>Represents a single tab with its panel tree, float panes, and focus state.</p>
+        <div class="signature">
+            <pre><code class="language-go">type Tab struct {
+    name    string
+    root    *Node
+    focused Panel
+    floats  []*FloatPane
+    parent  *TabGroup
+    width   int
+    height  int
+
+    // Drag state
+    dragging     *SplitConfig
+    flexDragging *FlexConfig
+    flexDragIdx  int // index of the border being dragged in flex
+    lastBorders  []BorderHit
+}</code></pre>
+        </div>
+
+        <h3>FlexItemSpec</h3>
+        <p>Describes a panel and its flex-grow weight.</p>
+        <div class="signature">
+            <pre><code class="language-go">type FlexItemSpec struct {
+    Panel Panel
+    Grow  int
+}</code></pre>
+        </div>
+
+        <h3>TabGroup</h3>
+        <p>Container for a group of tabs (internal type).</p>
+
+        <h3>EmptyPanel</h3>
+        <p>Placeholder panel used when a tab has no user panels yet.</p>
+        <div class="signature">
+            <pre><code class="language-go">type emptyPanel struct{}
+
+func (emptyPanel) View(width, height int) string
+func (emptyPanel) Update(msg tea.Msg) tea.Cmd</code></pre>
+        </div>
+
+        <h2>Public API</h2>
+
+        <h3>Creating a Tab</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">// NewTab creates a standalone Tab with no parent TabGroup.
+// Useful for embedding a warp layout inside a Panel.
+func NewTab(name string) *Tab</code></pre>
+        </div>
+        <p>Creates a new standalone <code>Tab</code> with the given name. The tab will have an empty root panel that can be populated later.</p>
+
+        <div class="signature">
+            <pre><code class="language-go">func newTab(name string, parent *TabGroup) *Tab</code></pre>
+        </div>
+        <p>Internal constructor that creates a tab with a parent <code>TabGroup</code>.</p>
+
+        <h3>Root Panel Access</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) ensureRoot()
+
+func (t *Tab) RootPanel() Panel
+func (t *Tab) SetRootPanel(panel Panel)</code></pre>
+        </div>
+        <p>These methods manage the root panel of a tab. <code>RootPanel()</code> returns the current root panel, and <code>SetRootPanel()</code> replaces it. <code>ensureRoot()</code> creates a root panel if none exists.</p>
+
+        <h3>Split Operations</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">// SplitVertical splits the panel vertically (left/right).
+// fraction is the share for the left panel (0.0–1.0).
+func (t *Tab) SplitVertical(parent Panel, fraction float64, newPanel Panel)
+
+// SplitHorizontal splits the panel horizontally (top/bottom).
+// fraction is the share for the top panel (0.0–1.0).
+func (t *Tab) SplitHorizontal(parent Panel, fraction float64, newPanel Panel)</code></pre>
+        </div>
+        <p>Split methods divide the current panel into two parts. The first parameter is the existing panel to split, the second is the fraction for the first part, and the third is the new panel to insert.</p>
+
+        <h3>Flex Layout Operations</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">// FlexRow replaces the parent panel with a horizontal flex layout.
+func (t *Tab) FlexRow(parent Panel, items []FlexItemSpec)
+
+// FlexColumn replaces the parent panel with a vertical flex layout.
+func (t *Tab) FlexColumn(parent Panel, items []FlexItemSpec)</code></pre>
+        </div>
+        <p>Flex methods create flex layouts with multiple panels. <code>items</code> is a slice of <code>FlexItemSpec</code> where each item specifies a panel and its grow weight.</p>
+
+        <h3>Floating Panes</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) Float(panel Panel, x, y, width, height int)
+func (t *Tab) CloseFloat(fp *FloatPane)</code></pre>
+        </div>
+        <p><code>Float()</code> makes a panel floating above the main layout at the given position. <code>CloseFloat()</code> removes a floating pane.</p>
+
+        <h3>Focus Management</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) Focus() Panel
+func (t *Tab) SetFocus(panel Panel) tea.Cmd
+func (t *Tab) FocusNext()
+func (t *Tab) FocusPrev()
+func (t *Tab) FocusFirst()
+func (t *Tab) FocusPanel(panel Panel)</code></pre>
+        </div>
+        <p>Focus methods manage which panel receives input:
+        <ul>
+            <li><code>Focus()</code> returns the currently focused panel</li>
+            <li><code>SetFocus()</code> sets a new focused panel and returns any commands from its update</li>
+            <li><code>FocusNext()</code> / <code>FocusPrev()</code> move focus to the next/previous focusable panel</li>
+            <li><code>FocusFirst()</code> moves focus to the first focusable panel</li>
+            <li><code>FocusPanel()</code> sets focus to a specific panel if it implements <code>Focusable</code></li>
+        </ul>
+        </p>
+
+        <h3>Split Fraction Operations</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) SetSplitFraction(panel Panel, fraction float64) bool
+func (t *Tab) GetSplitFraction(panel Panel) (float64, bool)</code></pre>
+        </div>
+        <p><code>SetSplitFraction()</code> updates the fraction of a split containing a panel. <code>GetSplitFraction()</code> returns the current fraction.</p>
+
+        <h3>Collapse/Expand Operations</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) Collapse(panel Panel, size int) bool
+func (t *Tab) Expand(panel Panel) bool</code></pre>
+        </div>
+        <p><code>Collapse()</code> shrinks a panel to a fixed size. <code>Expand()</code> restores it to its saved split fraction.</p>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) ToggleCollapsible(panel Panel)</code></pre>
+        </div>
+        <p>Toggles the collapsed state of a collapsible panel.</p>
+
+        <h3>Rendering</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) View(width, height int) string
+func (t *Tab) Elements(w, h int) []Element
+func (t *Tab) renderContent(w, h int) string
+func (t *Tab) elementsNode(node *Node, x, y, w, h int) []Element
+func (t *Tab) elementsFlex(flex *FlexConfig, x, y, w, h int) []Element</code></pre>
+        </div>
+        <p>Rendering methods generate the UI string and compute element boundaries for the panel tree. <code>View()</code> implements the <code>Panel</code> interface to render the tab.</p>
+
+        <h3>Mouse Handling</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) HandleMouse(msg tea.MouseMsg) tea.Cmd
+func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cmd
+func (t *Tab) hitBorder(bh BorderHit, mx, my int) bool
+func (t *Tab) panelAt(mx, my, cw, ch int) *panelHit
+func (t *Tab) panelAtNode(node *Node, x, y, w, h int, mx, my int) *panelHit
+func (t *Tab) panelAtFlex(flex *FlexConfig, x, y, w, h int, mx, my int) *panelHit</code></pre>
+        </div>
+        <p><code>HandleMouse()</code> is the public entry point for embedded tabs. It processes mouse events including:
+        <ul>
+            <li>Floating pane interactions (focus, drag, close)</li>
+            <li>Border dragging for split resizing</li>
+            <li>Panel clicking for focus and collapsible toggling</li>
+            <li>Event forwarding to panels</li>
+        </ul>
+        </p>
+
+        <h3>Key Handling</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) handleKeys(msg tea.KeyMsg) tea.Cmd</code></pre>
+        </div>
+        <p>Forwards key messages to the focused panel. Warp does not intercept Tab/Shift+Tab automatically; use <code>FocusNext()</code> and <code>FocusPrev()</code> for explicit focus switching.</p>
+
+        <h3>Resize Handling</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) Update(msg tea.Msg) tea.Cmd
+func (t *Tab) broadcastMsg(msg tea.Msg) []tea.Cmd
+func (t *Tab) broadcastResize(node *Node, x, y, w, h int) []tea.Cmd
+func (t *Tab) broadcastNode(node *Node, msg tea.Msg) []tea.Cmd
+func (t *Tab) BroadcastResize() tea.Msg</code></pre>
+        </div>
+        <p><code>Update()</code> implements the <code>Panel</code> update interface. It handles window size changes, resize messages, and broadcasts messages to all leaf panels. <code>BroadcastResize()</code> sends resize messages to all panels after a drag ends.</p>
+
+        <h3>Drag/Resize State</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) updateDrag(mx, my, cw, ch int)
+func (t *Tab) updateSplitDrag(mx, my, cw, ch int)
+func (t *Tab) updateFlexDrag(mx, my, cw, ch int)
+func (t *Tab) updateFlexCollapsed(target *Node)
+func (t *Tab) updateFlexCollapsedNode(node *Node, target *Node) bool</code></pre>
+        </div>
+        <p>Update methods handle live dragging of splits and flex layouts. They adjust the split fraction or flex grow weights based on mouse position.</p>
+
+        <h3>Internal Helper Functions</h3>
+
+        <div class="signature">
+            <pre><code class="language-go">func (t *Tab) setFocusedFocusable(next Focusable)
+func (t *Tab) focusStep(delta int)
+func (t *Tab) saveCollapse(node *Node, width, height int)
+func (t *Tab) saveFractionForNode(parent, target *Node)
+func (t *Tab) restoreCollapse(node *Node)
+func (t *Tab) setSplitFractionNode(parent, target *Node, fraction float64) bool
+func (t *Tab) getSplitFractionNode(parent, target *Node) (float64, bool)
+func (t *Tab) toggleCollapsibleNode(node *Node, panel Panel) bool
+func (t *Tab) collapseNode(parent, target *Node, size int) bool
+func (t *Tab) expandNode(parent, target *Node) bool</code></pre>
+        </div>
+        <p>Internal methods for focus traversal, collapse/expand state management, and split/fraction calculations.</p>
+
+        <div class="signature">
+            <pre><code class="language-go">func clampFraction(f float64) float64</code></pre>
+        </div>
+        <p>Clamps a fraction between 0.1 and 0.9 for split layouts.</p>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>float</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Float Pane</h1>
+        <p><code>float.go</code> implements a floating panel system in the Warp terminal multiplexer. It provides draggable and resizable panels that can be overlaid on top of the main layout.</p>
+
+        <h2>Package Overview</h2>
+        <p>The <code>FloatPane</code> type represents a floating panel rendered above the main layout. It supports:</p>
+        <ul>
+            <li>Draggable positioning via title bar</li>
+            <li>Resizable borders at all edges and corners</li>
+            <li>Close button with optional outside-click-to-close behavior</li>
+            <li>ANSI escape sequence handling for proper terminal rendering</li>
+            <li>Overlay rendering on top of existing content</li>
+        </ul>
+
+        <h2>Types</h2>
+
+        <h3>FloatPane</h3>
+        <p>A floating panel that renders above the main layout.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">type FloatPane struct {
+    Panel Panel
+    X, Y  int
+    Width int
+    Height int
+    Title string
+
+    // State
+    dragging       bool
+    resizing       bool
+    resizeEdge     string // "n", "s", "e", "w", "ne", "nw", "se", "sw"
+    dragStartX     int
+    dragStartY     int
+    origX, origY   int
+    origW, origH   int
+
+    // CloseRequested is set when the user clicks the × button.
+    // The owning Tab checks this after handleMouse and calls CloseFloat.
+    CloseRequested bool
+
+    // CloseOnOutsideClick closes the float when the user clicks outside it.
+    CloseOnOutsideClick bool
+}</span></code></pre></div>
+
+        <p><strong>Fields:</strong></p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>Panel</code></td>
+                    <td><code>Panel</code></td>
+                    <td>The panel content rendered inside the float</td>
+                </tr>
+                <tr>
+                    <td><code>X</code></td>
+                    <td><code>int</code></td>
+                    <td>Horizontal position of the float</td>
+                </tr>
+                <tr>
+                    <td><code>Y</code></td>
+                    <td><code>int</code></td>
+                    <td>Vertical position of the float</td>
+                </tr>
+                <tr>
+                    <td><code>Width</code></td>
+                    <td><code>int</code></td>
+                    <td>Width of the float</td>
+                </tr>
+                <tr>
+                    <td><code>Height</code></td>
+                    <td><code>int</code></td>
+                    <td>Height of the float</td>
+                </tr>
+                <tr>
+                    <td><code>Title</code></td>
+                    <td><code>string</code></td>
+                    <td>Title shown in the top border</td>
+                </tr>
+                <tr>
+                    <td><code>dragging</code></td>
+                    <td><code>bool</code></td>
+                    <td>Whether the user is currently dragging the float</td>
+                </tr>
+                <tr>
+                    <td><code>resizing</code></td>
+                    <td><code>bool</code></td>
+                    <td>Whether the user is currently resizing the float</td>
+                </tr>
+                <tr>
+                    <td><code>resizeEdge</code></td>
+                    <td><code>string</code></td>
+                    <td>Current resize edge/corner ("n", "s", "e", "w", "ne", "nw", "se", "sw")</td>
+                </tr>
+                <tr>
+                    <td><code>dragStartX</code></td>
+                    <td><code>int</code></td>
+                    <td>X coordinate when dragging started</td>
+                </tr>
+                <tr>
+                    <td><code>dragStartY</code></td>
+                    <td><code>int</code></td>
+                    <td>Y coordinate when dragging started</td>
+                </tr>
+                <tr>
+                    <td><code>origX</code></td>
+                    <td><code>int</code></td>
+                    <td>Original X position when drag/resize started</td>
+                </tr>
+                <tr>
+                    <td><code>origY</code></td>
+                    <td><code>int</code></td>
+                    <td>Original Y position when drag/resize started</td>
+                </tr>
+                <tr>
+                    <td><code>origW</code></td>
+                    <td><code>int</code></td>
+                    <td>Original width when resize started</td>
+                </tr>
+                <tr>
+                    <td><code>origH</code></td>
+                    <td><code>int</code></td>
+                    <td>Original height when resize started</td>
+                </tr>
+                <tr>
+                    <td><code>CloseRequested</code></td>
+                    <td><code>bool</code></td>
+                    <td>Set when user clicks the × close button. The owning Tab should check this after <code>handleMouse</code> and call <code>CloseFloat</code>.</td>
+                </tr>
+                <tr>
+                    <td><code>CloseOnOutsideClick</code></td>
+                    <td><code>bool</code></td>
+                    <td>When true, the float closes when user clicks outside of it</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Constants</h2>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">const (
+    floatMinWidth  = 10
+    floatMinHeight = 3
+    floatTitleH    = 1
+)</span></code></pre></div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Constant</th>
+                    <th>Value</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>floatMinWidth</code></td>
+                    <td><code>10</code></td>
+                    <td>Minimum allowed width for a float pane</td>
+                </tr>
+                <tr>
+                    <td><code>floatMinHeight</code></td>
+                    <td><code>3</code></td>
+                    <td>Minimum allowed height for a float pane</td>
+                </tr>
+                <tr>
+                    <td><code>floatTitleH</code></td>
+                    <td><code>1</code></td>
+                    <td>Height of the title bar in lines</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Methods</h2>
+
+        <h3>render(w, h int) []string</h3>
+        <p>Render the float pane into lines.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func (fp *FloatPane) render(w, h int) []string</span></code></pre></div>
+
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>w, h int</code> — Width and height (unused, but part of signature)</li>
+        </ul>
+
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li><code>[]string</code> — Rendered lines for the float pane</li>
+        </ul>
+
+        <p><strong>Description:</strong></p>
+        <p>Creates a new slice of lines representing the float pane. The top border includes the title and close button. The content area renders the panel view. The bottom border closes the box. The method trims the title if it exceeds the available width.</p>
+
+        <h3>handleMouse(msg tea.MouseMsg, mx, my int) tea.Cmd</h3>
+        <p>Process mouse events for this float pane.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func (fp *FloatPane) handleMouse(msg tea.MouseMsg, mx, my int) tea.Cmd</span></code></pre></div>
+
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>msg tea.MouseMsg</code> — Mouse event message</li>
+            <li><code>mx int</code> — Mouse X coordinate (relative to content area, not absolute screen)</li>
+            <li><code>my int</code> — Mouse Y coordinate (relative to content area, not absolute screen)</li>
+        </ul>
+
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li><code>tea.Cmd</code> — Command returned if event was handled (e.g., to close the float)</li>
+        </ul>
+
+        <p><strong>Description:</strong></p>
+        <p>Handles left mouse button events:</p>
+        <ul>
+            <li><strong>Press:</strong> Checks for close button click, title bar drag, or edge resize. If the click is inside the content area, it forwards to the panel.</li>
+            <li><strong>Motion:</strong> Updates position if dragging, or applies resize if resizing.</li>
+            <li><strong>Release:</strong> Clears dragging and resizing state.</li>
+        </ul>
+
+        <h3>hitEdge(x, y int) string</h3>
+        <p>Determine which edge or corner the mouse is hovering over.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func (fp *FloatPane) hitEdge(x, y int) string</span></code></pre></div>
+
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>x int</code> — Mouse X relative to the float</li>
+            <li><code>y int</code> — Mouse Y relative to the float</li>
+        </ul>
+
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li><code>string</code> — Edge/corner identifier ("n", "s", "e", "w", "ne", "nw", "se", "sw") or empty string if not on an edge</li>
+        </ul>
+
+        <h3>applyResize(dx, dy int)</h3>
+        <p>Apply resize deltas based on the current resize edge.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func (fp *FloatPane) applyResize(dx, dy int)</span></code></pre></div>
+
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>dx int</code> — X delta from resize start</li>
+            <li><code>dy int</code> — Y delta from resize start</li>
+        </ul>
+
+        <p><strong>Description:</strong></p>
+        <p>Updates the float's position and dimensions based on <code>resizeEdge</code>. Ensures minimum size constraints and non-negative coordinates are maintained:</p>
+        <ul>
+            <li><code>width < floatMinWidth</code> — Clamped to <code>floatMinWidth</code></li>
+            <li><code>height < floatMinHeight</code> — Clamped to <code>floatMinHeight</code></li>
+            <li><code>x < 0</code> — Set to <code>0</code></li>
+            <li><code>y < 0</code> — Set to <code>0</code></li>
+        </ul>
+
+        <h2>Package Functions</h2>
+
+        <h3>StripANSI(s string) string</h3>
+        <p>Remove ANSI escape sequences from a string.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func StripANSI(s string) string</span></code></pre></div>
+
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>s string</code> — Input string possibly containing ANSI sequences</li>
+        </ul>
+
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li><code>string</code> — String with ANSI sequences removed</li>
+        </ul>
+
+        <p><strong>Description:</strong></p>
+        <p>Strips CSI (Control Sequence Introducer) escape sequences (\x1b[...) from strings. This is necessary for correct visual width calculations in terminal rendering.</p>
+
+        <h3>overlayFloat(lines []string, fp *FloatPane, totalW, totalH int)</h3>
+        <p>Draw the float pane on top of existing content lines.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func overlayFloat(lines []string, fp *FloatPane, totalW, totalH int)</span></code></pre></div>
+
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>lines []string</code> — The screen lines (modified in place)</li>
+            <li><code>fp *FloatPane</code> — The float pane to overlay</li>
+            <li><code>totalW int</code> — Total screen width</li>
+            <li><code>totalH int</code> — Total screen height</li>
+        </ul>
+
+        <p><strong>Description:</strong></p>
+        <p>Draws the float pane on top of the existing content. It:</p>
+        <ul>
+            <li>Checks if the float is within screen bounds</li>
+            <li>Receives the float's rendered lines from <code>render()</code></li>
+            <li>Clamps the float width so it doesn't extend beyond the screen</li>
+            <li>Properly handles ANSI escape sequences by tracking visual positions</li>
+            <li>Builds new lines: prefix (content before float) + styled float + suffix (content after float)</li>
+            <li>Ensures the truncated float ends with a reset sequence (\x1b[0m) to prevent ANSI bleed-through</li>
+        </ul>
+
+        <h2>Usage Example</h2>
+        <pre><code class="language-go">// Create a new float pane
+fp := &FloatPane{
+    Panel:     somePanel,
+    X:         100,
+    Y:         200,
+    Width:     300,
+    Height:    20,
+    Title:     "My Float",
+    CloseRequested: false,
+    CloseOnOutsideClick: false,
+}
+
+// Render the float
+lines := fp.render(80, 24)
+
+// Overlay on screen
+overlayFloat(screenLines, fp, 80, 24)</code></pre>
+
+        <h2>Rendering Flow</h2>
+        <ol>
+            <li>Call <code>render()</code> to generate the float's visual lines</li>
+            <li>Call <code>overlayFloat()</code> to composite the float onto the screen</li>
+            <li>Handle mouse events via <code>handleMouse()</code> for dragging and resizing</li>
+            <li>Periodically check <code>CloseRequested</code> to close the float</li>
+        </ol>
+
+        <h2>Resize Edge Reference</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Edge</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>n</code></td>
+                    <td>Top edge (resizes height only)</td>
+                </tr>
+                <tr>
+                    <td><code>s</code></td>
+                    <td>Bottom edge (resizes height only)</td>
+                </tr>
+                <tr>
+                    <td><code>e</code></td>
+                    <td>Right edge (resizes width only)</td>
+                </tr>
+                <tr>
+                    <td><code>w</code></td>
+                    <td>Left edge (resizes width only)</td>
+                </tr>
+                <tr>
+                    <td><code>ne</code></td>
+                    <td>Top-right corner (resizes both)</td>
+                </tr>
+                <tr>
+                    <td><code>nw</code></td>
+                    <td>Top-left corner (resizes both)</td>
+                </tr>
+                <tr>
+                    <td><code>se</code></td>
+                    <td>Bottom-right corner (resizes both)</td>
+                </tr>
+                <tr>
+                    <td><code>sw</code></td>
+                    <td>Bottom-left corner (resizes both)</td>
+                </tr>
+            </tbody>
+        </table>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

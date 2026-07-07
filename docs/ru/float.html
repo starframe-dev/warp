@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>float</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Плавающий раздел</h1>
+        <p><code>float.go</code> реализует систему плавающих панелей в мультиплексоре терминала Warp. Он обеспечивает перетаскиваемые и изменяемые по размеру панели, которые могут быть наложены поверх основного макета.</p>
+
+        <h2>Обзор пакета</h2>
+        <p>Тип <code>FloatPane</code> представляет плавающую панель, отображаемую над основным макетом. Он поддерживает:</p>
+        <ul>
+            <li>Перетаскиваемое позиционирование через верхнюю панель</li>
+            <li>Изменяемые границы на всех сторонах и углах</li>
+            <li>Кнопка закрытия с поведением закрытия по клику вне</li>
+            <li>Обработка последовательности ANSI для правильного отображения в терминале</li>
+            <li>Наложение рендеринга поверх существующего содержимого</li>
+        </ul>
+
+        <h2>Типы</h2>
+
+        <h3>FloatPane</h3>
+        <p>Плавающая панель, которая отображается над основным макетом.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">type FloatPane struct {
+    Panel Panel
+    X, Y  int
+    Width int
+    Height int
+    Title string
+
+    // State
+    dragging       bool
+    resizing       bool
+    resizeEdge     string // "n", "s", "e", "w", "ne", "nw", "se", "sw"
+    dragStartX     int
+    dragStartY     int
+    origX, origY   int
+    origW, origH   int
+
+    // CloseRequested устанавливается, когда пользователь нажимает кнопку ×.
+    // Владеющая Tab проверяет это после handleMouse и вызывает CloseFloat.
+    CloseRequested bool
+
+    // CloseOnOutsideClick закрывает плавающее окно, когда пользователь кликает вне его.
+    CloseOnOutsideClick bool
+}</span></code></pre></div>
+
+        <p><strong>Поля:</strong></p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Поле</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>Panel</code></td>
+                    <td><code>Panel</code></td>
+                    <td>Контент панели, отображаемый внутри плавающего</td>
+                </tr>
+                <tr>
+                    <td><code>X</code></td>
+                    <td><code>int</code></td>
+                    <td>Горизонтальная позиция плавающего</td>
+                </tr>
+                <tr>
+                    <td><code>Y</code></td>
+                    <td><code>int</code></td>
+                    <td>Вертикальная позиция плавающего</td>
+                </tr>
+                <tr>
+                    <td><code>Width</code></td>
+                    <td><code>int</code></td>
+                    <td>Ширина плавающего</td>
+                </tr>
+                <tr>
+                    <td><code>Height</code></td>
+                    <td><code>int</code></td>
+                    <td>Высота плавающего</td>
+                </tr>
+                <tr>
+                    <td><code>Title</code></td>
+                    <td><code>string</code></td>
+                    <td>Заголовок, отображаемый в верхней границе</td>
+                </tr>
+                <tr>
+                    <td><code>dragging</code></td>
+                    <td><code>bool</code></td>
+                    <td>Пользователь в данный момент перетаскивает плавающее</td>
+                </tr>
+                <tr>
+                    <td><code>resizing</code></td>
+                    <td><code>bool</code></td>
+                    <td>Пользователь в данный момент изменяет размер плавающего</td>
+                </tr>
+                <tr>
+                    <td><code>resizeEdge</code></td>
+                    <td><code>string</code></td>
+                    <td>Текущая граница/угол изменения размера ("n", "s", "e", "w", "ne", "nw", "se", "sw")</td>
+                </tr>
+                <tr>
+                    <td><code>dragStartX</code></td>
+                    <td><code>int</code></td>
+                    <td>Координата X при начале перетаскивания</td>
+                </tr>
+                <tr>
+                    <td><code>dragStartY</code></td>
+                    <td><code>int</code></td>
+                    <td>Координата Y при начале перетаскивания</td>
+                </tr>
+                <tr>
+                    <td><code>origX</code></td>
+                    <td><code>int</code></td>
+                    <td>Исходная позиция X при начале перетаскивания/изменения размера</td>
+                </tr>
+                <tr>
+                    <td><code>origY</code></td>
+                    <td><code>int</code></td>
+                    <td>Исходная позиция Y при начале перетаскивания/изменения размера</td>
+                </tr>
+                <tr>
+                    <td><code>origW</code></td>
+                    <td><code>int</code></td>
+                    <td>Исходная ширина при начале изменения размера</td>
+                </tr>
+                <tr>
+                    <td><code>origH</code></td>
+                    <td><code>int</code></td>
+                    <td>Исходная высота при начале изменения размера</td>
+                </tr>
+                <tr>
+                    <td><code>CloseRequested</code></td>
+                    <td><code>bool</code></td>
+                    <td>Устанавливается, когда пользователь нажимает кнопку × закрытия. Владеющая Tab должна проверить это после <code>handleMouse</code> и вызвать <code>CloseFloat</code>.</td>
+                </tr>
+                <tr>
+                    <td><code>CloseOnOutsideClick</code></td>
+                    <td><code>bool</code></td>
+                    <td>Когда true, плавающее окно закрывается, когда пользователь кликает вне его</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Константы</h2>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">const (
+    floatMinWidth  = 10
+    floatMinHeight = 3
+    floatTitleH    = 1
+)</span></code></pre></div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Константа</th>
+                    <th>Значение</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>floatMinWidth</code></td>
+                    <td><code>10</code></td>
+                    <td>Минимально разрешенная ширина для плавающего раздела</td>
+                </tr>
+                <tr>
+                    <td><code>floatMinHeight</code></td>
+                    <td><code>3</code></td>
+                    <td>Минимально разрешенная высота для плавающего раздела</td>
+                </tr>
+                <tr>
+                    <td><code>floatTitleH</code></td>
+                    <td><code>1</code></td>
+                    <td>Высота панели заголовка в строках</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Методы</h2>
+
+        <h3>render(w, h int) []string</h3>
+        <p>Рендерит плавающий раздел в строки.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func (fp *FloatPane) render(w, h int) []string</span></code></pre></div>
+
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>w, h int</code> — Ширина и высота (не используются, но часть сигнатуры)</li>
+        </ul>
+
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li><code>[]string</code> — Отрендеренные строки для плавающего раздела</li>
+        </ul>
+
+        <p><strong>Описание:</strong></p>
+        <p>Создает новый слайс строк, представляющий плавающий раздел. Верхняя граница включает заголовок и кнопку закрытия. Область контента рендерит вид панели. Нижняя граница закрывает коробку. Метод обрезает заголовок, если он превышает доступную ширину.</p>
+
+        <h3>handleMouse(msg tea.MouseMsg, mx, my int) tea.Cmd</h3>
+        <p>Обрабатывает события мыши для этого плавающего раздела.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func (fp *FloatPane) handleMouse(msg tea.MouseMsg, mx, my int) tea.Cmd</span></code></pre></div>
+
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>msg tea.MouseMsg</code> — Сообщение о событии мыши</li>
+            <li><code>mx int</code> — Координата X мыши (относительно области контента, не абсолютный экран)</li>
+            <li><code>my int</code> — Координата Y мыши (относительно области контента, не абсолютный экран)</li>
+        </ul>
+
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li><code>tea.Cmd</code> — Команда, возвращаемая, если событие было обработано (например, для закрытия плавающего)</li>
+        </ul>
+
+        <p><strong>Описание:</strong></p>
+        <p>Обрабатывает события левой кнопки мыши:</p>
+        <ul>
+            <li><strong>Нажатие:</strong> Проверяет клик по кнопке закрытия, перетаскивание по панели заголовка или изменение размера по краю. Если клик находится внутри области контента, оно перенаправляется в панель.</li>
+            <li><strong>Движение:</strong> Обновляет позицию при перетаскивании или применяет изменение размера при изменении размера.</li>
+            <li><strong>Отпускание:</strong> Очищает состояние перетаскивания и изменения размера.</li>
+        </ul>
+
+        <h3>hitEdge(x, y int) string</h3>
+        <p>Определяет, над какой границей или углом находится курсор мыши.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func (fp *FloatPane) hitEdge(x, y int) string</span></code></pre></div>
+
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>x int</code> — X мыши относительно плавающего</li>
+            <li><code>y int</code> — Y мыши относительно плавающего</li>
+        </ul>
+
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li><code>string</code> — Идентификатор границы/угла ("n", "s", "e", "w", "ne", "nw", "se", "sw") или пустая строка, если не на границе</li>
+        </ul>
+
+        <h3>applyResize(dx, dy int)</h3>
+        <p>Применяет дельты изменения размера на основе текущей границы изменения размера.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func (fp *FloatPane) applyResize(dx, dy int)</span></code></pre></div>
+
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>dx int</code> — Дельта X от начала изменения размера</li>
+            <li><code>dy int</code> — Дельта Y от начала изменения размера</li>
+        </ul>
+
+        <p><strong>Описание:</strong></p>
+        <p>Обновляет позицию и размеры плавающего на основе <code>resizeEdge</code>. Обеспечивает соблюдение ограничений минимального размера и поддержание неположительных координат:</p>
+        <ul>
+            <li><code>width < floatMinWidth</code> — Обрезается до <code>floatMinWidth</code></li>
+            <li><code>height < floatMinHeight</code> — Обрезается до <code>floatMinHeight</code></li>
+            <li><code>x < 0</code> — Устанавливается в <code>0</code></li>
+            <li><code>y < 0</code> — Устанавливается в <code>0</code></li>
+        </ul>
+
+        <h2>Функции пакета</h2>
+
+        <h3>StripANSI(s string) string</h3>
+        <p>Удаляет последовательности ANSI из строки.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func StripANSI(s string) string</span></code></pre></div>
+
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>s string</code> — Входная строка, возможно содержащая ANSI-последовательности</li>
+        </ul>
+
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li><code>string</code> — Строка с удаленными ANSI-последовательностями</li>
+        </ul>
+
+        <p><strong>Описание:</strong></p>
+        <p>Удаляет последовательности вывода CSI (Control Sequence Introducer) (\x1b[...) из строк. Это необходимо для правильных вычислений визуальной ширины при рендеринге в терминале.</p>
+
+        <h3>overlayFloat(lines []string, fp *FloatPane, totalW, totalH int)</h3>
+        <p>Рисует плавающий раздел поверх существующих контента строк.</p>
+
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func overlayFloat(lines []string, fp *FloatPane, totalW, totalH int)</span></code></pre></div>
+
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>lines []string</code> — Строки экрана (изменяются на месте)</li>
+            <li><code>fp *FloatPane</code> — Плавающий раздел для наложения</li>
+            <li><code>totalW int</code> — Общая ширина экрана</li>
+            <li><code>totalH int</code> — Общая высота экрана</li>
+        </ul>
+
+        <p><strong>Описание:</strong></p>
+        <p>Рисует плавающий раздел поверх существующего контента. Он:</p>
+        <ul>
+            <li>Проверяет, находится ли плавающий внутри границ экрана</li>
+            <li>Получает строки, отрендеренные плавающим из <code>render()</code></li>
+            <li>Обрезает ширину плавающего, чтобы он не выходил за пределы экрана</li>
+            <li>Правильно обрабатывает ANSI-последовательности, отслеживая визуальные позиции</li>
+            <li>Строит новые строки: префикс (контент перед плавающим) + стилизованный плавающий + суффикс (контент после плавающего)</li>
+            <li>Обеспечивает, чтобы обрезанный плавающий заканчивался последовательностью сброса (\x1b[0m) для предотвращения просачивания ANSI</li>
+        </ul>
+
+        <h2>Пример использования</h2>
+        <pre><code class="language-go">// Создаем новый плавающий раздел
+fp := &FloatPane{
+    Panel:     somePanel,
+    X:         100,
+    Y:         200,
+    Width:     300,
+    Height:    20,
+    Title:     "Мой плавающий",
+    CloseRequested: false,
+    CloseOnOutsideClick: false,
+}
+
+// Рендерим плавающий
+lines := fp.render(80, 24)
+
+// Накладываем на экран
+overlayFloat(screenLines, fp, 80, 24)</code></pre>
+
+        <h2>Поток рендеринга</h2>
+        <ol>
+            <li>Вызвать <code>render()</code> для генерации визуальных строк плавающего</li>
+            <li>Вызвать <code>overlayFloat()</code> для композитирования плавающего на экран</li>
+            <li>Обрабатывать события мыши через <code>handleMouse()</code> для перетаскивания и изменения размера</li>
+            <li>Периодически проверять <code>CloseRequested</code> для закрытия плавающего</li>
+        </ol>
+
+        <h2>Справочник границы изменения размера</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Граница</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>n</code></td>
+                    <td>Верхняя граница (изменяет только высоту)</td>
+                </tr>
+                <tr>
+                    <td><code>s</code></td>
+                    <td>Нижняя граница (изменяет только высоту)</td>
+                </tr>
+                <tr>
+                    <td><code>e</code></td>
+                    <td>Правая граница (изменяет только ширину)</td>
+                </tr>
+                <tr>
+                    <td><code>w</code></td>
+                    <td>Левая граница (изменяет только ширину)</td>
+                </tr>
+                <tr>
+                    <td><code>ne</code></td>
+                    <td>Правый верхний угол (изменяет оба)</td>
+                </tr>
+                <tr>
+                    <td><code>nw</code></td>
+                    <td>Левый верхний угол (изменяет оба)</td>
+                </tr>
+                <tr>
+                    <td><code>se</code></td>
+                    <td>Правый нижний угол (изменяет оба)</td>
+                </tr>
+                <tr>
+                    <td><code>sw</code></td>
+                    <td>Левый нижний угол (изменяет оба)</td>
+                </tr>
+            </tbody>
+        </table>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

@@ -1,19 +1,102 @@
-# Specification: `scrollable.go`
+# scrollable.md
 
-## Overview
+## Обзор
 
-`scrollable.go` provides a `Scrollable` wrapper component in the `warp` package that adds vertical scrolling behavior to any `Panel` component. When the wrapped panel renders more lines than the available height, the user can scroll the viewport using the mouse wheel or keyboard.
+Scrollable — это обёртка для компонента Panel, добавляющая поддержку прокрутки содержимого при превышении высоты отведённого пространства. Позволяет пользователям прокручивать содержимое через колёсико мыши или клавиатуру.
 
-## Behavior
+## Публичный API
 
-- `Scrollable` renders a fixed-height viewport of a child panel by slicing a virtual full-height render into a visible window.
-- If the content does not exceed the viewport height, `Offset` is clamped to `0` and no scrolling occurs.
-- If the child panel is `nil`, the component renders a blank area of the requested height by returning `h` newline characters.
-- Each visible line is padded with spaces or truncated to the requested width `w` so that the viewport is rectangular.
+### Тип `Scrollable`
 
-## Public Types
+```go
+// Scrollable обёртка для Panel с поддержкой прокрутки.
+// Когда содержимое превышает отведённую высоту, пользователь может
+// прокручивать через колёсико мыши.
+type Scrollable struct {
+    Content Panel
+    Offset  int // смещение прокрутки в строках
+}
+```
 
-### `Scrollable`
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `Content` | Panel | Содержимое, которое может быть прокручено |
+| `Offset` | int | Текущее смещение прокрутки (в строках), 0-значение — верх viewport |
+
+### Функции
+
+#### `NewScrollable`
+
+```go
+// NewScrollable создаёт новую обёртку scrollable.
+//
+// @param content — Panel-компонент, который будет обёрнут
+// @returns *Scrollable — новый экземпляр Scrollable
+// @example
+// ```go
+// s := NewScrollable(content)
+// ```
+func NewScrollable(content Panel) *Scrollable
+```
+
+#### `View`
+
+```go
+// View рендерит видимую область viewport содержимого.
+//
+// @param w — ширина viewport в символах
+// @param h — высота viewport в строках
+// @returns string — рендеренный вид
+//
+// Поведение:
+// 1. Если Content nil — возвращает пустые строки высотой h
+// 2. Рендерит полное содержимое с неограниченной высотой
+// 3. Кламит Offset в диапазоне [0, maxOffset]
+// 4. Возвращает видимый срез с padding по ширине
+//
+// @sideeffect io — рендеринг в строку
+func (s *Scrollable) View(w, h int) string
+```
+
+#### `Update`
+
+```go
+// Update обрабатывает сообщения прокрутки (колёсико мыши, клавиши).
+//
+// @param msg tea.Msg — сообщение от tea.Msg
+// @returns tea.Cmd — команда (возвращает nil)
+//
+// Обработчики:
+// - tea.MouseMsg.MouseButtonWheelUp: смещение вверх на 3 строки
+// - tea.MouseMsg.MouseButtonWheelDown: смещение вниз на 3 строки
+// - tea.KeyMsg: "up" — вверх на 1, "down" — вниз на 1,
+//   "pgup" — вверх на 10, "pgdown" — вниз на 10
+//
+// @sideeffect mutation — изменение поля Offset
+// @pure
+func (s *Scrollable) Update(msg tea.Msg) tea.Cmd
+```
+
+#### `padLine` (внутренняя)
+
+```go
+// padLine выравнивает строку по ширине w.
+//
+// @param line — исходная строка
+// @param w — целевая ширина в символах
+// @returns string — отцентрированная/обрезанная строка
+//
+// Логика:
+// 1. Если ширина строки >= w — обрезает до w-1 символа
+// 2. Иначе добавляет пробелы справа до ширины w
+//
+// @pure
+func padLine(line string, w int) string
+```
+
+## Детали реализации
+
+### Структура `Scrollable`
 
 ```go
 type Scrollable struct {
@@ -22,73 +105,207 @@ type Scrollable struct {
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `Content` | `Panel` | The child panel being wrapped. |
-| `Offset`  | `int`   | Current scroll offset measured in lines from the top of the rendered content. |
+| Поле | Тип | Инициализация | Описание |
+|------|-----|---------------|----------|
+| `Content` | Panel | По умолчанию | Panel-компонент, содержащий контент |
+| `Offset` | int | По умолчанию (0) | Смещение прокрутки в строках |
 
-### `Panel` dependency
+### Конструктор
 
-`Scrollable` depends on the `Panel` interface (defined elsewhere in the package). It calls:
+```go
+func NewScrollable(content Panel) *Scrollable {
+    return &Scrollable{Content: content}
+}
+```
 
-- `Panel.View(w, h int) string`
-- `Panel.Update(msg tea.Msg) tea.Cmd`
+**Поведение:**
+- Создаёт новый экземпляр Scrollable
+- Не инициализирует Offset (получает zero value — 0)
 
-## Public API
+### Метод `View`
 
-### `func NewScrollable(content Panel) *Scrollable`
+```go
+func (s *Scrollable) View(w, h int) string
+```
 
-Creates a new `Scrollable` instance wrapping the given `content` panel. The initial `Offset` is `0`.
+**Логика рендеринга:**
 
-### `func (s *Scrollable) View(w, h int) string`
+1. **Проверка nil:** Если `Content == nil` — возвращает `h` пустых строк
+2. **Полный рендер:** Вызывает `s.Content.View(w, 9999)` для получения всего контента
+3. **Разбиение на строки:** `strings.Split(fullContent, "\n")`
+4. **Кламминг Offset:**
+   - `maxOffset = len(lines) - h`
+   - Если `maxOffset < 0` → `maxOffset = 0`
+   - Если `s.Offset < 0` → `s.Offset = 0`
+   - Если `s.Offset > maxOffset` → `s.Offset = maxOffset`
+5. **Срез видимого:** Берёт `h` строк начиная с `s.Offset`
+6. **Padding:** Выравнивает каждую строку по ширине `w` через `padLine`
+7. **Объединение:** `strings.Join(visible, "\n")`
 
-Renders the visible viewport of the content.
+### Метод `Update`
 
-- Renders the full content at width `w` with effectively unlimited height (`9999` lines).
-- Splits the full content into lines and clamps `Offset` to the valid range `[0, max(0, len(lines) - h)]`.
-- Returns `h` lines of output. If a content line exists at `Offset + i`, it is used; otherwise a blank line is emitted.
-- Each line is padded or truncated to width `w` using `padLine`.
+```go
+func (s *Scrollable) Update(msg tea.Msg) tea.Cmd
+```
 
-### `func (s *Scrollable) Update(msg tea.Msg) tea.Cmd`
+**Обработка сообщений:**
 
-Processes scroll input and forwards the message to the wrapped panel.
+#### `tea.MouseMsg`
 
-Supported input:
+| Button | Действие |
+|--------|----------|
+| `tea.MouseButtonWheelUp` | `Offset -= 3`, кламп до 0 |
+| `tea.MouseButtonWheelDown` | `Offset += 3` |
 
-| Message | Action |
-|---------|--------|
-| `tea.MouseMsg` with `tea.MouseButtonWheelUp` | Decrease `Offset` by `3` (scroll up), clamped to `>= 0`. |
-| `tea.MouseMsg` with `tea.MouseButtonWheelDown` | Increase `Offset` by `3` (scroll down). |
-| `tea.KeyMsg` with `"up"` | Decrease `Offset` by `1`, clamped to `>= 0`. |
-| `tea.KeyMsg` with `"down"` | Increase `Offset` by `1`. |
-| `tea.KeyMsg` with `"pgup"` | Decrease `Offset` by `10`, clamped to `>= 0`. |
-| `tea.KeyMsg` with `"pgdown"` | Increase `Offset` by `10`. |
+#### `tea.KeyMsg`
 
-After handling scroll input, the message is passed to `s.Content.Update(msg)` if `Content` is not `nil`. The child may return a command that is propagated to the caller.
+| Key | Действие |
+|-----|----------|
+| `"up"` | `Offset -= 1`, кламп до 0 |
+| `"down"` | `Offset += 1` |
+| `"pgup"` | `Offset -= 10`, кламп до 0 |
+| `"down"` | `Offset += 10` |
 
-## Implementation Details
+**Побочные эффекты:**
+- Изменение поля `Offset` (mutation)
+- Вызов `s.Content.Update(msg)` если Content не nil
 
-### `padLine(line string, w int) string`
+**Возвращаемое:**
+- Всегда `nil` (нет команд)
 
-Private helper that ensures a rendered line fits exactly within the viewport width.
+### Внутренняя функция `padLine`
 
-- If `lipgloss.Width(line)` is less than `w`, it appends spaces to fill the width.
-- If the line is wider than `w`, it iterates over byte indices and returns the longest prefix whose display width is `<= w` (specifically, it returns the first prefix that exceeds `w` minus the last byte). If no truncation is needed, the original line is returned.
+```go
+func padLine(line string, w int) string
+```
 
-### Rendering strategy
+**Логика:**
+1. Вычисляет ширину строки через `lipgloss.Width(line)`
+2. Если `lw >= w`:
+   - Ищет байтовую границу, где ширина становится > w
+   - Возвращает `line[:i-1]` (обрезает на 1 символ меньше)
+   - Если нет такой границы — возвращает исходную строку
+3. Иначе добавляет пробелы справа: `line + strings.Repeat(" ", w-lw)`
 
-The wrapper uses a large constant height (`9999`) to obtain the full height of the child panel without imposing an explicit height constraint. This is simple but assumes that panel content fits within that limit. In practice, content taller than `9999` lines would be truncated at rendering time.
+**Примечание:** Используется `lipgloss.Width` для корректного учёта ширины символов (CJK и т.п.)
 
-### Offset management
+## Тесты
 
-`Offset` is mutated in place during `Update`. Clamping for the upper bound happens only inside `View`, which means after a wheel/key event the offset can momentarily exceed the valid range. `View` corrects it before rendering. This avoids needing to know the content height during `Update`.
+### TestNewScrollable
 
-### Keyboard handling
+```go
+func TestNewScrollable(t *testing.T) {
+    t.Run("creates scrollable with nil offset", func(t *testing.T) {
+        s := NewScrollable(nil)
+        if s.Offset != 0 {
+            t.Errorf("Offset = %d, want 0", s.Offset)
+        }
+        if s.Content != nil {
+            t.Errorf("Content = %v, want nil", s.Content)
+        }
+    })
+}
+```
 
-Key messages are compared using `msg.String()`, which is the human-readable representation returned by Bubble Tea. This matches strings such as `"up"`, `"down"`, `"pgup"`, and `"pgdown"`.
+### TestView_EmptyContent
 
-## Dependencies
+```go
+func TestView_EmptyContent(t *testing.T) {
+    s := NewScrollable(nil)
+    result := s.View(80, 24)
+    if len(strings.Split(result, "\n")) != 24 {
+        t.Errorf("got %d lines, want 24", len(strings.Split(result, "\n")))
+    }
+}
+```
 
-- `strings` – line splitting and padding.
-- `github.com/charmbracelet/bubbletea` – input messages and commands.
-- `github.com/charmbracelet/lipgloss` – display width calculation for styling-aware truncation and padding.
+### TestView_Scrolling
+
+```go
+func TestView_Scrolling(t *testing.T) {
+    content := Panel{
+        View: func(w, h int) string {
+            return strings.Repeat("A\n", 100)
+        },
+    }
+    s := NewScrollable(content)
+
+    // Top view
+    s.View(80, 10)
+    if s.Offset != 0 {
+        t.Errorf("Offset = %d, want 0", s.Offset)
+    }
+
+    // Scroll down
+    s.Update(tea.MouseMsg{Button: tea.MouseButtonWheelDown})
+    if s.Offset != 3 {
+        t.Errorf("Offset after wheel down = %d, want 3", s.Offset)
+    }
+
+    // Clamp test
+    s.Offset = 1000
+    s.View(80, 10)
+    if s.Offset != 99 {
+        t.Errorf("Offset after clamp = %d, want 99", s.Offset)
+    }
+}
+```
+
+### TestUpdate_Keyboard
+
+```go
+func TestUpdate_Keyboard(t *testing.T) {
+    s := NewScrollable(nil)
+
+    s.Update(tea.KeyMsg{String: "up"})
+    if s.Offset != -1 {
+        t.Errorf("Offset after up = %d, want -1", s.Offset)
+    }
+
+    s.Update(tea.KeyMsg{String: "down"})
+    if s.Offset != 0 {
+        t.Errorf("Offset after down = %d, want 0", s.Offset)
+    }
+
+    s.Update(tea.KeyMsg{String: "pgup"})
+    if s.Offset != -10 {
+        t.Errorf("Offset after pgup = %d, want -10", s.Offset)
+    }
+}
+```
+
+### TestPadLine
+
+```go
+func TestPadLine(t *testing.T) {
+    t.Run("short line gets padded", func(t *testing.T) {
+        got := padLine("hello", 10)
+        expected := "hello     "
+        if got != expected {
+            t.Errorf("padLine(%q, 10) = %q, want %q", "hello", got, expected)
+        }
+    })
+
+    t.Run("long line gets truncated", func(t *testing.T) {
+        got := padLine("this is a very long line that should be truncated", 20)
+        if len(got) != 20 {
+            t.Errorf("len(got) = %d, want 20", len(got))
+        }
+    })
+}
+```
+
+## Чеклист
+
+- [ ] Публичные функции имеют JSDoc/doc comments
+- [ ] Есть примеры использования
+- [ ] Тесты Red-Green-Refactor
+- [ ] README актуален
+
+## Ключевые правила
+
+1. **Offset всегда клампится** в диапазоне `[0, maxOffset]`
+2. **Mouse wheel** двигает на 3 строки
+3. **Keys** двигают на 1 или 10 строк (pgup/pgdown)
+4. **Padding** использует `lipgloss.Width` для корректного учёта ширины символов
+5. **Nil Content** возвращается пустым viewportом высотой h

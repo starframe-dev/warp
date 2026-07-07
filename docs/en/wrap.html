@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>wrap</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>wrap</h1>
+        <p><code>wrap</code> is a Go package that provides text wrapping functionality. It offers two main wrapping strategies: word-based wrapping and space-based wrapping.</p>
+
+        <h2>Public API</h2>
+        <p>The package exposes the following public functions:</p>
+        
+        <div class="signature">
+            <pre><code class="language-go">func WordWrap(text string, width int) []string</code></pre>
+        </div>
+        
+        <div class="signature">
+            <pre><code class="language-go">func SpaceWrap(text string, width int) []string</code></pre>
+        </div>
+        
+        <div class="signature">
+            <pre><code class="language-go">func WrapToString(text string, width int, useSpaceWrap bool) string</code></pre>
+        </div>
+
+        <h2>Functions</h2>
+
+        <h3>WordWrap</h3>
+        <div class="signature">
+            <pre><code class="language-go">func WordWrap(text string, width int) []string</code></pre>
+        </div>
+        <p><code>WordWrap</code> wraps text at word boundaries so that no line exceeds the specified width. If a word is longer than the width, it will be broken mid-word to fit the constraint.</p>
+        
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>text</code> — The input text to wrap</li>
+            <li><code>width</code> — Maximum width in characters for each line</li>
+        </ul>
+        
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li>Array of wrapped lines</li>
+        </ul>
+
+        <p><strong>Behavior:</strong></p>
+        <ul>
+            <li>Returns <code>nil</code> if width is <= 0</li>
+            <li>Processes multi-line input (splits on newlines)</li>
+            <li>Uses simple length-based width calculation</li>
+            <li>Breaks words if necessary to fit the width</li>
+        </ul>
+
+<pre><code class="language-go">result := WordWrap("Hello World this is a test", 10)
+// Output:
+// [Hello Worl
+// d this is
+// a test]</code></pre>
+
+        <h3>SpaceWrap</h3>
+        <div class="signature">
+            <pre><code class="language-go">func SpaceWrap(text string, width int) []string</code></pre>
+        </div>
+        <p><code>SpaceWrap</code> wraps text at space characters only. If a word is longer than the width, it will overflow without breaking the word.</p>
+        
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>text</code> — The input text to wrap</li>
+            <li><code>width</code> — Maximum width in characters for each line</li>
+        </ul>
+        
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li>Array of wrapped lines</li>
+        </ul>
+
+        <p><strong>Behavior:</strong></p>
+        <ul>
+            <li>Returns <code>nil</code> if width is <= 0</li>
+            <li>Processes multi-line input (splits on newlines)</li>
+            <li>Uses simple length-based width calculation</li>
+            <li>Preserves word integrity — words longer than width overflow</li>
+            <li>Uses <code>strings.Fields()</code> to split on whitespace</li>
+        </ul>
+
+<pre><code class="language-go">result := SpaceWrap("Hello World this is a test", 10)
+// Output:
+// [Hello Worl
+// d this is a
+// test]</code></pre>
+
+        <h3>WrapToString</h3>
+        <div class="signature">
+            <pre><code class="language-go">func WrapToString(text string, width int, useSpaceWrap bool) string</code></pre>
+        </div>
+        <p><code>WrapToString</code> is a convenience function that wraps text and joins the lines with newlines to produce a single string.</p>
+        
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>text</code> — The input text to wrap</li>
+            <li><code>width</code> — Maximum width in characters for each line</li>
+            <li><code>useSpaceWrap</code> — Whether to use space-based wrapping (<code>true</code>) or word-based wrapping (<code>false</code>)</li>
+        </ul>
+        
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li>Wrapped text as a single string with newlines</li>
+        </ul>
+
+<pre><code class="language-go">wrapped := WrapToString("Hello World this is a test", 10, false)
+// Returns:
+// Hello Worl
+// d this is
+// a test</code></pre>
+
+        <h2>Implementation Details</h2>
+
+        <h3>Internal Functions</h3>
+        <p>The following internal functions support the public API:</p>
+
+        <div class="signature">
+            <pre><code class="language-go">func wrapLine(line string, width int) []string</code></pre>
+        </div>
+        <p>Internal helper that wraps a single line at word boundaries. Handles line width checking and word boundary detection.</p>
+
+        <div class="signature">
+            <pre><code class="language-go">func wrapAtSpaces(line string, width int) []string</code></pre>
+        </div>
+        <p>Internal helper that wraps a single line at spaces only. Handles word overflow cases.</p>
+
+        <div class="signature">
+            <pre><code class="language-go">func isWordBreak(b byte) bool</code></pre>
+        </div>
+        <p>Helper function that checks if a byte is a whitespace character using <code>unicode.IsSpace()</code>.</p>
+
+        <h3>Key Implementation Notes</h3>
+        <ul>
+            <li><strong>Simple width calculation:</strong> Uses simple length-based width calculation instead of terminal-aware width calculation.</li>
+            <li><strong>Multi-line handling:</strong> Both main functions split input text by newlines and process each line independently.</li>
+            <li><strong>Whitespace handling:</strong> After wrapping, leading whitespace in subsequent lines is skipped.</li>
+            <li><strong>Edge cases:</strong> Returns <code>nil</code> for invalid widths (<= 0).</li>
+            <li><strong>String builder:</strong> Uses <code>strings.Builder</code> for efficient string concatenation in <code>wrapAtSpaces</code>.</li>
+        </ul>
+
+        <h2>Examples</h2>
+        <h3>Basic Word Wrap</h3>
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "warp"
+)
+
+func main() {
+    text := "This is a sample text that should be wrapped to fit a certain width."
+    
+    // Word-based wrapping
+    lines := warp.WordWrap(text, 30)
+    for _, line := range lines {
+        fmt.Println(line)
+    }
+}</code></pre>
+
+        <h3>Using WrapToString</h3>
+<pre><code class="language-go">package main
+
+import (
+    "fmt"
+    "warp"
+)
+
+func main() {
+    text := "Short text"
+    
+    // Using word-based wrapping
+    result1 := warp.WrapToString(text, 15, false)
+    fmt.Println("WordWrap result:")
+    fmt.Println(result1)
+    
+    // Using space-based wrapping
+    result2 := warp.WrapToString(text, 15, true)
+    fmt.Println("SpaceWrap result:")
+    fmt.Println(result2)
+}</code></pre>
+
+        <h2>Type Signature Reference</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Function</th>
+                    <th>Signature</th>
+                    <th>Return Type</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>WordWrap</td>
+                    <td><code>func WordWrap(text string, width int)</code></td>
+                    <td><code>[]string</code></td>
+                </tr>
+                <tr>
+                    <td>SpaceWrap</td>
+                    <td><code>func SpaceWrap(text string, width int)</code></td>
+                    <td><code>[]string</code></td>
+                </tr>
+                <tr>
+                    <td>WrapToString</td>
+                    <td><code>func WrapToString(text string, width int, useSpaceWrap bool)</code></td>
+                    <td><code>string</code></td>
+                </tr>
+            </tbody>
+        </table>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

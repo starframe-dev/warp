@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>render</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>render.go - Движок рендеринга Warp</h1>
+
+        <h2>Обзор</h2>
+
+        <p>Пакет <code>render</code> обеспечивает функциональность рендеринга для терминального мультиплексора Warp. Он обрабатывает преобразование дерева узлов, представляющего макет интерфейса, в строки текста, которые можно отобразить в терминале.</p>
+
+        <p>Система рендеринга поддерживает:</p>
+
+        <ul>
+            <li><strong>Leaf узлы</strong> - Панели со зрением (рендеринг осуществляется через их метод View)</li>
+            <li><strong>Распределённые макеты</strong> - Вертикальные и горизонтальные разбиения между панелями</li>
+            <li><strong>Flex макеты</strong> - Взвешенные макеты типа flexbox с несколькими детьми</li>
+            <li><strong>Свёрнутые панели</strong> - Панели, которые можно свернуть до фиксированного размера</li>
+            <li><strong>Состояния перетаскивания</strong> - Визуальная обратная связь при перетаскивании границ между панелями</li>
+        </ul>
+
+        <p>Рендеринг выполняется полностью в памяти и возвращает двумерный срез строк, представляющих буфер терминала, при этом каждая строка правильно стилизована с помощью последовательностей ANSI.</p>
+
+        <h2>Публичный API</h2>
+
+        <h3>renderNode</h3>
+        <div class="signature"><pre><code class="language-typescript">func renderNode(node *Node, w, h int) []string</code></pre></div>
+
+        <p>Основная точка входа для рендеринга дерева узлов. Принимает корневой узел и размеры (ширина и высота в символах), возвращает срез строк, представляющих рендеренный вывод.</p>
+
+        <p><strong>Поведение:</strong></p>
+        <ul>
+            <li>Если узел nil, возвращает пустые строки, соответствующие размерам</li>
+            <li>Если узел лист (имеет Panel), вызывает его метод View и дополняет содержимое</li>
+            <li>Если узел имеет Split, делегирует renderVerticalSplit или renderHorizontalSplit</li>
+            <li>Если узел имеет Flex, делегирует renderFlex</li>
+        </ul>
+
+        <h3>findBorders</h3>
+        <div class="signature"><pre><code class="language-typescript">func findBorders(node *Node, x, y, w, h int) []BorderHit</code></pre></div>
+
+        <p>Рекурсивно собирает все позиции перетаскиваемых границ из дерева узлов. Возвращает срез BorderHit, описывающий каждую границу с её позицией и конфигурацией Split или Flex, которой она принадлежит.</p>
+
+        <p><strong>Применение:</strong> Используется для определения, какие границы можно захватить для разбиения/переконфигурации панелей.</p>
+
+        <h3>padContent</h3>
+        <div class="signature"><pre><code class="language-typescript">func padContent(content string, w, h int) []string</code></pre></div>
+
+        <p>Обеспечивает, чтобы содержимое имело именно w×h размер, дополняя пробелами и обрезая с помощью ansi.Truncate. Каждая строка заканчивается сбросом стиля ANSI, чтобы предотвратить утечку стиля между панелями.</p>
+
+        <h2>Типы</h2>
+
+        <h3>BorderHit</h3>
+
+        <div class="signature"><pre><code class="language-typescript">type BorderHit struct {
+    Split     *SplitConfig
+    Flex      *FlexConfig
+    Direction Direction
+    X, Y      int
+    Length    int
+}</code></pre></div>
+
+        <p>Описывает перетаскиваемую границу на заданной позиции в буфере терминала.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Поле</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Split</td>
+                    <td>*SplitConfig</td>
+                    <td>Указатель на SplitConfig, владеющий этой границей (для макетов split)</td>
+                </tr>
+                <tr>
+                    <td>Flex</td>
+                    <td>*FlexConfig</td>
+                    <td>Указатель на FlexConfig, владеющий этой границей (для макетов flex)</td>
+                </tr>
+                <tr>
+                    <td>Direction</td>
+                    <td>Direction</td>
+                    <td>Направление границы (Vertical или Horizontal)</td>
+                </tr>
+                <tr>
+                    <td>X, Y</td>
+                    <td>int</td>
+                    <td>Начальная позиция границы в координатах терминала</td>
+                </tr>
+                <tr>
+                    <td>Length</td>
+                    <td>int</td>
+                    <td>Длина границы в ячейках</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Внутренние функции</h2>
+
+        <h3>renderVerticalSplit</h3>
+        <div class="signature"><pre><code class="language-typescript">func renderVerticalSplit(split *SplitConfig, w, h int) []string</code></pre></div>
+
+        <p>Рендерит макет вертикального разбиения. Рендерит первого и второго детей рядом с вертикальной границей между ними.</p>
+
+        <p><strong>Ключевые детали реализации:</strong></p>
+        <ul>
+            <li>Вычисляет доступную ширину с учётом границы</li>
+            <li>Использует computeSplitSizes для распределения пространства между первым и вторым детьми</li>
+            <li>Когда либо из детей свернут, пропускает границу, чтобы панели сидели плотно</li>
+            <li>Использует разные символы границ для обычного и состояния перетаскивания</li>
+        </ul>
+
+        <h3>renderHorizontalSplit</h3>
+        <div class="signature"><pre><code class="language-typescript">func renderHorizontalSplit(split *SplitConfig, w, h int) []string</code></pre></div>
+
+        <p>Рендерит макет горизонтального разбиения. Рендерит первого и второго детей один над другим с горизонтальной границей между ними.</p>
+
+        <p><strong>Ключевые детали реализации:</strong></p>
+        <ul>
+            <li>Вычисляет доступную высоту с учётом границы</li>
+            <li>Использует computeSplitSizes для распределения пространства между первым и вторым детьми</li>
+            <li>Когда либо из детей свернут, пропускает границу</li>
+            <li>Границы рисуются как горизонтальные линии с помощью strings.Repeat</li>
+        </ul>
+
+        <h3>renderFlex</h3>
+        <div class="signature"><pre><code class="language-typescript">func renderFlex(flex *FlexConfig, w, h int) []string</code></pre></div>
+
+        <p>Рендерит макет flex с взвешенными детьми. Поддерживает оба направления flex (row) и (column).</p>
+
+        <p><strong>Ключевые детали реализации:</strong></p>
+        <ul>
+            <li>Вычисляет границы между flex элементами (на один меньше чем элементов)</li>
+            <li>Использует computeFlexSizes для определения размера каждого элемента</li>
+            <li>Для горизонтального flex: рендерит элементы в строке с вертикальными границами</li>
+            <li>Для вертикального flex: рендерит элементы в столбце с горизонтальными границами</li>
+        </ul>
+
+        <h3>computeFlexSizes</h3>
+        <div class="signature"><pre><code class="language-typescript">func computeFlexSizes(avail int, items []*FlexItem) []int</code></pre></div>
+
+        <p>Вычисляет распределение размера для flex элементов. Реализует алгоритм типичного размерения flexbox который:</p>
+        <ol>
+            <li>Сначала распределляет базовый размер (1 для свернутых элементов, item.Basis или MinPanelSize для несвёрнутых)</li>
+            <li>Вычисляет оставшееся пространство после распределения базового размера</li>
+            <li>Распределяет оставшееся пространство по grow весам среди несвёрнутых элементов</li>
+            <li>Если общий grow равен 0, распределяет поровну среди несвёрнутых элементов</li>
+            <li>Распределяет оставшиеся пиксели на последний несвёрнутый элемент</li>
+        </ol>
+
+        <h3>computeSplitSizes</h3>
+        <div class="signature"><pre><code class="language-typescript">func computeSplitSizes(avail int, fraction float64, firstCollapsed, secondCollapsed bool, firstSize, secondSize int) (first, second int)</code></pre></div>
+
+        <p>Вычисляет размеры для двух детей разбиения. Обрабатывает свернутые панели, используя их фиксированный свернутый размер.</p>
+
+        <p><strong>Поведение:</strong></p>
+        <ul>
+            <li>Если первый child свернут: распределяет firstSize (минимум 1), второй получает оставшееся пространство</li>
+            <li>Если второй child свернут: распределяет secondSize (минимум 1), первый получает оставшееся пространство</li>
+            <li>В противном случае: делит по fraction, обеспечивая минимальные размеры панелей</li>
+        </ul>
+
+        <h3>makeEmptyLines</h3>
+        <div class="signature"><pre><code class="language-typescript">func makeEmptyLines(w, h int) []string</code></pre></div>
+
+        <p>Создаёт двумерный срез пустых строк с заданными размерами. Возвращает nil если w или h <= 0.</p>
+
+        <h2>Детали реализации</h2>
+
+        <h3>Обработка ANSI стилей</h3>
+
+        <p>Весь рендеринг использует пакет <code>charmbracelet/x/ansi</code> для обработки ANSI стилей. Ключевые паттерны:</p>
+
+        <ul>
+            <li><strong>Символы границ</strong> обернуты в ansi.ResetStyle, чтобы предотвратить утечку стилей</li>
+            <li><strong>padContent</strong> добавляет ansi.ResetStyle в конце каждой строки</li>
+            <li><strong>Обрезка</strong> использует ansi.Truncate, которая сохраняет UTF-8 и последовательности ANSI</li>
+        </ul>
+
+        <h3>Обработка свернутых панелей</h3>
+
+        <p>Когда панель свернута:</p>
+        <ul>
+            <li>Граница между панелями пропускается, чтобы панели сидели плотно</li>
+            <li>Свёрнутые панели используют их фиксированный CollapsedSize вместо вычисленного размера</li>
+            <li>Это применимо как для split, так и для flex макетов</li>
+        </ul>
+
+        <h3>Состояние перетаскивания границ</h3>
+
+        <p>Когда граница перетаскивается (split.Dragging или flex.Dragging истинно):</p>
+        <ul>
+            <li>Используются другие символы границ/стили</li>
+            <li>borderDragStyle используется вместо borderStyle</li>
+        </ul>
+
+        <h3>Координатная система</h3>
+
+        <p>Рендеринг использует нулевые координаты терминала:</p>
+        <ul>
+            <li><strong>X</strong> - позиция колонки (0 до width-1)</li>
+            <li><strong>Y</strong> - позиция строки (0 до height-1)</li>
+            <li>Границы позиционируются относительно содержащей области</li>
+        </ul>
+
+        <h3>MinPanelSize</h3>
+
+        <p>Константа, представляющая минимальный размер панели. Используется для обеспечения того, чтобы панели не становились слишком маленькими при вычислении размеров split/flex.</p>
+
+        <h2>Пример</h2>
+
+        <pre><code class="language-go">// Пример: Рендеринг простого вертикального разбиения
+lines := renderNode(rootNode, 80, 24)
+// lines - это []string, представляющих буфер терминала
+for _, line := range lines {
+    fmt.Println(line)
+}
+
+// Пример: Найти все перетаскиваемые границы
+borders := findBorders(rootNode, 0, 0, 80, 24)
+for _, border := range borders {
+    fmt.Printf("Border at (%d, %d), length %d\n", border.X, border.Y, border.Length)
+}</code></pre>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

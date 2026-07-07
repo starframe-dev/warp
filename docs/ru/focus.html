@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>focus</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Модуль Focus</h1>
+
+        <p>Этот модуль обеспечивает управление фокусом с клавиатуры для панели Warp. Он определяет интерфейсы и функции для сбора, навигации и применения фокуса с клавиатуры по дереву панелей.</p>
+
+        <h2>Типы</h2>
+
+        <h3>Focusable</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">type Focusable interface {
+	Panel
+	Focus()
+	Blur()
+	Focused() bool
+}</span></code></pre></div>
+        <p><code>Focusable</code> — это панель, которая может принимать фокус с клавиатуры. Он расширяет интерфейс <code>Panel</code> и добавляет три метода:</p>
+        <ul>
+            <li><code>Focus()</code> — Передаёт фокус панели</li>
+            <li><code>Blur()</code> — Убирает фокус с панели</li>
+            <li><code>Focused() bool</code> — Сообщает, имеет ли панель в данный момент фокус</li>
+        </ul>
+
+        <h3>RawKeyReceiver</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">type RawKeyReceiver interface {
+	Panel
+	WantsRawKeys() bool
+}</span></code></pre></div>
+        <p><code>RawKeyReceiver</code> — это панель, которая хочет принимать весь ввод с клавиатуры без перехвата. Это полезно для встраивания сырых эмуляторов терминала (например, PTY) внутри системы панелей.</p>
+
+        <h2>Функции</h2>
+
+        <h3>isFocusable</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func isFocusable(panel Panel) (Focusable, bool)</span></code></pre></div>
+        <p>Сообщает, реализует ли панель интерфейс <code>Focusable</code>.</p>
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>panel Panel</code> — Панель для проверки</li>
+        </ul>
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li><code>Focusable</code> — Фокусируемая панель, если она реализует интерфейс</li>
+            <li><code>bool</code> — Является ли панель фокусируемой</li>
+        </ul>
+        <p><strong>Поведение:</strong></p>
+        <ul>
+            <li>Возвращает <code>(nil, false)</code>, если панель равна <code>nil</code></li>
+            <li>Возвращает панель, приведённую к типу <code>Focusable</code> с <code>true</code>, если она реализует интерфейс</li>
+        </ul>
+
+        <h3>collectFocusables</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func collectFocusables(node *Node) []Focusable</span></code></pre></div>
+        <p>Возвращает все фокусируемые панели в дереве в визуальном порядке.</p>
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>node *Node</code> — Узел дерева для обхода</li>
+        </ul>
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li><code>[]Focusable</code> — Список фокусируемых панелей в визуальном порядке или <code>nil</code>, если фокусируемые панели не найдены</li>
+        </ul>
+        <p><strong>Поведение:</strong></p>
+        <ul>
+            <li>Рекурсивно обходит дерево панелей</li>
+            <li>Для листовых узлов проверяет, является ли панель фокусируемой</li>
+            <li>Для узлов разделения собирает из первых и вторых детей</li>
+            <li>Для flex-узлов собирает из всех flex-элементов</li>
+            <li>Возвращает <code>nil</code> для пустых узлов</li>
+        </ul>
+
+        <h3>focusIndex</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func focusIndex(list []Focusable, current Panel) int</span></code></pre></div>
+        <p>Возвращает индекс текущей фокусированной панели в списке.</p>
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>list []Focusable</code> — Список фокусируемых панелей</li>
+            <li><code>current Panel</code> — Текущая фокусированная панель</li>
+        </ul>
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li><code>int</code> — Индекс фокусированной панели или <code>-1</code>, если она не найдена или если current равен nil</li>
+        </ul>
+
+        <h3>focusNext</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func focusNext(list []Focusable, current Panel) Focusable</span></code></pre></div>
+        <p>Переключает фокус на следующую фокусируемую панель.</p>
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>list []Focusable</code> — Список фокусируемых панелей</li>
+            <li><code>current Panel</code> — Текущая фокусированная панель</li>
+        </ul>
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li><code>Focusable</code> — Следующая фокусируемая панель или <code>nil</code>, если фокусируемых панелей не существует</li>
+        </ul>
+        <p><strong>Поведение:</strong></p>
+        <ul>
+            <li>Возвращает <code>nil</code>, если список пуст</li>
+            <li>Оборачивается на первую панель при перемещении за последнюю</li>
+        </ul>
+
+        <h3>focusPrev</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func focusPrev(list []Focusable, current Panel) Focusable</span></code></pre></div>
+        <p>Переключает фокус на предыдущую фокусируемую панель.</p>
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>list []Focusable</code> — Список фокусируемых панелей</li>
+            <li><code>current Panel</code> — Текущая фокусированная панель</li>
+        </ul>
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li><code>Focusable</code> — Предыдущая фокусируемая панель или <code>nil</code>, если фокусируемых панелей не существует</li>
+        </ul>
+        <p><strong>Поведение:</strong></p>
+        <ul>
+            <li>Возвращает <code>nil</code>, если список пуст</li>
+            <li>Оборачивается на последнюю панель при перемещении перед первой</li>
+        </ul>
+
+        <h3>applyFocus</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func applyFocus(current, next Focusable)</span></code></pre></div>
+        <p>Перемещает фокус от текущей панели к следующей, вызывая <code>Blur()</code> на текущей и <code>Focus()</code> на следующей.</p>
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>current Focusable</code> — Текущая фокусируемая панель (или <code>nil</code>)</li>
+            <li><code>next Focusable</code> — Следующая фокусируемая панель (или <code>nil</code>)</li>
+        </ul>
+        <p><strong>Поведение:</strong></p>
+        <ul>
+            <li>Если <code>current</code> не равен <code>nil</code> и не совпадает с <code>next</code>, вызывает <code>current.Blur()</code></li>
+            <li>Если <code>next</code> не равен <code>nil</code>, вызывает <code>next.Focus()</code></li>
+        </ul>
+
+        <h2>Детали реализации</h2>
+
+        <p>Система фокуса работает на структуре дерева панелей. Функция <code>collectFocusables</code> обходит это дерево и собирает все фокусируемые панели в визуальном порядке (слева направо, сверху вниз).</p>
+
+        <p>При навигации фокуса:</p>
+        <ul>
+            <li><code>focusNext</code> перемещает вперёд в визуальном порядке, оборачиваясь</li>
+            <li><code>focusPrev</code> перемещает назад в визуальном порядке, оборачиваясь</li>
+        </ul>
+
+        <p>Функция <code>applyFocus</code> обеспечивает корректные переходы состояний, убирая фокус со старой панели и устанавливая фокус на новой.</p>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>popover</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Popover</h1>
+
+        <p>Пакет <code>popover</code> предоставляет компонент контекстного меню, который накладывается поверх существующих строк контента в терминальном интерфейсе. Он отображает обводку с элементами меню и обрабатывает взаимодействия с мышью и клавиатурой для выбора элементов и выполнения действий.</p>
+
+        <h2>Обзор пакета</h2>
+
+        <p>Компонент popover построен с использованием <a href="https://github.com/charmbracelet/bubbletea">bubbletea</a> и <a href="https://github.com/charmbracelet/lipgloss">lipgloss</a> для стилизации и рендеринга. Он работает бесшовно с терминальным UI Warp, накладывая контент в указанной позиции, сохраняя существующий текст слева и справа от меню.</p>
+
+        <h2>Типы</h2>
+
+        <h3>PopoverItem</h3>
+
+        <p>Один элемент в контекстном меню.</p>
+
+        <div class="signature">
+            <pre><code class="language-go">type PopoverItem struct {
+    Name   string
+    Action func()
+}</code></pre>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Поле</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>Name</code></td>
+                    <td><code>string</code></td>
+                    <td>Отображаемое имя элемента меню.</td>
+                </tr>
+                <tr>
+                    <td><code>Action</code></td>
+                    <td><code>func()</code></td>
+                    <td>Функция, вызываемая при выборе этого элемента.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Popover</h3>
+
+        <p>Контекстное меню, отображаемое в конкретной позиции, накладывающееся поверх существующего контента и сохраняющее его слева и справа.</p>
+
+        <div class="signature">
+            <pre><code class="language-go">type Popover struct {
+    Items   []PopoverItem
+    X, Y    int       // Позиция в координатах экрана (0 = строка заголовка)
+    Width   int       // Ширина контента (0 = авто: 20)
+    OnClose func()    // Вызывается при закрытии popover
+
+    // отрисованные размеры (устанавливаются Overlay)
+    boxW, boxH int
+
+    // выбор
+    selected int
+}</code></pre>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Поле</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>Items</code></td>
+                    <td><code>[]PopoverItem</code></td>
+                    <td>Массив элементов меню для отображения.</td>
+                </tr>
+                <tr>
+                    <td><code>X</code></td>
+                    <td><code>int</code></td>
+                    <td>Горизонтальная позиция (в визуальных столбцах). 0 относится к строке заголовка.</td>
+                </tr>
+                <tr>
+                    <td><code>Y</code></td>
+                    <td><code>int</code></td>
+                    <td>Вертикальная позиция (номер строки в координатах экрана). 0 = строка заголовка.</td>
+                </tr>
+                <tr>
+                    <td><code>Width</code></td>
+                    <td><code>int</code></td>
+                    <td>Ширина контента в визуальных столбцах. 0 означает авто (по умолчанию 20).</td>
+                </tr>
+                <tr>
+                    <td><code>OnClose</code></td>
+                    <td><code>func()</code></td>
+                    <td>Функция обратного вызова, вызываемая при закрытии popover (ESC, клик вне и т.д.).</td>
+                </tr>
+                <tr>
+                    <td><code>boxW</code></td>
+                    <td><code>int</code></td>
+                    <td>Фактическая ширина отрисованного окна popover (устанавливается <code>Overlay</code>).</td>
+                </tr>
+                <tr>
+                    <td><code>boxH</code></td>
+                    <td><code>int</code></td>
+                    <td>Фактическая высота отрисованного окна popover (устанавливается <code>Overlay</code>).</td>
+                </tr>
+                <tr>
+                    <td><code>selected</code></td>
+                    <td><code>int</code></td>
+                    <td>Индекс текущего выбранного элемента (для навигации с клавиатуры).</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Публичный API</h2>
+
+        <h3>Overlay</h3>
+
+        <p>Отрисовывает popover поверх существующих строк контента.</p>
+
+        <div class="signature">
+            <pre><code class="language-go">func (p *Popover) Overlay(lines []string, totalW, totalH int) []string</code></pre>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Параметр</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>lines</code></td>
+                    <td><code>[]string</code></td>
+                    <td>Исходные строки контента (одна на строку).</td>
+                </tr>
+                <tr>
+                    <td><code>totalW</code></td>
+                    <td><code>int</code></td>
+                    <td>Общая ширина терминала в визуальных столбцах.</td>
+                </tr>
+                <tr>
+                    <td><code>totalH</code></td>
+                    <td><code>int</code></td>
+                    <td>Общая высота терминала (количество строк).</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><strong>Возвращает:</strong> Новый массив строк с отрисованным popover. Если элементы не заданы, возвращает исходные строки без изменений.</p>
+
+        <h4>Подробности реализации:</h4>
+        <ul>
+            <li>Если <code>Items</code> пуст, возвращает исходные строки без изменений.</li>
+            <li>Автоматически ограничивает <code>Width</code> в пределах ширины терминала (минимум 20, если 0).</li>
+            <li>Ограничивает <code>X</code> и <code>Y</code>, чтобы popover оставался в пределах терминала.</li>
+            <li>Сохраняет исходный контент слева (<code>leftPart</code>) и справа (<code>rightPart</code>) от окна popover.</li>
+            <li>Использует стили <code>lipgloss</code> для создания обведённого окна с элементами меню.</li>
+        </ul>
+
+        <h3>HandleMouse</h3>
+
+        <p>Обработчик событий мыши для popover.</p>
+
+        <div class="signature">
+            <pre><code class="language-go">func (p *Popover) HandleMouse(msg tea.MouseMsg) bool</code></pre>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Параметр</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>msg</code></td>
+                    <td><code>tea.MouseMsg</code></td>
+                    <td>Сообщение события мыши от bubbletea.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><strong>Возвращает:</strong> <code>bool</code>, указывающий, было ли событие обработано.</p>
+
+        <h4>Поведение:</h4>
+        <ul>
+            <li><strong>Нажатие мыши:</strong>
+                <ul>
+                    <li>Если клик внутри окна меню, выполняется <code>Action</code> выбранного элемента и вызывает <code>OnClose</code>.</li>
+                    <li>Если клик вне окна меню, вызывает <code>OnClose</code> для закрытия popover.</li>
+                </ul>
+            </li>
+            <li><strong>Движение мыши:</strong>
+                <ul>
+                    <li>Обновляет индекс <code>selected</code> на основе позиции Y мыши для визуальной обратной связи при наведении.</li>
+                    <li>Диапазон наведения исключает верхнюю и нижнюю границы.</li>
+                </ul>
+            </li>
+            <li><strong>Отпускание мыши:</strong> Обработчик события, но не выполняет никаких действий.</li>
+        </ul>
+
+        <h3>HandleKey</h3>
+
+        <p>Обработчик событий клавиатуры для popover.</p>
+
+        <div class="signature">
+            <pre><code class="language-go">func (p *Popover) HandleKey(msg tea.KeyMsg) bool</code></pre>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Параметр</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>msg</code></td>
+                    <td><code>tea.KeyMsg</code></td>
+                    <td>Сообщение события клавиши от bubbletea.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><strong>Возвращает:</strong> <code>bool</code>, указывающий, было ли событие обработано.</p>
+
+        <h4>Поведение:</h4>
+        <ul>
+            <li><strong>ESC:</strong> Закрывает popover, вызывая <code>OnClose</code>.</li>
+            <li><strong>ENTER:</strong> Выполняет действие текущего выбранного элемента. Вызывает <code>OnClose</code> после выполнения.</li>
+            <li><strong>UP:</strong> Перемещает выбор вверх (зацикливание с первого элемента на последний).</li>
+            <li><strong>DOWN:</strong> Перемещает выбор вниз (зацикливание с последнего элемента на первый).</li>
+        </ul>
+
+        <h2>Стили</h2>
+
+        <p>Popover использует стили lipgloss для отрисовки:</p>
+
+        <div class="signature">
+            <pre><code class="language-go">var (
+    popoverBaseStyle = lipgloss.NewStyle().
+                    Background(lipgloss.Color(gbDark1)).
+                    Foreground(lipgloss.Color(gbLight1))
+
+    popoverSelectedStyle = lipgloss.NewStyle().
+                    Background(lipgloss.Color(gbBlue)).
+                    Foreground(lipgloss.Color(gbDark0))
+)</code></pre>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Стиль</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>popoverBaseStyle</code></td>
+                    <td>Базовый стиль для невыделенных элементов меню (тёмный фон, светлый текст).</td>
+                </tr>
+                <tr>
+                    <td><code>popoverSelectedStyle</code></td>
+                    <td>Стиль для выбранного/подсвеченного элемента меню (синий фон, тёмный текст).</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Пример использования</h2>
+
+        <pre><code class="language-go">// Создание нового popover
+items := []PopoverItem{
+    {Name: "Copy", Action: func() { /* копирование в буфер обмена */ }},
+    {Name: "Paste", Action: func() { /* вставка из буфера обмена */ }},
+    {Name: "Cut", Action: func() { /* вырезание из источника */ }},
+}
+
+popover := Popover{
+    Items: items,
+    X:     10,
+    Y:     5,
+    Width: 20,
+    OnClose: func() {
+        // Обработка закрытия (например, очистка выбора, сброс UI)
+    },
+}
+
+// Отрисовка popover поверх существующего контента
+lines := []string{"Line 1", "Line 2", "Line 3"}
+newLines := popover.Overlay(lines, 80, 24)</code></pre>
+
+        <h2>Важные примечания по реализации</h2>
+
+        <ul>
+            <li><strong>Координаты позиции:</strong> <code>X</code> и <code>Y</code> являются относительными к экрану. <code>Y=0</code> соответствует строке заголовка, как и координата Y мыши.</li>
+            <li><strong>Ограничение ширины:</strong> Если <code>Width</code> равен 0 или отрицателен, он по умолчанию равен 20. Если он превышает ширину терминала, он ограничивается <code>totalW</code>.</li>
+            <li><strong>Ограничение позиции:</strong> Popover автоматически ограничивается, чтобы оставаться в пределах терминала как в <code>Overlay</code>, так и в <code>HandleMouse</code>.</li>
+            <li><strong>Сохранение контента:</strong> Наложение сохраняет исходный контент, разделяя строки на левую, короб и правую части.</li>
+            <li><strong>Размеры коробки:</strong> <code>boxW</code> и <code>boxH</code> устанавливаются во время первого вызова <code>Overlay</code> и используются для тестирования попадания в <code>HandleMouse</code>.</li>
+            <li><strong>Константы стилей:</strong> <code>gbDark1</code>, <code>gbDark4</code>, <code>gbLight1</code>, <code>gbBlue</code>, <code>gbDark0</code> — это константы цветов из темы warp.</li>
+        </ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

@@ -1,43 +1,57 @@
-# drag.go Specification
+# Specification: drag.go
 
-## Overview
+## Обзор
 
-`drag.go` is a minimal documentation/placeholder file in the `warp` package that
-records where the drag-and-drop logic for split borders is actually implemented.
-It contains no executable code, public API, or types of its own.
+Файл `drag.go` в пакете `warp` является плейсхолдером. Он содержит только документальный комментарий, объясняющий, что функционал drag-and-drop для границ разделения панелей реализован в других файлах.
 
-## Behavior
+## Текущее состояние
 
-Drag-and-drop interactions for split borders are **not** implemented in
-`drag.go`. Instead, they are handled in `tab.go` and rendered in `render.go`:
+Файл содержит исключительно комментарии:
 
-- `tab.go` implements the input handling and state management for dragging a
-  border between split panes.
-- `render.go` computes the screen positions of borders via `findBorders()`.
+```go
+package warp
 
-## Public API
+// Drag-and-drop interactions for split borders are not implemented in this
+// file. They are handled in tab.go and rendered in render.go:
+//
+//   - tab.go implements the input handling and state management for dragging a
+//     border between split panes. The relevant functions are handleMouse,
+//     updateDrag, and hitBorder.
+//   - render.go computes the screen positions of borders via findBorders.
+```
 
-`drag.go` does not declare any functions, methods, variables, constants, or
-types.
+## Публичный API
 
-## Related Implementation Details
+Файл не экспортирует никаких публичных типов, функций или констант. Весь функционал перенаправлен на другие модули.
 
-The relevant functions in `tab.go` are:
+## Реализованный функционал
 
-- `handleMouse` — responds to `MouseActionPress`, `MouseActionMotion`, and
-  `MouseActionRelease` events that occur on a split border.
-- `updateDrag` — computes a new `Fraction` value based on the current mouse
-  position while dragging.
-- `hitBorder` — determines whether the mouse cursor is positioned over a
-  draggable border.
+### Отсутствует в этом файле
 
-Border geometry is computed in `render.go` by:
+- Обработка событий drag-and-drop
+- Управление состоянием перетаскивания границ
+- Вычисление позиций границ для отображения
 
-- `findBorders()` — returns the positions of borders so they can be hit-tested
-  and rendered.
+### Реализация в других модулях
 
-## Notes
+| Файл | Функционал |
+|------|------------|
+| `tab.go` | Обработка ввода, управление состоянием перетаскивания границ между раздельными панелями. Функции: `handleMouse`, `updateDrag`, `hitBorder`. |
+| `render.go` | Вычисление позиций экранов границ через функцию `findBorders`. |
 
-- No tests or additional logic belong in this file under the current design.
-- Any changes to drag behavior should be made in `tab.go` and `render.go`, not
-  here.
+## Обработка ошибок
+
+Файл не содержит обработки ошибок.
+
+## Тестирование
+
+Файл не содержит тестов.
+
+## Версионирование
+
+Файл не имеет публичного API, требующего версионирования.
+
+## Связанные файлы
+
+- `tab.go` — реализация обработки событий drag-and-drop
+- `render.go` — вычисление позиций границ

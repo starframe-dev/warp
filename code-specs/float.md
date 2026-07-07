@@ -1,22 +1,22 @@
-# FloatPane Specification
+# FloatPane — Спецификация
 
-`float.go` implements a draggable, resizable, floating panel rendered on top of the main layout in the `warp` package. It provides ANSI-aware compositing, mouse-driven interaction, and a close button.
+## Обзор
 
-## Overview
+`FloatPane` представляет собой плавающий панельный виджет для терминального UI, построенного на базе `bubbletea`. Панель отображается поверх основного лейаута и поддерживает перетаскивание, изменение размера, заголовок с кнопкой закрытия и обработку кликов по контенту.
 
-A `FloatPane` is a rectangular window drawn above the primary screen content. It supports:
+## Назначение
 
-- Positioning via `X`, `Y` coordinates.
-- Sizing via `Width`, `Height`.
-- Dragging by the title bar.
-- Resizing from all edges and corners.
-- A close button in the top-right corner.
-- Optional `CloseOnOutsideClick` behavior.
-- Compositing over existing rendered lines while preserving ANSI escape sequences.
+`FloatPane` реализует концепцию плавающих окон внутри терминального приложения:
+- Отрисовка панели с заголовком, контентом и границами
+- Обработка событий мыши (drag, resize, click)
+- Корректное наложение на существующий контент с учётом ANSI-последовательностей
+- Управление состоянием открытия/закрытия панели
 
-## Public API
+---
 
-### Type: `FloatPane`
+## Публичный API
+
+### Тип FloatPane
 
 ```go
 type FloatPane struct {
@@ -26,37 +26,46 @@ type FloatPane struct {
     Height int
     Title string
 
+    // State
+    dragging       bool
+    resizing       bool
+    resizeEdge     string // "n", "s", "e", "w", "ne", "nw", "se", "sw"
+    dragStartX     int
+    dragStartY     int
+    origX, origY   int
+    origW, origH   int
+
+    // CloseRequested is set when the user clicks the × button.
+    // The owning Tab checks this after handleMouse and calls CloseFloat.
     CloseRequested bool
+
+    // CloseOnOutsideClick closes the float when the user clicks outside it.
     CloseOnOutsideClick bool
 }
 ```
 
-Fields:
+#### Поля
 
-- `Panel` — the underlying `Panel` whose content is rendered inside the float. The `Panel` interface must provide `View(width, height) string` and `Update(msg tea.Msg) tea.Cmd`.
-- `X`, `Y` — screen coordinates of the top-left corner of the float.
-- `Width`, `Height` — outer dimensions of the float including borders.
-- `Title` — text displayed in the top border.
-- `CloseRequested` — set to `true` when the user clicks the close button (`×`). The owning `Tab` must check this after `handleMouse` and call `CloseFloat`.
-- `CloseOnOutsideClick` — when `true`, the caller should close the float if a mouse press occurs outside the float's bounds.
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `Panel` | `Panel` | Внутренняя панель (контент) |
+| `X` | `int` | Абсолютная X-координата левого верхнего угла |
+| `Y` | `int` | Абсолютная Y-координата левого верхнего угла |
+| `Width` | `int` | Ширина панели в символах |
+| `Height` | `int` | Высота панели в строках |
+| `Title` | `string` | Текст заголовка панели |
+| `dragging` | `bool` | Флаг активного перетаскивания заголовка |
+| `resizing` | `bool` | Флаг активного изменения размера |
+| `resizeEdge` | `string` | Граница изменения размера (n/s/e/w/ne/nw/se/sw) |
+| `dragStartX/Y` | `int` | Начальная позиция мыши при drag/resize |
+| `origX/Y` | `int` | Начальная позиция панели при drag/resize |
+| `origW/H` | `int` | Начальный размер при resize |
+| `CloseRequested` | `bool` | Запрошено закрытие (клик по ×) |
+| `CloseOnOutsideClick` | `bool` | Закрыть при клике вне панели |
 
-### Function: `StripANSI`
+---
 
-```go
-func StripANSI(s string) string
-```
-
-Removes ANSI CSI escape sequences (`\x1b[...`) from the input string. Used internally during visual-width calculations and overlay truncation. It is exported and may be used by other components.
-
-### Function: `overlayFloat`
-
-```go
-func overlayFloat(lines []string, fp *FloatPane, totalW, totalH int)
-```
-
-Composites the rendered float pane onto the provided `lines` slice. The slice is mutated in place. Handles ANSI sequences in both the original content and the float's border/title styles so that visual positions are tracked correctly. Floats are clipped against `totalW`/`totalH` and truncated to avoid extending beyond the right edge.
-
-## Constants
+## Константы
 
 ```go
 const (
@@ -66,73 +75,266 @@ const (
 )
 ```
 
-- `floatMinWidth` — minimum outer width of a float pane during resizing.
-- `floatMinHeight` — minimum outer height of a float pane during resizing.
-- `floatTitleH` — height reserved for the title bar (1 row).
+- `floatMinWidth` — минимальная ширина панели в символах
+- `floatMinHeight` — минимальная высота панели в строках
+- `floatTitleH` — высота заголовка (одна строка)
 
-## Rendering
+---
 
-### `FloatPane.render(w, h int) []string`
+## Методы
 
-Renders the float into a slice of `Height` strings. The layout is:
+### `render(w, h int) []string`
 
-1. **Top border** — composed of:
-   - A rounded corner `╭`.
-   - The title styled with `floatTitleStyle`.
-   - Horizontal dashes `─` styled with `floatBorderStyle` to fill the top border.
-   - A leading space and the close button `×` styled with `floatCloseStyle`.
-   - A rounded corner `╮`.
-   - The title is truncated with `...` if it exceeds the available width. The close button and corners reserve 4 visual columns.
+**Назначение**: Отрисовывает панель и возвращает массив строк.
 
-2. **Content rows** — each row is `│` + padded content + `│`. The content area is `(Width - 2) × (Height - 2)`.
+**Параметры**:
+- `w` — доступная ширина экрана
+- `h` — доступная высота экрана
 
-3. **Bottom border** — `╰` + `─` repeated `Width - 2` times + `╯`.
+**Возврат**: `[]string` — отрисованные строки панели
 
-Background styling is applied via `floatBgStyle` (corners and spaces), border styling via `floatBorderStyle`, title text via `floatTitleStyle`, and the close button via `floatCloseStyle`.
+**Поведение**:
+1. Отрисовывает верхнюю границу с заголовком и кнопкой закрытия
+2. Отрисовывает контент внутри границ
+3. Отрисовывает нижнюю границу
 
-## Mouse Interaction
+**Детали реализации**:
+- Кнопка закрытия (×) отображается в правом углу заголовка
+- Заголовок обрезается, если превышает доступную ширину
+- Контент отрисовывается с отступом по 1 символ слева и справа
+- Используются стили `floatBgStyle`, `floatBorderStyle`, `floatTitleStyle`
 
-### `FloatPane.handleMouse(msg tea.MouseMsg, mx, my int) tea.Cmd`
+---
 
-Processes mouse events for the float. `mx` and `my` are relative to the content area (not absolute screen coordinates). The function returns a `tea.Cmd` if the event is forwarded to the underlying panel.
+### `handleMouse(msg tea.MouseMsg, mx, my int) tea.Cmd`
 
-Behavior:
+**Назначение**: Обрабатывает события мыши для панели.
 
-- **Bounds check:** If not currently dragging or resizing, events outside the float's bounds are ignored (return `nil`).
-- **Close button:** Clicking the `×` character at `relX == fp.Width-2` and `relY == 0` sets `CloseRequested = true`.
-- **Title bar drag:** Pressing on the top border (excluding corners) starts a drag. The current position is recorded as `dragStartX`/`dragStartY`, and the original position is saved in `origX`/`origY`.
-- **Edge resize:** Pressing on any border or corner starts a resize. The edge is determined by `hitEdge` and stored as `resizeEdge` (`"n"`, `"s"`, `"e"`, `"w"`, `"ne"`, `"nw"`, `"se"`, `"sw"`). Original position and size are saved.
-- **Content forwarding:** A press inside the content area is forwarded to the underlying `Panel` via `Panel.Update` with `X`/`Y` adjusted to be content-relative.
-- **Motion:** During dragging, `X`/`Y` are updated by the mouse delta and clamped to `>= 0`. During resizing, `applyResize` is called with the mouse delta.
-- **Release:** Ends dragging and resizing, clearing state flags.
+**Параметры**:
+- `msg` — событие мыши из bubbletea
+- `mx, my` — координаты мыши относительно контента (не абсолютные)
 
-### Edge Hit Detection
+**Возврат**: `tea.Cmd` — команда (обычно nil)
 
-`hitEdge` returns the resize edge/corner based on the relative coordinates. Corners take precedence over edges.
+**Поведение**:
+1. При неактивном drag/resize проверяет, находится ли мышь внутри границ панели
+2. Обработка `MouseButtonLeft`:
+   - **Press**:
+     - Клик по кнопке закрытия (×) устанавливает `CloseRequested = true`
+     - Клик по заголовку (не углы) запускает drag
+     - Клик по границам запускает resize
+     - Клик внутри контента передаёт событие в `Panel.Update`
+   - **Motion**:
+     - При active drag обновляет координаты X, Y
+     - При active resize обновляет размеры через `applyResize`
+   - **Release**:
+     - Сбрасывает флаги `dragging`, `resizing`, `resizeEdge`
 
-### Resize Logic
+---
 
-`applyResize` applies the mouse delta to the saved original geometry based on the active edge:
+### `hitEdge(x, y int) string`
 
-- `"n"`, `"nw"`, `"ne"` move the top edge up and reduce height.
-- `"s"`, `"sw"`, `"se"` extend the bottom edge and increase height.
-- `"w"`, `"nw"`, `"sw"` move the left edge left and reduce width.
-- `"e"`, `"ne"`, `"se"` extend the right edge and increase width.
+**Назначение**: Определяет границу панели, на которой находится курсор.
 
-After resizing, `Width`, `Height`, `X`, and `Y` are clamped to minimums and non-negative values.
+**Параметры**:
+- `x, y` — относительные координаты мыши внутри панели
 
-## Important Implementation Details
+**Возврат**: `string` — одна из `"n"`, `"s"`, `"e"`, `"w"`, `"ne"`, `"nw"`, `"se"`, `"sw"`, или `""`
 
-- **ANSI awareness:** `overlayFloat` and `StripANSI` work on visual columns, not byte positions. Each function iterates over runes and skips ANSI CSI sequences (`\x1b[...`) when counting width or copying text.
-- **Style reset on truncation:** When a float line is truncated to fit the screen width, `\x1b[0m` is appended to prevent incomplete ANSI sequences from bleeding into the suffix.
-- **Style reset after float:** After writing the float line into the output buffer, `\x1b[0m` is written so the original content suffix does not inherit the float's styles.
-- **Clipping:** Floats are skipped entirely if `fp.X >= totalW` or `fp.Y >= totalH`. Rows outside the `lines` slice are also skipped.
-- **Content padding:** `padContent` (not shown in this file) is assumed to pad/trim the underlying panel's view to fit the content area exactly.
-- **Close behavior:** The float does not close itself; it only signals intent via `CloseRequested`. The owner is responsible for removing the float from its collection.
+**Логика**:
+- Проверяет совпадение `x`/`y` с границами (0 или Width-1 / Height-1)
+- Возвращает диагональные границы перед осевыми (приоритет: ne > n > e и т.д.)
 
-## Dependencies
+---
 
-- `strings` — for string building and repeating characters.
-- `unicode/utf8` — for rune-aware byte decoding during ANSI-aware iteration.
-- `github.com/charmbracelet/bubbletea` — for `tea.MouseMsg`, `tea.MouseButton`, `tea.MouseAction`, and `tea.Cmd`.
-- `github.com/charmbracelet/lipgloss` — for `lipgloss.Width` and styling helpers (`floatBgStyle`, `floatBorderStyle`, `floatTitleStyle`, `floatCloseStyle`).
+### `applyResize(dx, dy int)`
+
+**Назначение**: Применяет изменение размера, вызванное событием мыши.
+
+**Параметры**:
+- `dx` — горизонтальное смещение
+- `dy` — вертикальное смещение
+
+**Поведение**:
+- Обновляет координаты и размеры в зависимости от `resizeEdge`
+- Обрезает размеры до минимальных значений (`floatMinWidth`, `floatMinHeight`)
+- Обрезает координаты, если становятся отрицательными
+
+**Поддерживаемые границы**:
+- `"n"` — сужение сверху
+- `"s"` — расширение снизу
+- `"e"` — расширение справа
+- `"w"` — сужение слева
+- `"ne"` — сужение сверху и справа
+- `"nw"` — сужение сверху и слева
+- `"se"` — расширение снизу и справа
+- `"sw"` — расширение снизу и слева
+
+---
+
+### `StripANSI(s string) string`
+
+**Назначение**: Удаляет ANSI escape-последовательности из строки.
+
+**Параметры**:
+- `s` — входная строка с возможными ANSI-кодами
+
+**Возврат**: `string` — строка без ANSI-кодов
+
+**Реализация**:
+- Распознаёт последовательности `\x1b[` (CSI)
+- Пропускает всё до первого байта ≥ 0x40 (финальный байт последовательности)
+- Возвращает только видимые символы
+
+---
+
+### `overlayFloat(lines []string, fp *FloatPane, totalW, totalH int)`
+
+**Назначение**: Накладывает панель на существующий экран, корректно обрабатывая ANSI-коды.
+
+**Параметры**:
+- `lines` — массив строк экрана
+- `fp` — панель для наложения
+- `totalW` — общая ширина экрана
+- `totalH` — общая высота экрана
+
+**Поведение**:
+1. Проверяет, находится ли панель в пределах экрана
+2. Получает отрисованные строки панели через `render`
+3. Для каждой строки панели:
+   - Обрезает до ширины экрана
+   - Убирает ANSI-коды для расчёта визуальной ширины
+   - Обеспечивает корректную обрезку (добавляет `\x1b[0m`)
+4. Собирает новую строку экрана:
+   - Префикс (до позиции панели)
+   - Содержимое панели со стилями
+   - Сuffix (после панели)
+5. Обновляет `lines`
+
+**Важно**: ANSI-коды панели изолированы от ANSI-кодов контента, чтобы стили не "перетекали".
+
+---
+
+## Внутренние стили
+
+Используются следующие константы стилей:
+
+- `floatBgStyle` — фон панели (обычно прозрачный или тёмный)
+- `floatBorderStyle` — границы панели (╭ ╮ ╰ ╯ │ ─)
+- `floatTitleStyle` — стиль заголовка
+
+Эти стили должны быть определены в пакете `warp`.
+
+---
+
+## Жизненный цикл
+
+1. **Создание**: Инициализируется с координатами, размером, заголовком, панелью
+2. **Активация**: Панель отображается через `overlayFloat`
+3. **Взаимодействие**: Обработка событий мыши через `handleMouse`
+4. **Закрытие**:
+   - По клику на кнопку `×` (`CloseRequested = true`)
+   - По клику вне панели (если `CloseOnOutsideClick = true`)
+   - Владельцем Tab проверяется `CloseRequested` после `handleMouse`
+5. **Удаление**: Владелец должен вызвать `CloseFloat` после обработки `CloseRequested`
+
+---
+
+## Обработка ошибок
+
+`FloatPane` не возвращает ошибки в публичном API, но:
+- При наложении на экран проверяет границы (`fp.X >= totalW || fp.Y >= totalH`)
+- При изменении размера обрезает до минимальных значений
+- ANSI-парсинг корректно обрабатывает неполные последовательности
+
+---
+
+## Тестирование
+
+Рекомендуемые сценарии для table-driven tests:
+
+1. **Отрисовка**:
+   - Разные размеры панели
+   - Заголовок, превышающий ширину
+   - Пустая панель
+
+2. **Drag**:
+   - Перетаскивание в разные направления
+   - Границы экрана
+
+3. **Resize**:
+   - Изменение каждой границы
+   - Достигание минимальных размеров
+
+4. **Overlay**:
+   - Наложение на контент с ANSI
+   - Частичное наложение
+   - Панель за пределами экрана
+
+5. **Mouse events**:
+   - Клик по заголовку (drag)
+   - Клик по границам (resize)
+   - Клик внутри (forward to panel)
+   - Клик по кнопке закрытия
+
+---
+
+## Примеры использования
+
+### Создание панели
+
+```go
+fp := &FloatPane{
+    X:        0,
+    Y:        10,
+    Width:    80,
+    Height:   24,
+    Title:    "Панель настроек",
+    Panel:    nil, // или панель
+}
+```
+
+### Настройка закрытия по клику вне
+
+```go
+fp.CloseOnOutsideClick = true
+```
+
+### Использование в цикле отрисовки
+
+```go
+func (t *Tab) drawScreen() {
+    // ... основной рендеринг ...
+    
+    // Наложение панелей
+    for _, fp := range t.FloatPanes {
+        overlayFloat(lines, fp, screenWidth, screenHeight)
+    }
+}
+```
+
+---
+
+## Зависимости
+
+```go
+import (
+    "strings"
+    "unicode/utf8"
+    
+    tea "github.com/charmbracelet/bubbletea"
+    "github.com/charmbracelet/lipgloss"
+)
+```
+
+- `bubbletea` — модель событий и отрисовки TUI
+- `lipgloss` — стилизация текста и ширины
+
+---
+
+## Примечания
+
+1. Координаты `X` и `Y` всегда неотрицательные
+2. Размеры никогда не становятся меньше `floatMinWidth`/`floatMinHeight`
+3. Заголовок обрезается, но не становится пустым
+4. ANSI-кодирование обрабатывается корректно при наложении

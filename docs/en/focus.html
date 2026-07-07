@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>focus</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Focus Module</h1>
+
+        <p>This module provides keyboard focus management for the Warp panel system. It defines interfaces and functions for collecting, navigating, and applying keyboard focus across the panel tree.</p>
+
+        <h2>Types</h2>
+
+        <h3>Focusable</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">type Focusable interface {
+	Panel
+	Focus()
+	Blur()
+	Focused() bool
+}</span></code></pre></div>
+        <p>A <code>Focusable</code> is a <code>Panel</code> that can receive keyboard focus. It extends the <code>Panel</code> interface and adds three methods:</p>
+        <ul>
+            <li><code>Focus()</code> - Gives focus to the panel</li>
+            <li><code>Blur()</code> - Removes focus from the panel</li>
+            <li><code>Focused() bool</code> - Reports whether the panel currently has focus</li>
+        </ul>
+
+        <h3>RawKeyReceiver</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">type RawKeyReceiver interface {
+	Panel
+	WantsRawKeys() bool
+}</span></code></pre></div>
+        <p>A <code>RawKeyReceiver</code> is a panel that wants to receive all keyboard input without interception. This is useful for embedding raw terminal emulators (e.g., PTY) inside the panel system.</p>
+
+        <h2>Functions</h2>
+
+        <h3>isFocusable</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func isFocusable(panel Panel) (Focusable, bool)</span></code></pre></div>
+        <p>Reports whether a panel implements the <code>Focusable</code> interface.</p>
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>panel Panel</code> - The panel to check</li>
+        </ul>
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li><code>Focusable</code> - The focusable panel if it implements the interface</li>
+            <li><code>bool</code> - Whether the panel is focusable</li>
+        </ul>
+        <p><strong>Behavior:</strong></p>
+        <ul>
+            <li>Returns <code>(nil, false)</code> if the panel is <code>nil</code></li>
+            <li>Returns the panel cast to <code>Focusable</code> with <code>true</code> if it implements the interface</li>
+        </ul>
+
+        <h3>collectFocusables</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func collectFocusables(node *Node) []Focusable</span></code></pre></div>
+        <p>Returns all focusable panels in the tree, in visual order.</p>
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>node *Node</code> - The tree node to traverse</li>
+        </ul>
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li><code>[]Focusable</code> - List of focusable panels in visual order, or <code>nil</code> if no focusables found</li>
+        </ul>
+        <p><strong>Behavior:</strong></p>
+        <ul>
+            <li>Recursively traverses the panel tree</li>
+            <li>For leaf nodes, checks if the panel is focusable</li>
+            <li>For split nodes, collects from first and second children</li>
+            <li>For flex nodes, collects from all flex items</li>
+            <li>Returns <code>nil</code> for empty nodes</li>
+        </ul>
+
+        <h3>focusIndex</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func focusIndex(list []Focusable, current Panel) int</span></code></pre></div>
+        <p>Returns the index of the currently focused panel in the list.</p>
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>list []Focusable</code> - List of focusable panels</li>
+            <li><code>current Panel</code> - The currently focused panel</li>
+        </ul>
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li><code>int</code> - The index of the focused panel, or <code>-1</code> if not found or if current is nil</li>
+        </ul>
+
+        <h3>focusNext</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func focusNext(list []Focusable, current Panel) Focusable</span></code></pre></div>
+        <p>Switches focus to the next focusable panel.</p>
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>list []Focusable</code> - List of focusable panels</li>
+            <li><code>current Panel</code> - The currently focused panel</li>
+        </ul>
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li><code>Focusable</code> - The next focusable panel, or <code>nil</code> if no focusables exist</li>
+        </ul>
+        <p><strong>Behavior:</strong></p>
+        <ul>
+            <li>Returns <code>nil</code> if the list is empty</li>
+            <li>Wraps around to the first panel when moving past the last one</li>
+        </ul>
+
+        <h3>focusPrev</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func focusPrev(list []Focusable, current Panel) Focusable</span></code></pre></div>
+        <p>Switches focus to the previous focusable panel.</p>
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>list []Focusable</code> - List of focusable panels</li>
+            <li><code>current Panel</code> - The currently focused panel</li>
+        </ul>
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li><code>Focusable</code> - The previous focusable panel, or <code>nil</code> if no focusables exist</li>
+        </ul>
+        <p><strong>Behavior:</strong></p>
+        <ul>
+            <li>Returns <code>nil</code> if the list is empty</li>
+            <li>Wraps around to the last panel when moving before the first one</li>
+        </ul>
+
+        <h3>applyFocus</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="language-go">func applyFocus(current, next Focusable)</span></code></pre></div>
+        <p>Moves focus from current to next, calling <code>Blur()</code> on the current and <code>Focus()</code> on the next.</p>
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>current Focusable</code> - The current focusable (or <code>nil</code>)</li>
+            <li><code>next Focusable</code> - The next focusable (or <code>nil</code>)</li>
+        </ul>
+        <p><strong>Behavior:</strong></p>
+        <ul>
+            <li>If <code>current</code> is not <code>nil</code> and not the same as <code>next</code>, calls <code>current.Blur()</code></li>
+            <li>If <code>next</code> is not <code>nil</code>, calls <code>next.Focus()</code></li>
+        </ul>
+
+        <h2>Implementation Details</h2>
+
+        <p>The focus system operates on a tree structure of panels. The <code>collectFocusables</code> function traverses this tree and collects all focusable panels in visual order (left-to-right, top-to-bottom).</p>
+
+        <p>When navigating focus:</p>
+        <ul>
+            <li><code>focusNext</code> moves forward in the visual order, wrapping around</li>
+            <li><code>focusPrev</code> moves backward in the visual order, wrapping around</li>
+        </ul>
+
+        <p>The <code>applyFocus</code> function ensures proper state transitions by blurring the old focus and focusing the new one.</p>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

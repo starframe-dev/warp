@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>modal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Modal — Starframe Warp</h1>
+
+        <p>The <code>Modal</code> package implements a draggable modal dialog system for terminal user interfaces (TUI) built with <a href="https://github.com/charmbracelet/bubbletea">bubbletea</a>. It renders styled dialog boxes that overlay the main panel content, supporting drag-to-move, close buttons, and action buttons.</p>
+
+        <h2>Overview</h2>
+
+        <p>Modals are displayed on top of panel content with a dimmed background. They feature:</p>
+
+        <ul>
+            <li><strong>Draggable positioning</strong> — Users can reposition the modal by dragging the top strip</li>
+            <li><strong>Close functionality</strong> — Click the ✕ button or press Esc to close</li>
+            <li><strong>Button actions</strong> — Configurable buttons at the bottom that trigger functions</li>
+            <li><strong>Auto-width</strong> — If width is not specified, the modal uses 3/5 of screen width (clamped 30-50 chars)</li>
+            <li><strong>ANSI styling</strong> — Uses lipgloss for styled rendering with rounded borders</li>
+        </ul>
+
+        <h2>Public API</h2>
+
+        <h3>Types</h3>
+
+        <h4>ShowModalMsg</h4>
+        <div class="signature">
+            <pre><code class="language-go">type ShowModalMsg struct {
+    Title   string
+    Content string
+    Buttons []ModalButton
+    OnClose func()
+    Width   int
+}</code></pre>
+        </div>
+        <p>A message type that instructs a panel to show a modal dialog.</p>
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>Title</code></td><td><code>string</code></td><td>Title displayed in the top border area</td></tr>
+                <tr><td><code>Content</code></td><td><code>string</code></td><td>Rendered content (ANSI string)</td></tr>
+                <tr><td><code>Buttons</code></td><td><code>[]ModalButton</code></td><td>Buttons at the bottom of the modal</td></tr>
+                <tr><td><code>OnClose</code></td><td><code>func()</code></td><td>Callback when modal is closed via ✕ or Esc</td></tr>
+                <tr><td><code>Width</code></td><td><code>int</code></td><td>Box width (0 = auto: 3/5 screen, clamped 30-50)</td></tr>
+            </tbody>
+        </table>
+
+        <h4>CloseModalMsg</h4>
+        <div class="signature">
+            <pre><code class="language-go">type CloseModalMsg struct{}</code></pre>
+        </div>
+        <p>A message type that instructs a panel to close the current modal.</p>
+
+        <h4>Modal</h4>
+        <div class="signature">
+            <pre><code class="language-go">type Modal struct {
+    Title   string
+    Content string
+    Buttons []ModalButton
+    OnClose func()
+    Width   int
+
+    // Rendered box position/size (set during Overlay)
+    startX, startY int
+    boxWidth       int
+    boxHeight      int
+
+    // Drag state
+    dragging bool
+    dragX    int
+    dragY    int
+    offsetX  int
+    offsetY  int
+
+    // dimsSet is true after ensureDimensions has run
+    dimsSet bool
+
+    // last known total dimensions (set by EnsureDimensions)
+    totalW int
+    totalH int
+}</code></pre>
+        </div>
+        <p>A modal dialog rendered on top of a panel's content. Any panel can embed and render a Modal in its <code>View()</code>.</p>
+
+        <h4>ModalButton</h4>
+        <div class="signature">
+            <pre><code class="language-go">type ModalButton struct {
+    Label  string
+    Action func()
+}</code></pre>
+        </div>
+        <p>Describes a button in a modal dialog.</p>
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>Label</code></td><td><code>string</code></td><td>Button text displayed to the user</td></tr>
+                <tr><td><code>Action</code></td><td><code>func()</code></td><td>Function to call when button is clicked</td></tr>
+            </tbody>
+        </table>
+
+        <h3>Functions</h3>
+
+        <h4>NewModal</h4>
+        <div class="signature">
+            <pre><code class="language-go">func NewModal(title, content string, buttons []ModalButton, onClose func()) *Modal</code></pre>
+        </div>
+        <p>Creates a new <code>Modal</code> instance from its parts. Returns a pointer to the modal ready for use.</p>
+
+        <h4>EnsureDimensions</h4>
+        <div class="signature">
+            <pre><code class="language-go">func (m *Modal) EnsureDimensions(totalW, totalH int)</code></pre>
+        </div>
+        <p>Computes and stores box dimensions if not yet set. Must be called before <a href="#Overlay"><code>Overlay</code></a> if <a href="#Overlay"><code>Overlay</code></a> hasn't been called yet.</p>
+        <p>This function:</p>
+        <ul>
+            <li>Computes box width (auto or specified, clamped 30-50 chars)</li>
+            <li>Computes box height (fixed at 7 lines for rounded border + padding + 3 content lines)</li>
+            <li>Computes center position with drag offset</li>
+        </ul>
+
+        <h4>Overlay</h4>
+        <div class="signature">
+            <pre><code class="language-go">func (m *Modal) Overlay(lines []string, totalW, totalH int) []string</code></pre>
+        </div>
+        <p> Renders the modal on top of existing content lines. Returns the overlaid lines.</p>
+        <p>The function:</p>
+        <ol>
+            <li>Ensures dimensions are computed (calls <a href="#EnsureDimensions"><code>EnsureDimensions</code></a>)</li>
+            <li>Builds the modal box with title, content, and buttons</li>
+            <li>Dims the background content</li>
+            <li>Overlays the modal box preserving dimmed content left and right</li>
+        </ol>
+
+        <h4>HandleMouse</h4>
+        <div class="signature">
+            <pre><code class="language-go">func (m *Modal) HandleMouse(msg tea.MouseMsg) bool</code></pre>
+        </div>
+        <p>Processes mouse events for the modal. Returns <code>true</code> if the event was consumed.</p>
+        <p>Supported interactions:</p>
+        <ul>
+            <li><strong>Close button</strong> — Click the ✕ at the right of the title line</li>
+            <li><strong>Button clicks</strong> — Click buttons at the bottom to trigger actions</li>
+            <li><strong>Dragging</strong> — Drag the top padding strip to reposition the modal</li>
+        </ul>
+
+        <h4>Getters</h4>
+        <table>
+            <thead><tr><th>Function</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td><code>(m *Modal) StartX()</code></td><td>Returns the X position of the modal box after <a href="#Overlay"><code>Overlay()</code></a> was called</td></tr>
+                <tr><td><code>(m *Modal) StartY()</code></td><td>Returns the Y position of the modal box after <a href="#Overlay"><code>Overlay()</code></a> was called</td></tr>
+                <tr><td><code>(m *Modal) BoxWidth()</code></td><td>Returns the width of the modal box after <a href="#Overlay"><code>Overlay()</code></a> was called</td></tr>
+                <tr><td><code>(m *Modal) BoxHeight()</code></td><td>Returns the height of the modal box after <a href="#Overlay"><code>Overlay()</code></a> was called</td></tr>
+            </tbody>
+        </table>
+
+        <h3>Internal Functions</h3>
+
+        <h4>buildButtonLine</h4>
+        <div class="signature">
+            <pre><code class="language-go">func (m *Modal) buildButtonLine() string</code></pre>
+        </div>
+        <p>Builds a string containing all button labels in the format <code>[Label]</code> joined by spaces.</p>
+
+        <h4>findBracketPair</h4>
+        <div class="signature">
+            <pre><code class="language-go">func findBracketPair(s string, pos int) (int, int)</code></pre>
+        </div>
+        <p>Finds the start and end positions of a bracket pair <code>[...]</code> starting from a given position. Returns <code>-1, -1</code> if no pair is found.</p>
+
+        <h4>visualBytePos</h4>
+        <div class="signature">
+            <pre><code class="language-go">func visualBytePos(s string, targetW int) int</code></pre>
+        </div>
+        <p>Returns the byte position in <code>s</code> where the visual width reaches <code>targetW</code>. Uses ANSI parser and grapheme segmentation to handle multi-byte characters and escape sequences correctly. If the visual width never reaches <code>targetW</code>, returns <code>len(s)</code>.</p>
+
+        <h4>stripANSI</h4>
+        <div class="signature">
+            <pre><code class="language-go">func stripANSI(s string) string</code></pre>
+        </div>
+        <p>Removes all ANSI escape sequences from a string, returning only the plain text content.</p>
+
+        <h4>max</h4>
+        <div class="signature">
+            <pre><code class="language-go">func max(a, b int) int</code></pre>
+        </div>
+        <p>Returns the maximum of two integers.</p>
+
+        <h2>Modal Box Layout</h2>
+
+        <p>The modal box uses a <code>RoundedBorder</code> with padding. The layout is:</p>
+
+        <pre><code class="language-text">box[0]: top border              → startY + 0
+box[1]: top padding (draggable) → startY + 1
+box[2]: title + ✕               → startY + 2
+box[3]: content                 → startY + 3
+box[4]: buttons (first row)     → startY + 4
+box[5]: buttons (second row)    → startY + 5 (when wrapped)
+box[6]: bottom border           → startY + 6</code></pre>
+
+        <p>Total height is fixed at 7 lines to match lipgloss <code>RoundedBorder</code> + padding + 3 content lines.</p>
+
+        <h2>Styling</h2>
+
+        <h3>modalBorderStyle</h3>
+        <div class="signature">
+            <pre><code class="language-go">var modalBorderStyle = lipgloss.NewStyle().
+                Background(lipgloss.Color(gbDark1)).
+                Foreground(lipgloss.Color(gbLight1)).
+                BorderStyle(lipgloss.RoundedBorder()).
+                BorderForeground(lipgloss.Color(gbBlue)).
+                Padding(1, 2)</code></pre>
+        </div>
+        <p>Style for the modal border with rounded corners, blue accent color, and padding.</p>
+
+        <h3>dimStyle</h3>
+        <div class="signature">
+            <pre><code class="language-go">var dimStyle = lipgloss.NewStyle().
+                Foreground(lipgloss.Color(gbGray)).
+                Background(lipgloss.Color(gbDark0))</code></pre>
+        </div>
+        <p>Style used to dim the background content behind the modal.</p>
+
+        <h2>Usage Example</h2>
+
+        <pre><code class="language-go">package main
+
+import (
+    "fmt"
+    warp "yourproject/warp"
+)
+
+func main() {
+    // Create a modal
+    modal := warp.NewModal(
+        "Confirmation",
+        "Do you want to proceed?",
+        []warp.ModalButton{
+            {Label: "Yes", Action: func() {
+                // Handle yes
+            }},
+            {Label: "No", Action: func() {
+                // Handle no
+            }},
+        },
+        func() {
+            // Called when modal is closed
+            fmt.Println("Modal closed")
+        },
+    )
+
+    // Get initial panel lines
+    lines := getPanelLines()
+
+    // Render modal on top
+    renderedLines := modal.Overlay(lines, 80, 24)
+
+    // Handle mouse input
+    for {
+        msg, ok := chan.Read()
+        if !ok {
+            break
+        }
+        if modal.HandleMouse(msg) {
+            // Modal handled the event
+        }
+    }
+
+    // Render again with new positions
+    renderedLines = modal.Overlay(renderedLines, 80, 24)
+}</code></pre>
+
+        <h2>Important Notes</h2>
+
+        <ul>
+            <li><strong>Dimension order</strong> — Always call <a href="#EnsureDimensions"><code>EnsureDimensions()</code></a> before <a href="#Overlay"><code>Overlay()</code></a> if not already called</li>
+            <li><strong>Drag offset</strong> — The modal remembers its offset from center position; this enables dragging</li>
+            <li><strong>Clamping</strong> — Modal is clamped to screen boundaries when dragging reaches edges</li>
+            <li><strong>Auto-width</strong> — Width of 0 or negative means auto-width (3/5 screen, clamped 30-50)</li>
+            <li><strong>ANSI handling</strong> — The <a href="#visualBytePos"><code>visualBytePos</code></a> function handles multi-byte characters and escape sequences correctly using the ansi parser</li>
+        </ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

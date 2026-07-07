@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tabgroup</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>TabGroup</h1>
+        
+        <p><strong>TabGroup</strong> is a <code>Panel</code> that renders a tab bar and switches between tabs. It can be used as a component inside splits, flex layouts, or as the root panel.</p>
+        
+        <h2>Overview</h2>
+        
+        <p>The <code>TabGroup</code> provides a tabbed interface similar to terminal emulators. It supports:</p>
+        
+        <ul>
+            <li>Multiple tabs with custom names</li>
+            <li>Horizontal or vertical tab bars (top, bottom, left, right)</li>
+            <li>Tab switching via keyboard shortcuts</li>
+            <li>Tab creation and closing via keyboard or mouse</li>
+            <li>Active tab highlighting</li>
+            <li>Tab name truncation for long labels</li>
+        </ul>
+        
+        <h2>Types</h2>
+        
+        <h3>tabRegion</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">type tabRegion struct {
+    idx    int
+    startX int
+    endX   int
+    closeX int // X position of close button, -1 if none
+}</code></pre>
+        </div>
+        
+        <p><code>tabRegion</code> describes a clickable area in the tab bar. It stores:</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>idx</code></td>
+                    <td><code>int</code></td>
+                    <td>Index of the associated tab, or -1 for new tab region</td>
+                </tr>
+                <tr>
+                    <td><code>startX</code></td>
+                    <td><code>int</code></td>
+                    <td>X position where the clickable region starts</td>
+                </tr>
+                <tr>
+                    <td><code>endX</code></td>
+                    <td><code>int</code></td>
+                    <td>X position where the clickable region ends</td>
+                </tr>
+                <tr>
+                    <td><code>closeX</code></td>
+                    <td><code>int</code></td>
+                    <td>X position of the close button, -1 if none</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h3>TabGroup</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">type TabGroup struct {
+    tabs      []*Tab
+    activeTab int
+    width     int
+    height    int
+
+    tabPosition      TabPosition
+    tabRegions       []tabRegion
+    newTabRegion     *tabRegion
+    verticalTabWidth int
+}</code></pre>
+        </div>
+        
+        <p>Fields:</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>tabs</code></td>
+                    <td><code>[]*Tab</code></td>
+                    <td>List of all tabs in the group</td>
+                </tr>
+                <tr>
+                    <td><code>activeTab</code></td>
+                    <td><code>int</code></td>
+                    <td>Index of the currently active tab</td>
+                </tr>
+                <tr>
+                    <td><code>width</code></td>
+                    <td><code>int</code></td>
+                    <td>Current width of the panel</td>
+                </tr>
+                <tr>
+                    <td><code>height</code></td>
+                    <td><code>int</code></td>
+                    <td>Current height of the panel</td>
+                </tr>
+                <tr>
+                    <td><code>tabPosition</code></td>
+                    <td><code>TabPosition</code></td>
+                    <td>Position of the tab bar (Top, Bottom, Left, Right, None)</td>
+                </tr>
+                <tr>
+                    <td><code>tabRegions</code></td>
+                    <td><code>[]tabRegion</code></td>
+                    <td>Computed clickable regions for the tab bar</td>
+                </tr>
+                <tr>
+                    <td><code>newTabRegion</code></td>
+                    <td><code>*tabRegion</code></td>
+                    <td>Region for creating new tabs (when clicking "+")</td>
+                </tr>
+                <tr>
+                    <td><code>verticalTabWidth</code></td>
+                    <td><code>int</code></td>
+                    <td>Width of vertical tab bar (computed from widest tab)</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h2>Functions</h2>
+        
+        <h3>padRight</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func padRight(s string, w int) string</code></pre>
+        </div>
+        
+        <p>Pads a string on the right to reach the specified width. Used for vertical tab bar rendering where all tabs need equal width.</p>
+        
+        <h2>Public API</h2>
+        
+        <h3>NewTabGroup</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func NewTabGroup(pos TabPosition) *TabGroup</code></pre>
+        </div>
+        
+        <p>Creates a new <code>TabGroup</code> with one default tab named "main".</p>
+        
+        <h3>NewTab</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) NewTab(name string) *Tab</code></pre>
+        </div>
+        
+        <p>Creates a new tab with the given name and switches to it. Returns the newly created <code>*Tab</code>.</p>
+        
+        <h3>ActiveTab</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) ActiveTab() *Tab</code></pre>
+        </div>
+        
+        <p>Returns the currently active tab. Returns <code>nil</code> if no tabs exist or if the active index is out of bounds.</p>
+        
+        <h3>NextTab</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) NextTab()</code></pre>
+        </div>
+        
+        <p>Switches to the next tab in a circular manner. Only works if there is more than one tab.</p>
+        
+        <h3>PrevTab</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) PrevTab()</code></pre>
+        </div>
+        
+        <p>Switches to the previous tab in a circular manner. Only works if there is more than one tab.</p>
+        
+        <h2>Keyboard Shortcuts</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Key</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>Ctrl+Tab</code></td>
+                    <td>Switch to the next tab</td>
+                </tr>
+                <tr>
+                    <td><code>Ctrl+Shift+Tab</code></td>
+                    <td>Switch to the previous tab</td>
+                </tr>
+                <tr>
+                    <td><code>Ctrl+W</code></td>
+                    <td>Close the active tab</td>
+                </tr>
+                <tr>
+                    <td><code>Ctrl+T</code></td>
+                    <td>Create a new tab</td>
+                </tr>
+                <tr>
+                    <td><code>Ctrl+C</code></td>
+                    <td>Quit the application</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h2>Tab Bar Click Behavior</h2>
+        
+        <p>Clicking on the tab bar handles the following actions:</p>
+        
+        <ul>
+            <li><strong>Clicking a tab:</strong> Switches to that tab</li>
+            <li><strong>Clicking the close button (×):</strong> Closes the tab</li>
+            <li><strong>Clicking the "+" button:</strong> Creates a new tab</li>
+            <li><strong>Clicking vertical tabs (left/right):</strong> Clicking on a tab switches to it, clicking the close button closes it</li>
+        </ul>
+        
+        <h2>Rendering</h2>
+        
+        <h3>View</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) View(w, h int) string</code></pre>
+        </div>
+        
+        <p>Renders the tab bar and active tab content. The behavior depends on <code>tabPosition</code>:</p>
+        
+        <ul>
+            <li><strong>TabTop / TabBottom:</strong> Renders tab bar above or below the content</li>
+            <li><strong>TabLeft / TabRight:</strong> Renders vertical tab bar on the left or right</li>
+            <li><strong>TabNone:</strong> Renders only the content without a tab bar</li>
+        </ul>
+        
+        <h3>Elements</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) Elements(w, h int) []Element</code></pre>
+        </div>
+        
+        <p>Implements <code>ElementProvider</code>. Returns the active tab's elements offset by the tab bar position. Used for hit testing and cursor positioning.</p>
+        
+        <h2>Internal Methods</h2>
+        
+        <h3>closeTab</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) closeTab(idx int)</code></pre>
+        </div>
+        
+        <p>Closes a tab at the given index. If the tab being closed was active, switches to the last tab (or first if only one remains). Prevents closing the last tab.</p>
+        
+        <h3>switchTab</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) switchTab(idx int)</code></pre>
+        </div>
+        
+        <p>Sets the active tab index. Internal method used by other methods.</p>
+        
+        <h3>contentWidth / contentHeight</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) contentWidth(totalW int) int
+func (tg *TabGroup) contentHeight(totalH int) int</code></pre>
+        </div>
+        
+        <p>Returns the available content width/height after subtracting the tab bar width/height if present.</p>
+        
+        <h3>contentOffset</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) contentOffset() (int, int)</code></pre>
+        </div>
+        
+        <p>Returns the (x, y) offset for content based on tab position. Used for positioning elements.</p>
+        
+        <h3>renderTabBar</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) renderTabBar(width int) string</code></pre>
+        </div>
+        
+        <p>Delegates to either <code>renderHorizontalTabBar</code> or <code>renderVerticalTabBar</code> based on tab position.</p>
+        
+        <h3>renderHorizontalTabBar</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) renderHorizontalTabBar(width int) string</code></pre>
+        </div>
+        
+        <p>Renders a horizontal tab bar (top or bottom). Creates tab regions, renders tab labels with truncation, and adds the new tab region ("+").</p>
+        
+        <h3>renderVerticalTabBar</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) renderVerticalTabBar(_ int) string</code></pre>
+        </div>
+        
+        <p>Renders a vertical tab bar (left or right). Computes the maximum tab width and renders all tabs with right padding. Creates a new tab region at the bottom ("+").</p>
+        
+        <h3>handleKeyMsg / handleMouseMsg</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) handleKeyMsg(msg tea.Msg) tea.Cmd
+func (tg *TabGroup) handleMouseMsg(msg tea.MouseMsg) tea.Cmd</code></pre>
+        </div>
+        
+        <p>Handles keyboard and mouse messages for the tab group. Delegates to the active tab for messages not handled by the tab group itself.</p>
+        
+        <h3>isOnTabBar</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) isOnTabBar(x, y int) bool</code></pre>
+        </div>
+        
+        <p>Checks if a given (x, y) position is on the tab bar. Returns true for positions on the tab bar, false otherwise.</p>
+        
+        <h3>handleTabBarClick</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) handleTabBarClick(msg tea.MouseMsg) tea.Cmd</code></pre>
+        </div>
+        
+        <p>Handles click events on the tab bar. Performs hit testing against tab regions to determine which action to take (switch tab, close tab, or create new tab).</p>
+        
+        <h3>shiftElements</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func shiftElements(elems []Element, dx, dy int)</code></pre>
+        </div>
+        
+        <p>Recursive helper function that adds offsets to all elements and their children. Used by <code>Elements</code> to apply the tab bar offset.</p>
+        
+        <h3>Update</h3>
+        
+        <div class="signature">
+            <pre><code class="language-go">func (tg *TabGroup) Update(msg tea.Msg) tea.Cmd</code></pre>
+        </div>
+        
+        <p>Handles various messages:</p>
+        
+        <ul>
+            <li><code>tea.KeyMsg</code>: Delegated to <code>handleKeyMsg</code></li>
+            <li><code>tea.MouseMsg</code>: Delegated to <code>handleMouseMsg</code></li>
+            <li><code>tea.WindowSizeMsg</code>: Updates width/height and broadcasts to tabs</li>
+            <li><code>ResizeMsg</code>: Updates width/height and broadcasts to tabs</li>
+            <li><code>PtyReadyMsg</code>, <code>PtyOutputMsg</code>, etc.: Broadcast to all tabs</li>
+        </ul>
+        
+        <h2>Example Usage</h2>
+        
+        <pre><code class="language-go">package main
+
+import (
+    "github.com/charmbracelet/bubbles/textarea"
+    "github.com/charmbracelet/bubbles/tabgroup"
+)
+
+func main() {
+    // Create a new tab group with tabs on top
+    tg := tabgroup.NewTabGroup(tabgroup.TabTop)
+    
+    // Add initial tab
+    mainTab := tg.NewTab("main")
+    
+    // Add more tabs
+    tg.NewTab("config")
+    tg.NewTab("settings")
+    
+    // Render the tab group
+    output := tg.View(80, 24)
+    println(output)
+}
+</code></pre>
+        
+        <h2>Notes</h2>
+        
+        <ul>
+            <li>Tab names are truncated to 20 characters for horizontal tabs and 15 characters for vertical tabs</li>
+            <li>The close button (×) only appears on the active tab in horizontal mode</li>
+            <li>In vertical mode, close buttons appear on all tabs</li>
+            <li>Tab regions are recomputed on each render</li>
+            <li>The <code>+</code> button creates a new tab when clicked or via <code>Ctrl+T</code></li>
+            <li>Tab switching wraps around (circular navigation)</li>
+            <li>The last tab cannot be closed</li>
+        </ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

@@ -1,110 +1,176 @@
-# Specification: `styles.go`
+# Styles
 
-## Overview
+## Обзор
 
-`styles.go` defines the visual style system for the `warp` package. It centralizes the Gruvbox Dark color palette and pre-built `lipgloss.Style` values used to render the tab bar, split borders, floating panes, collapsible sections, and dropdown widgets. The file is pure configuration: it contains no behavior or rendering logic beyond constructing styles.
+Файл `styles.go` содержит цветовые палитры и стили для UI компонентов проекта Warp, построенного на базе библиотеки [lipgloss](https://github.com/charmbracelet/lipgloss). Все стили основаны на цветовой палитре **Gruvbox Dark**.
 
-## Color Palette
+## Цветовая палитра
 
-The file implements the Gruvbox Dark color scheme via package-level color variables of type `lipgloss.Color`. These are used as the raw colors for all styles.
+### Gruvbox Dark
 
-### Base colors
+Используются следующие цвета из палитры Gruvbox Dark:
 
-| Name      | Hex     | Notes                           |
-|-----------|---------|---------------------------------|
-| `gbDark0` | `#282828` | Deepest background / float pane background |
-| `gbDark1` | `#3c3836` | Border, float title background  |
-| `gbDark2` | `#504945` | Active tab background, dropdown surfaces |
-| `gbDark3` | `#665c54` | Hover border color              |
-| `gbDark4` | `#7c6f64` | Collapsible border color        |
-| `gbGray`  | `#928374` | Inactive tab text, float border |
-| `gbLight1`| `#ebdbb2` | Primary light text              |
-| `gbRed`   | `#fb4934` | Close tab, float close button   |
-| `gbGreen` | `#b8bb26` | New tab button, selected item   |
-| `gbYellow`| `#fabd2f` | Drag border, dropdown hover     |
-| `gbBlue`  | `#83a598` | Reserved in palette, not used by a style currently |
+| Имя | Цвет | Использование |
+|-----|------|---------------|
+| gbDark0 | `#282828` | Основной фон (background) |
+| gbDark1 | `#3c3836` | Вторичный фон, границы |
+| gbDark2 | `#504945` | Фон активных элементов |
+| gbDark3 | `#665c54` | Тertiary фон |
+| gbDark4 | `#7c6f64` | Четвёртый уровень фона |
+| gbGray | `#928374` | Серый, текст по умолчанию |
+| gbLight1 | `#ebdbb2` | Светлый текст |
+| gbRed | `#fb4934` | Красный (ошибки, закрытие) |
+| gbGreen | `#b8bb26` | Зелёный (успех, новые элементы) |
+| gbYellow | `#fabd2f` | Жёлтый (внимание, hover) |
+| gbBlue | `#83a598` | Синий (информация) |
 
-## Public API
+## Публичный API
 
-The file exports three style accessor functions. All other style variables are package-private.
+### Функции
+
+| Функция | Возврат | Описание |
+|---------|---------|----------|
+| `BorderStyle()` | `lipgloss.Style` | Стиль для обычных split border |
+| `BorderDragStyle()` | `lipgloss.Style` | Стиль при перетаскивании border |
+| `BorderHoverStyle()` | `lipgloss.Style` | Стиль при наведении мыши на border |
+
+### Типы и стили
+
+#### Tab bar styles
+
+| Стиль | Описание | Цвета |
+|-------|----------|-------|
+| `tabBarStyle` | Фон таб-барa | Background: gbDark0 |
+| `activeTabStyle` | Активная вкладка | Background: gbDark2, Foreground: gbLight1, Bold |
+| `inactiveTabStyle` | Неактивная вкладка | Background: gbDark0, Foreground: gbGray |
+| `newTabStyle` | Новая вкладка (индикатор) | Foreground: gbGreen |
+| `closeTabStyle` | Кнопка закрытия | Foreground: gbRed |
+
+#### Border styles
+
+| Стиль | Описание | Цвета |
+|-------|----------|-------|
+| `borderStyle` | Обычная граница | Foreground: gbDark1 |
+| `borderHoverStyle` | Hover граница | Foreground: gbDark3 |
+| `borderDragStyle` | Drag граница | Foreground: gbYellow |
+
+#### Float pane styles
+
+| Стиль | Описание | Цвета |
+|-------|----------|-------|
+| `floatBorderStyle` | Граница плавающего окна | Foreground: gbGray |
+| `floatTitleStyle` | Заголовок плавающего окна | Background: gbDark1, Foreground: gbLight1, Bold |
+| `floatCloseStyle` | Кнопка закрытия плавающего окна | Foreground: gbRed, Bold |
+| `floatBgStyle` | Фон плавающего окна | Background: gbDark0 |
+
+#### Collapsible styles
+
+| Стиль | Описание | Цвета |
+|-------|----------|-------|
+| `collapsibleStyle` | Сворачиваемый элемент | Foreground: gbLight1, Background: gbDark1 |
+| `collapsibleBorderStyle` | Граница сворачиваемого | Foreground: gbDark4 |
+
+#### Dropdown styles
+
+| Стиль | Описание | Цвета |
+|-------|----------|-------|
+| `dropdownButtonStyle` | Кнопка dropdown | Background: gbDark2, Foreground: gbLight1 |
+| `dropdownItemStyle` | Элемент списка dropdown | Background: gbDark0, Foreground: gbLight1 |
+| `dropdownItemHoverStyle` | Hover элемент dropdown | Background: gbDark2, Foreground: gbYellow |
+| `dropdownItemSelectedStyle` | Выбранный элемент dropdown | Background: gbDark2, Foreground: gbGreen, Bold |
+
+## Внутренние переменные
+
+### Tab bar colors
+
+| Переменная | Значение | Описание |
+|------------|----------|----------|
+| `tabBarBg` | gbDark0 | Фон таб-бара |
+| `activeTabBg` | gbDark2 | Фон активной вкладки |
+| `activeTabFg` | gbLight1 | Текст активной вкладки |
+| `inactiveTabFg` | gbGray | Текст неактивной вкладки |
+| `newTabFg` | gbGreen | Цвет индикатора новой вкладки |
+| `closeTabFg` | gbRed | Цвет кнопки закрытия |
+
+### Split border colors
+
+| Переменная | Значение | Описание |
+|------------|----------|----------|
+| `borderColor` | gbDark1 | Обычный цвет границы |
+| `borderDragColor` | gbYellow | Цвет при drag |
+| `borderHoverColor` | gbDark3 | Цвет при hover |
+
+### Float pane colors
+
+| Переменная | Значение | Описание |
+|------------|----------|----------|
+| `floatBorderColor` | gbGray | Граница плавающего окна |
+| `floatTitleBg` | gbDark1 | Фон заголовка плавающего окна |
+| `floatTitleFg` | gbLight1 | Текст заголовка |
+| `floatBg` | gbDark0 | Фон плавающего окна |
+| `floatCloseFg` | gbRed | Кнопка закрытия |
+
+### Collapsible colors
+
+| Переменная | Значение | Описание |
+|------------|----------|----------|
+| `collapsibleStyle` | gbLight1 / gbDark1 | Стиль сворачиваемого |
+| `collapsibleBorderStyle` | gbDark4 | Граница |
+
+### Dropdown colors
+
+| Переменная | Значение | Описание |
+|------------|----------|----------|
+| `dropdownButtonStyle` | gbDark2 / gbLight1 | Кнопка |
+| `dropdownItemStyle` | gbDark0 / gbLight1 | Элемент списка |
+| `dropdownItemHoverStyle` | gbDark2 / gbYellow | Hover |
+| `dropdownItemSelectedStyle` | gbDark2 / gbGreen, Bold | Выбрано |
+
+## Паттерны реализации
+
+### Стилизация через липгloss
+
+Все стили создаются через `lipgloss.NewStyle()` с последующим вызовом методов `Background()`, `Foreground()`, `Bold()`.
 
 ```go
-func BorderStyle() lipgloss.Style
-func BorderDragStyle() lipgloss.Style
-func BorderHoverStyle() lipgloss.Style
+activeTabStyle = lipgloss.NewStyle().
+        Background(activeTabBg).
+        Foreground(activeTabFg).
+        Bold(true)
 ```
 
-### `BorderStyle()`
+### Композиция стилей
 
-Returns the style used for normal split borders.
+Стили строятся композицией базовых цветовых переменных. Каждая цветовая схема соответствует определённой части UI (tab bar, split borders, float panes).
 
-- Foreground: `gbDark1` (`#3c3836`)
-- Other properties: none (no background, no padding/margin)
+## Ограничения
 
-### `BorderDragStyle()`
+- Используются только цвета из палитры Gruvbox Dark
+- Все стили создаются через `lipgloss`
+- Нет прозрачности (opacity) в стилях
+- Нет градиентов или сложной анимации
 
-Returns the style used while a split border is being dragged.
+## Использование
 
-- Foreground: `gbYellow` (`#fabd2f`)
+```go
+import "github.com/charmbracelet/warp/styles"
 
-### `BorderHoverStyle()`
+// Использование стилей
+style := styles.BorderStyle()
+text := lipgloss.NewStyle().Foreground(styles.gbLight1).Render("text")
+```
 
-Returns the style used when the mouse pointer hovers over a split border.
+## Ключевые Правила
 
-- Foreground: `gbDark3` (`#665c54`)
+1. **Использовать только публичный API** — вызывать `BorderStyle()`, `BorderDragStyle()` вместо прямого доступа к переменным
+2. **Не изменять цветовую палитру** — цвета определены в начале файла и не должны меняться
+3. **Соблюдать семантику** — каждый стиль соответствует определённой части UI
+4. **Генерировать стили через конструкторы** — использовать `lipgloss.NewStyle()` с методами
 
-## Internal Style Groups
+## Ключевые Правила (Human Horizon)
 
-The following pre-built `lipgloss.Style` variables are declared in the package. They are intended to be used by other components in the `warp` package.
-
-### Tab bar styles
-
-| Variable          | Background | Foreground | Other      |
-|-------------------|------------|------------|------------|
-| `tabBarStyle`     | `tabBarBg` (`gbDark0`) | — | — |
-| `activeTabStyle`  | `activeTabBg` (`gbDark2`) | `activeTabFg` (`gbLight1`) | `Bold(true)` |
-| `inactiveTabStyle`| `tabBarBg` (`gbDark0`) | `inactiveTabFg` (`gbGray`) | — |
-| `newTabStyle`     | — | `newTabFg` (`gbGreen`) | — |
-| `closeTabStyle`   | — | `closeTabFg` (`gbRed`) | — |
-
-### Split border styles
-
-| Variable            | Foreground                     |
-|---------------------|--------------------------------|
-| `borderStyle`       | `borderColor` (`gbDark1`)      |
-| `borderHoverStyle`  | `borderHoverColor` (`gbDark3`) |
-| `borderDragStyle`   | `borderDragColor` (`gbYellow`) |
-
-### Floating pane styles
-
-| Variable            | Background | Foreground | Other      |
-|---------------------|------------|------------|------------|
-| `floatBorderStyle`  | — | `floatBorderColor` (`gbGray`) | — |
-| `floatTitleStyle`   | `floatTitleBg` (`gbDark1`) | `floatTitleFg` (`gbLight1`) | `Bold(true)` |
-| `floatCloseStyle`   | — | `floatCloseFg` (`gbRed`) | `Bold(true)` |
-| `floatBgStyle`      | `floatBg` (`gbDark0`) | — | — |
-
-### Collapsible styles
-
-| Variable                | Background | Foreground |
-|-------------------------|------------|------------|
-| `collapsibleStyle`      | `gbDark1`  | `gbLight1` |
-| `collapsibleBorderStyle`| —          | `gbDark4`  |
-
-### Dropdown styles
-
-| Variable                    | Background | Foreground | Other      |
-|-----------------------------|------------|------------|------------|
-| `dropdownButtonStyle`       | `gbDark2`  | `gbLight1` | — |
-| `dropdownItemStyle`         | `gbDark0`  | `gbLight1` | — |
-| `dropdownItemHoverStyle`    | `gbDark2`  | `gbYellow` | — |
-| `dropdownItemSelectedStyle` | `gbDark2`  | `gbGreen`  | `Bold(true)` |
-
-## Important Implementation Details
-
-- **Palette constants are variables, not constants.** They are declared as `var` blocks so they can be reassigned or overridden by other packages/files, although the file treats them as a fixed theme.
-- **Style variables are also mutable.** All `lipgloss.Style` values are package-level variables. They are eagerly initialized at package initialization time via `lipgloss.NewStyle()`.
-- **No exported types.** The file exports no new Go types; the only exported API is the three accessor functions returning `lipgloss.Style`.
-- **Dependency on `lipgloss`.** The file imports `github.com/charmbracelet/lipgloss` and relies entirely on its style API.
-- **Style reuse.** Styles are reused across related UI components (e.g., active tabs and dropdown selected items share `gbDark2` background). Color reuse is intentional to keep the theme consistent.
-- **No runtime behavior.** The file does not define any methods, state, or conditional logic. It only declares colors and styles.
+- **Всегда проверяй ошибки** при работе с `lipgloss`
+- **Маленькие интерфейсы** — каждый стиль отвечает за одну задачу
+- **Явное важнее неявного** — цветовые палитры явно определены в начале файла
+- **Английские комментарии** — все публичные функции должны иметь English doc comments
+- **camelCase для неэкспортируемых** — все переменные стилизованы в camelCase

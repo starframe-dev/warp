@@ -230,28 +230,28 @@ func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 		// excluded and proxied to the wrapped panel (terminal) so TUI apps
 		// inside the PTY receive it.
 		if strings.HasPrefix(key, "shift+") && key != "shift+tab" {
+			if !s.HasSelection && !s.Selecting {
+				s.AnchorX = s.CursorX
+				s.AnchorY = s.CursorY
+			}
+			s.Selecting = true
+			s.HasSelection = true
 			switch key {
 			case "shift+up":
 				if s.CursorY > 0 {
 					s.CursorY--
-					s.HasSelection = true
-					handled = true
 				}
 			case "shift+down":
 				s.CursorY++
-				s.HasSelection = true
-				handled = true
 			case "shift+left":
 				if s.CursorX > 0 {
 					s.CursorX--
-					s.HasSelection = true
-					handled = true
 				}
 			case "shift+right":
 				s.CursorX++
-				s.HasSelection = true
-				handled = true
 			}
+			s.Selecting = false
+			handled = true
 		}
 
 		if !handled {
@@ -272,35 +272,6 @@ func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 					handled = true
 				}
 			}
-		} else {
-			// Shift+arrow extends selection
-			if !s.HasSelection && !s.Selecting {
-				s.AnchorX = s.CursorX
-				s.AnchorY = s.CursorY
-				s.HasSelection = true
-			}
-			s.Selecting = true
-			switch key {
-			case "shift+left":
-				s.CursorX--
-				if s.CursorX < 0 {
-					s.CursorX = 0
-				}
-				handled = true
-			case "shift+right":
-				s.CursorX++
-				handled = true
-			case "shift+up":
-				s.CursorY--
-				if s.CursorY < 0 {
-					s.CursorY = 0
-				}
-				handled = true
-			case "shift+down":
-				s.CursorY++
-				handled = true
-			}
-			s.Selecting = false
 		}
 
 		if handled {

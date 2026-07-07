@@ -19,10 +19,10 @@ func padRight(s string, w int) string {
 
 // tabRegion describes a clickable area in the tab bar.
 type tabRegion struct {
-	idx     int
-	startX  int
-	endX    int
-	closeX  int // X position of close button, -1 if none
+	idx    int
+	startX int
+	endX   int
+	closeX int // X position of close button, -1 if none
 }
 
 // TabGroup is a Panel that renders a tab bar and switches between tabs.

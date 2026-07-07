@@ -1,123 +1,188 @@
-# Popover
+# Popover Specification
 
-`popover.go` implements a context-menu-style popover that renders over an existing screen and can be driven by mouse and keyboard events.
+## Назначение
 
-## Overview
+`Popover` — это компонент контекстного меню (context menu) для TUI-приложений, построенных на `charmbracelet/bubbletea`. Меню отображается поверх контента терминала, сохраняя оригинальную структуру вокруг себя.
 
-A `Popover` is a modal-ish menu rendered at a fixed `(X, Y)` position in screen coordinates. It composes its own bordered box over the supplied content lines, preserving the original content to the left and right of the menu so the underlying UI remains visible. It supports:
+## Публичный API
 
-- Mouse click-to-select and hover highlighting
-- Keyboard navigation (up/down/enter/esc)
-- A configurable close callback
-- Automatic clamping so the menu stays within the terminal bounds
+### Типы
 
-## Types
+#### `PopoverItem`
 
-### `PopoverItem`
-
-A single menu entry.
+Представляет одиночный элемент контекстного меню.
 
 ```go
 type PopoverItem struct {
-    Name   string
-    Action func()
+    Name   string  // Имя элемента для отображения
+    Action func()  // Функция, вызываемая при выборе элемента
 }
 ```
 
-- `Name` – the text shown in the menu.
-- `Action` – the callback invoked when the item is selected by click or enter.
+| Поле | Тип | Описание |
+|------|-----|----------|
+| Name | string | Отображаемое имя элемента меню |
+| Action | func() | Действие при выборе элемента |
 
-### `Popover`
+#### `Popover`
+
+Класс контекстного меню, поддерживающий отображение, управление курсором и обработку событий ввода.
 
 ```go
 type Popover struct {
-    Items      []PopoverItem
-    X, Y       int
-    Width      int
-    OnClose    func()
+    Items   []PopoverItem  // Список элементов меню
+    X, Y    int            // Позиция в координатах экрана (0 = заголовок)
+    Width   int            // Ширина контента (0 = авто: 20)
+    OnClose func()         // Вызывается при закрытии меню
 
-    // internal state
-    boxW, boxH int
-    selected   int
+    // rendered dimensions (set by Overlay)
+    boxW, boxH int           // Размеры отрисованного меню
+
+    // selection
+    selected int             // Индекс выбранного элемента
 }
 ```
 
-- `Items` – the menu entries to display.
-- `X, Y` – top-left anchor position in screen coordinates (0 corresponds to the header row). These are the same coordinates used by mouse messages.
-- `Width` – requested content width of the menu, excluding the border. If `0`, the default width of 20 columns is used. It is clamped to `totalW`.
-- `OnClose` – callback invoked when the popover should close (outside click, escape, or item selection).
-- `boxW`, `boxH` – rendered dimensions of the bordered box, set by `Overlay` and used by input handlers for hit testing.
-- `selected` – index of the currently highlighted item.
+| Поле | Тип | Описание |
+|------|-----|----------|
+| Items | []PopoverItem | Элементы меню |
+| X, Y | int | Позиция верхнего левого угла (в терминальных координатах) |
+| Width | int | Ширина контента (0 = авто: 20) |
+| OnClose | func() | Callback при закрытии |
+| boxW, boxH | int | Внутренние (rendered) размеры |
+| selected | int | Индекс выбранного элемента |
 
-## Public API
+### Методы
 
-### `(*Popover) Overlay(lines []string, totalW, totalH int) []string`
+#### `Overlay(lines []string, totalW, totalH int) []string`
 
-Renders the popover over the provided `lines` and returns the overlaid lines. The input slice is mutated in place.
+Отрисовывает меню поверх предоставленных строк контента.
 
-Behavior:
+**Параметры:**
+- `lines` — буфер строк терминала
+- `totalW` — полная ширина терминала
+- `totalH` — полная высота терминала
 
-1. Returns `lines` unchanged if there are no items or no rendered box lines.
-2. Determines the content width, defaulting to `20` and clamping to `totalW`.
-3. Renders each item, with the selected item using `popoverSelectedStyle` and others using `popoverBaseStyle`. Each line is padded/truncated to the content width.
-4. Joins the content lines and wraps them in a bordered box using `lipgloss.NormalBorder` with `gbDark4` foreground and `gbDark1` background.
-5. Stores the resulting box width and height in `p.boxW` and `p.boxH`.
-6. Clamps the menu position so the entire box fits inside `totalW` × `len(lines)`.
-7. For each overlaid row, computes the left and right portions of the original line using ANSI-aware truncation (`ansi.Truncate`) and a `visualBytePos` helper, then centers the box line between them. The left portion is padded with spaces to reach the exact visual width of `menuX`.
+**Возвращает:**
+- Модифицированные строки с наложенным меню
 
-### `(*Popover) HandleMouse(msg tea.MouseMsg) bool`
+**Поведение:**
+1. Если `Items` пустой — возвращает оригинальные строки без изменений
+2. Вычисляет эффективную ширину контента (min(Width, totalW), default 20)
+3. Строит содержимое меню с обрамлением
+4. Сохраняет реальные размеры для hit-test'а
+5. Прижимает меню к границам терминала
+6. Накладывает меню, сохраняя левую и правую часть оригинального контента
 
-Handles mouse events for the popover. Returns `true` if the event was consumed.
+#### `HandleMouse(msg tea.MouseMsg) bool`
 
-- `MouseActionPress`:
-  - If the click is inside the box, it computes the item index from the Y position (accounting for the top border), invokes the item action, and then calls `OnClose`.
-  - If the click is outside the box, it calls `OnClose`.
-  - Always returns `true`.
-- `MouseActionMotion`:
-  - Updates `selected` to the item under the cursor, ignoring the top and bottom border rows.
-  - Always returns `true`.
-- `MouseActionRelease`:
-  - Returns `true`.
-- Any other action returns `false`.
+Обработчик мыши.
 
-The handler currently uses the unclamped `X` and `Y` for hit testing, but compares against the actual rendered box dimensions stored in `boxW`/`boxH`.
+**Параметры:**
+- `msg` — событие мыши (`tea.MouseMsg`)
 
-### `(*Popover) HandleKey(msg tea.KeyMsg) bool`
+**Возвращает:**
+- `true` если событие обработано
 
-Handles keyboard events for the popover. Returns `true` if the event was consumed.
+**Поведение:**
+- **MouseActionPress:**
+  - Если клик внутри меню — вызывает `Action()` выбранного элемента и `OnClose()`
+  - Если клик вне меню — вызывает `OnClose()`
+- **MouseActionMotion:**
+  - Отслеживает ховер для визуальной обратной связи
+  - Обновляет `selected`
+- **MouseActionRelease:**
+  - Возвращает `true`, без дополнительных действий
 
-- `Esc` – closes the popover.
-- `Enter` – invokes the currently selected item's action and closes the popover.
-- `Up` – decrements the selection, clamping at `0`.
-- `Down` – increments the selection, clamping at `len(Items)-1`.
-- All other keys return `false`.
+#### `HandleKey(msg tea.KeyMsg) bool`
 
-If `boxW` is `0`, meaning `Overlay` has not yet been called, both `HandleMouse` and `HandleKey` return `false`.
+Обработчик клавиатуры.
 
-## Styles
+**Параметры:**
+- `msg` — событие клавиатуры (`tea.KeyMsg`)
 
+**Возвращает:**
+- `true` если событие обработано
+
+**Поведение:**
+- **KeyEsc:** — закрывает меню (`OnClose()`)
+- **KeyEnter:** — выбирает текущий элемент (`Action()`), затем закрывает
+- **KeyUp:** — выбирает элемент выше (циклически вниз)
+- **KeyDown:** — выбирает элемент ниже (циклически вверх)
+
+## Внутренние стили
+
+### `popoverBaseStyle`
+
+Базовый стиль для элементов меню:
+- Фон: `gbDark1`
+- Текст: `gbLight1`
+
+### `popoverSelectedStyle`
+
+Стиль для выбранного элемента:
+- Фон: `gbBlue`
+- Текст: `gbDark0`
+
+## Важные детали реализации
+
+### Обработка ANSI-последовательностей
+
+Используются функции из `github.com/charmbracelet/x/ansi`:
+- `ansi.Truncate()` — обрезка строк до визуальных колонок
+- `ansi.StringWidth()` — вычисление ширины строки в колонках
+- `ansiRe.ReplaceAllString()` — очистка от ANSI-кодов
+
+### Hit-Test
+
+Для корректной обработки кликов:
+1. При `Overlay()` сохраняются реальные `boxW`, `boxH`
+2. При `HandleMouse()` используются сохранённые размеры
+
+### Клампирование позиции
+
+Меню всегда прижимается к границам терминала:
 ```go
-var (
-    popoverBaseStyle = lipgloss.NewStyle().
-        Background(lipgloss.Color(gbDark1)).
-        Foreground(lipgloss.Color(gbLight1))
-
-    popoverSelectedStyle = lipgloss.NewStyle().
-        Background(lipgloss.Color(gbBlue)).
-        Foreground(lipgloss.Color(gbDark0))
-)
+if menuX+boxW > totalW { menuX = totalW - boxW }
+if menuX < 0 { menuX = 0 }
+if menuY+boxH > len(lines) { menuY = len(lines) - boxH }
 ```
 
-- `popoverBaseStyle` – normal item background (`gbDark1`) with light text (`gbLight1`).
-- `popoverSelectedStyle` – highlighted item background (`gbBlue`) with dark text (`gbDark0`).
+### Сохранение контента
 
-Both styles are applied with an explicit width equal to the content width, and each item is rendered with a leading space.
+При наложении меню:
+```
+[левая часть] + [меню] + [правая часть]
+```
 
-## Important Implementation Details
+Левая часть обрезается и подбивается до нужной ширины.
+Правая часть берётся после `menuX+boxW`.
 
-- `Overlay` mutates the input `lines` slice. Callers should pass a copy if the original content must be preserved.
-- The menu box includes a two-character border on both sides, so the actual screen width used by the box is `contentW + 2` (depending on lipgloss output). The stored `boxW` is derived from the rendered string width, so it is exact.
-- Position clamping is performed against `totalW` for the horizontal axis and `len(lines)` for the vertical axis. This assumes the supplied `lines` represent the full terminal height.
-- The hit-test logic in `HandleMouse` assumes the item content starts at `Y + 1` and ends at `Y + boxH - 1`, which matches the single-line top and bottom borders produced by `lipgloss.NormalBorder`.
-- The overlay logic uses `visualBytePos` (defined elsewhere in the package) to map a visual column to a byte offset in a string that may contain ANSI escape sequences. This preserves any styling sequences in the right portion of the original line.
-- `OnClose` may be called both when the user explicitly selects an item and when the user dismisses the popover.
+## Примеры использования
+
+```go
+popover := &Popover{
+    Items: []PopoverItem{
+        {Name: "Сохранить", Action: func() { /* ... */ }},
+        {Name: "Открыть", Action: func() { /* ... */ }},
+    },
+    X: 10,
+    Y: 5,
+    OnClose: func() { /* очистка состояния */ },
+}
+
+// Отрисовка
+lines := popover.Overlay(lines, terminalW, terminalH)
+
+// Обработка событий
+popover.HandleMouse(msg)
+popover.HandleKey(msg)
+```
+
+## Чеклист
+
+- [ ] Публичные методы имеют документацию
+- [ ] Примеры использования включены
+- [ ] Типы имеют комментарии
+- [ ] Внутренние поля имеют комментарии
+- [ ] Обработчики событий имеют комментарии

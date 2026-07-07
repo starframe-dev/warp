@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dropdown</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Выпадающее меню</h1>
+        
+        <h2>Обзор</h2>
+        <p>Этот модуль реализует виджет выпадающего меню для системы UI Warp. Он предоставляет компонент раскрывающегося меню, который можно открыть для отображения списка выбираемых элементов. Выпадающее меню поддерживает навигацию с помощью мыши и клавиатуры, выбор элементов и пользовательские обратные вызовы.</p>
+        
+        <h2>Типы</h2>
+        
+        <h3>DropdownItem</h3>
+        <div class="signature"><pre><code class="language-typescript">type DropdownItem struct {
+    Label    string
+    Selected bool
+}</code></pre></div>
+        <p><code>DropdownItem</code> представляет одиночный элемент выпадающего меню.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Поле</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>Label</code></td>
+                    <td><code>string</code></td>
+                    <td>Текстовая метка, отображаемая для этого элемента выпадающего меню.</td>
+                </tr>
+                <tr>
+                    <td><code>Selected</code></td>
+                    <td><code>bool</code></td>
+                    <td>Указывает, выбран ли этот элемент в данный момент. Одновременно может быть выбран только один элемент.</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h3>DropdownMenu</h3>
+        <div class="signature"><pre><code class="language-typescript">type DropdownMenu struct {
+    Label    string
+    Items    []DropdownItem
+    Open     bool
+    Hovered  int
+    OnSelect func(idx int)
+}</code></pre></div>
+        <p><code>DropdownMenu</code> — это панель, которая отображает кнопку и раскрывающийся список элементов.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Поле</th>
+                    <th>Тип</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>Label</code></td>
+                    <td><code>string</code></td>
+                    <td>Текст метки для кнопки выпадающего меню (отображается при закрытом состоянии).</td>
+                </tr>
+                <tr>
+                    <td><code>Items</code></td>
+                    <td><code>[]DropdownItem</code></td>
+                    <td>Список элементов выпадающего меню для отображения в меню.</td>
+                </tr>
+                <tr>
+                    <td><code>Open</code></td>
+                    <td><code>bool</code></td>
+                    <td>Указывает, открыто ли выпадающее меню в данный момент (раскрыто) или закрыто.</td>
+                </tr>
+                <tr>
+                    <td><code>Hovered</code></td>
+                    <td><code>int</code></td>
+                    <td>Индекс, используемый для стилизации. Устанавливается в -1 при открытии меню или клике по кнопке. Не обновляется при наведении мыши.</td>
+                </tr>
+                <tr>
+                    <td><code>OnSelect</code></td>
+                    <td><code>func(idx int)</code></td>
+                    <td>Функция обратного вызова, которая вызывается при выборе элемента.</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h2>Функции</h2>
+        
+        <h3>NewDropdownMenu</h3>
+        <div class="signature"><pre><code class="language-typescript">func NewDropdownMenu(label string, items []DropdownItem) *DropdownMenu</code></pre></div>
+        <p>Создаёт новое выпадающее меню с заданным меткой и элементами.</p>
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>label</code> — Текстовая метка для кнопки выпадающего меню</li>
+            <li><code>items</code> — Срез структур <code>DropdownItem</code></li>
+        </ul>
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li>Новый экземпляр <code>*DropdownMenu</code> с <code>Open</code>, установленным в <code>false</code>, и <code>Hovered</code>, установленным в -1</li>
+        </ul>
+        
+        <h3>View</h3>
+        <div class="signature"><pre><code class="language-typescript">func (d *DropdownMenu) View(w, h int) string</code></pre></div>
+        <p>Рендерит кнопку выпадающего меню при закрытом состоянии, или открытое меню при расширении.</p>
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>w</code> — Ширина в символах для рендеримого вывода</li>
+            <li><code>h</code> — Высота в символах для рендеримого вывода</li>
+        </ul>
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li>Строка, содержащая рендеримый вывод с использованием стилей текста Bubble Tea</li>
+        </ul>
+        
+        <h3>Update</h3>
+        <div class="signature"><pre><code class="language-typescript">func (d *DropdownMenu) Update(msg tea.Msg) tea.Cmd</code></pre></div>
+        <p>Обрабатывает ввод с помощью мыши и клавиатуры для выпадающего меню.</p>
+        <p><strong>Параметры:</strong></p>
+        <ul>
+            <li><code>msg</code> — Сообщение Bubble Tea (событие мыши или клавиатуры)</li>
+        </ul>
+        <p><strong>Возвращает:</strong></p>
+        <ul>
+            <li><code>tea.Cmd</code> (nil в этой реализации, команды не выдаются)</li>
+        </ul>
+        
+        <h3>Close</h3>
+        <div class="signature"><pre><code class="language-typescript">func (d *DropdownMenu) Close()</code></pre></div>
+        <p>Закрывает выпадающее меню, устанавливая <code>Open</code> в <code>false</code>.</p>
+        <p>Это может быть вызвано вручную или через ввод с клавиатуры (клавиша Escape).</p>
+        
+        <h2>Подробности поведения</h2>
+        
+        <h3>Открытие выпадающего меню</h3>
+        <p>Клик по кнопке выпадающего меню (при закрытом состоянии) открывает меню. Кнопка находится в строке 0 рендеримого вывода.</p>
+        
+        <h3>Закрытие выпадающего меню</h3>
+        <p>Выпадающее меню можно закрыть:</p>
+        <ul>
+            <li>Нажав по кнопке выпадающего меню</li>
+            <li>Нажав клавишу <code>Escape</code></li>
+            <li>Вызвав метод <code>Close()</code></li>
+        </ul>
+        
+        <h3>Навигация по меню</h3>
+        <p>Когда выпадающее меню открыто, пользователи могут навигировать по элементам с помощью:</p>
+        <ul>
+            <li><code>↑</code> (стрелка вверх) — Перемещение выбора вверх</li>
+            <li><code>↓</code> (стрелка вниз) — Перемещение выбора вниз</li>
+        </ul>
+        <p>Поле <code>Hovered</code> устанавливается в <code>-1</code> при открытии меню или клике по кнопке. Оно используется для рендеринга стилей, но не обновляется при событиях наведения мыши.</p>
+        
+        <h3>Выбор элемента</h3>
+        <p>Элемент выбирается:</p>
+        <ul>
+            <li>Нажав <code>Enter</code> при навигации по элементам</li>
+            <li>Нажав по элементу в меню</li>
+        </ul>
+        <p>При выборе элемента:</p>
+        <ol>
+            <li>Все остальные элементы имеют <code>Selected</code>, установленный в <code>false</code></li>
+            <li>Выбранный элемент имеет <code>Selected</code>, установленный в <code>true</code></li>
+            <li>Выпадающее меню автоматически закрывается</li>
+            <li>Обратный вызов <code>OnSelect</code> вызывается с индексом выбранного элемента</li>
+        </ol>
+        
+        <h3>Поведение рендеринга</h3>
+        <ul>
+            <li>Текст обрезается, чтобы поместиться в доступную ширину, с <code>…</code> в конце при необходимости</li>
+            <li>Ряд с кнопкой показывает метку со ▼ (стрелка вниз) при закрытом состоянии, ▲ (стрелка вверх) при открытом</li>
+            <li>Выбранные элементы префиксируются <code>✓</code></li>
+            <li>Элементы с индексом <code>Hovered</code> получают особую стилизацию (но <code>Hovered</code> устанавливается только по клику на кнопку, а не по наведению мыши)</li>
+            <li>Выбранные элементы получают особую стилизацию</li>
+        </ul>
+        
+        <h2>Пример использования</h2>
+        
+        <h3>Создание и использование выпадающего меню</h3>
+        <pre><code class="language-go">package main
+
+import (
+    "fmt"
+    warp "your/module/path"
+)
+
+func main() {
+    // Создаём элементы выпадающего меню
+    items := []warp.DropdownItem{
+        {Label: "Option 1"},
+        {Label: "Option 2"},
+        {Label: "Option 3"},
+    }
+
+    // Создаём выпадающее меню с обратным вызовом
+    dropdown := warp.NewDropdownMenu("Select:", items)
+    dropdown.OnSelect = func(idx int) {
+        fmt.Printf("Selected item at index: %d\n", idx)
+    }
+
+    // Рендерим выпадающее меню (изначально закрыто)
+    view := dropdown.View(40, 10)
+    fmt.Println(view)
+
+    // Открываем выпадающее меню
+    dropdown.Open = true
+    view = dropdown.View(40, 10)
+    fmt.Println(view)
+
+    // Закрываем выпадающее меню
+    dropdown.Close()
+    view = dropdown.View(40, 10)
+    fmt.Println(view)
+}</code></pre>
+        
+        <h2>Стили</h2>
+        <p>Выпадающее меню использует систему стилей текста Bubble Tea для рендеринга. Следующие константы стилей используются внутри:</p>
+        <ul>
+            <li><code>dropdownButtonStyle</code> — Стиль для кнопки выпадающего меню</li>
+            <li><code>dropdownItemStyle</code> — Стандартный стиль для элементов меню</li>
+            <li><code>dropdownItemHoverStyle</code> — Стиль для элементов при наведении</li>
+            <li><code>dropdownItemSelectedStyle</code> — Стиль для выбранных элементов</li>
+        </ul>
+        
+        <h2>Краткое описание публичного API</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Тип/Функция</th>
+                    <th>Видимость</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>DropdownItem</code></td>
+                    <td>Публичный тип</td>
+                    <td>Представляет одиночный элемент выпадающего меню</td>
+                </tr>
+                <tr>
+                    <td><code>DropdownMenu</code></td>
+                    <td>Публичный тип</td>
+                    <td>Представляет полный виджет выпадающего меню</td>
+                </tr>
+                <tr>
+                    <td><code>NewDropdownMenu</code></td>
+                    <td>Публичная функция</td>
+                    <td>Создаёт новый экземпляр выпадающего меню</td>
+                </tr>
+                <tr>
+                    <td><code>View(w, h int)</code></td>
+                    <td>Публичный метод</td>
+                    <td>Рендерит вид выпадающего меню</td>
+                </tr>
+                <tr>
+                    <td><code>Update(msg tea.Msg)</code></td>
+                    <td>Публичный метод</td>
+                    <td>Обрабатывает события ввода</td>
+                </tr>
+                <tr>
+                    <td><code>Close()</code></td>
+                    <td>Публичный метод</td>
+                    <td>Закрывает выпадающее меню</td>
+                </tr>
+                <tr>
+                    <td><code>selectItem(idx int)</code></td>
+                    <td>Частный метод</td>
+                    <td>Обрабатывает логику выбора элемента</td>
+                </tr>
+            </tbody>
+        </table>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

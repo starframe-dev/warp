@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>scrollable</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Scrollable</h1>
+
+        <h2>Overview</h2>
+        <p>
+            <code>Scrollable</code> is a wrapper component that adds scroll support to a <code>Panel</code>.
+            When the content exceeds the allocated height, users can scroll via mouse wheel or keyboard.
+            It is part of the <code>warp</code> package, built with <code>charmbracelet/bubbletea</code>.
+        </p>
+
+        <h2>Type Definition</h2>
+        <div class="signature"><pre><code class="language-typescript"><span class="k">type</span> <span class="t">Scrollable</span> <span class="k">struct</span> {
+    Content Panel
+    Offset  <span class="k">int</span> // scroll offset in lines
+}</span></code></pre></div>
+        <p>
+            <code>Scrollable</code> wraps a <code>Panel</code> with scroll support. It maintains an offset
+            that determines the visible portion of the content.
+        </p>
+
+        <h2>Public API</h2>
+
+        <h3>NewScrollable</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="k">func</span> <span class="f">NewScrollable</span>(content Panel) *<span class="t">Scrollable</span></span></code></pre></div>
+        <p>Creates a new scrollable wrapper around a given <code>Panel</code>.</p>
+
+        <h3>View</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="k">func</span> (s *<span class="t">Scrollable</span>) <span class="f">View</span>(w, h <span class="k">int</span>) <span class="k">string</span></span></code></pre></div>
+        <p>Renders the visible viewport of the content. Takes the allocated width <code>w</code> and height <code>h</code> in lines.
+        Returns a string representing the visible portion of the content, clamped to the viewport height.</p>
+
+        <h3>Update</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="k">func</span> (s *<span class="t">Scrollable</span>) <span class="f">Update</span>(msg tea.Msg) tea.Cmd</span></code></pre></div>
+        <p>Handles scroll messages (mouse wheel, keyboard keys). Returns a command for further action if needed.</p>
+
+        <h2>Implementation Details</h2>
+
+        <h3>Scrolling Behavior</h3>
+        <ul>
+            <li>Mouse wheel up: scrolls up by 3 lines</li>
+            <li>Mouse wheel down: scrolls down by 3 lines</li>
+            <li>Keyboard up arrow: scrolls up by 1 line</li>
+            <li>Keyboard down arrow: scrolls down by 1 line</li>
+            <li>Keyboard Page Up: scrolls up by 10 lines</li>
+            <li>Keyboard Page Down: scrolls down by 10 lines</li>
+        </ul>
+        <p>All scroll actions are clamped to valid bounds (offset cannot be negative or exceed content height).</p>
+
+        <h3>Rendering</h3>
+        <p>The <code>View</code> method renders the full content at unlimited height, splits it into lines,
+        and then slices to show only the visible portion based on the current offset. Empty lines are added
+        if needed to fill the viewport height.</p>
+
+        <h3>Line Padding (padLine)</h3>
+        <div class="signature"><pre><code class="language-typescript"><span class="k">func</span> <span class="f">padLine</span>(line <span class="k">string</span>, w <span class="k">int</span>) <span class="k">string</span></span></code></pre></div>
+        <p>Helper function that ensures a line is exactly <code>w</code> characters wide.
+        If the line is shorter than <code>w</code>, spaces are added. If longer, it is carefully truncated
+        at a proper byte boundary to preserve UTF-8 sequences.</p>
+
+        <h2>Usage Example</h2>
+<pre><code class="language-go">package main
+
+import (
+    warp "your/module/path"
+)
+
+func main() {
+    // Create a panel with content
+    content := &amp;warp.Panel{
+        Text: "This is a long piece of text that will overflow the viewport\nand require scrolling.",
+    }
+
+    // Wrap it in a scrollable
+    scrollable := warp.NewScrollable(content)
+
+    // Render with 80x24 viewport
+    output := scrollable.View(80, 24)
+}</code></pre>
+
+        <h2>Dependencies</h2>
+        <ul>
+            <li><code>github.com/charmbracelet/bubbletea</code> - for handling tea.Msg messages</li>
+            <li><code>github.com/charmbracelet/lipgloss</code> - for string width calculations</li>
+        </ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

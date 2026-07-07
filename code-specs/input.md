@@ -1,168 +1,348 @@
-# `input.go` Specification
+# Specification: Input Component
 
 ## Overview
 
-`input.go` implements a single-line text input component for the `warp` package. It is designed to integrate with the [Bubble Tea](https://github.com/charmbracelet/bubbletea) TUI framework and uses [Lipgloss](https://github.com/charmbracelet/lipgloss) for styling. The component supports keyboard-driven editing, cursor movement, focus handling, and two rendering modes: inline and bordered box.
+`Input` — это компонент однострочного текстового ввода для TUI-приложений на базе Bubble Tea. Компонент предоставляет интерактивное поле ввода с поддержкой курсора, фокуса и обработки клавиатуры.
 
-## Type: `Input`
+## Purpose
 
-```go
-type Input struct {
-    Value   string
-    Cursor  int
-    Prompt  string
-    Width   int
-    focused bool
-}
-```
-
-A single-line text input field.
-
-| Field | Description |
-|-------|-------------|
-| `Value` | Current text value. |
-| `Cursor` | Cursor position measured in runes (Unicode code points). |
-| `Prompt` | Static prefix shown before the value (e.g., a label or `> `). |
-| `Width` | Desired width; `0` means the width is inferred from the `View` argument. |
-| `focused` | Internal focus state. |
+Предоставляет удобную основу для создания полей ввода в TUI-интерфейсах с полной поддержкой:
+- Отображения текста с подсветкой курсора
+- Обработки ввода с клавиатуры
+- Поддержки фокуса и размытия
+- Отрисовки в боксе или inline-режиме
 
 ## Public API
 
-### Construction
+### Constructor
 
 ```go
 func NewInput(prompt string) *Input
 ```
 
-Creates a new empty input with the given prompt. The cursor starts at position `0` and the value is empty.
+Создаёт новый экземпляр `Input` с заданным текстом-подсказкой.
 
-### Value & Cursor
+**Параметры:**
+- `prompt` — текст-подсказка, отображаемый перед значением
+
+**Поведение:**
+- Создаётся пустой экземпляр с пустым значением
+- Курсор установлен в начале (позиция 0)
+- `Prompt` установлен на переданный параметр
+
+### Mutator Methods
+
+#### SetValue
 
 ```go
 func (in *Input) SetValue(v string)
+```
+
+Замениает значение ввода и перемещает курсор в конец.
+
+**Параметры:**
+- `v` — новое значение
+
+**Поведение:**
+1. Устанавливает `Value` на переданный параметр
+2. Устанавливает `Cursor` в длину строки в символах (runes)
+3. Вызывает `clampCursor()` для валидации диапазона
+
+#### SetCursor
+
+```go
 func (in *Input) SetCursor(pos int)
 ```
 
-- `SetValue` replaces the entire value and moves the cursor to the end.
-- `SetCursor` sets the cursor position in runes and clamps it to the valid range.
+Устанавливает позицию курсора в символах.
 
-### Focus
+**Параметры:**
+- `pos` — позиция курсора в символах
+
+**Поведение:**
+- Устанавливает `Cursor` на переданный параметр
+- Вызывает `clampCursor()` для валидации диапазона
+
+### State Queries
+
+#### Focused
 
 ```go
 func (in *Input) Focused() bool
+```
+
+Возвращает состояние фокуса компонента.
+
+**Возвращает:**
+- `true` — если компонент имеет фокус
+- `false` — иначе
+
+### Focus Management
+
+#### Focus
+
+```go
 func (in *Input) Focus()
+```
+
+Давает фокус компоненту.
+
+**Поведение:**
+- Устанавливает `focused` на `true`
+
+#### Blur
+
+```go
 func (in *Input) Blur()
 ```
 
-- `Focus` gives the input focus.
-- `Blur` removes focus.
-- `Focused` reports the current focus state.
+Убирает фокус с компонента.
 
-Focus affects visual rendering (border color changes when focused) and determines whether keyboard input is processed.
+**Поведение:**
+- Устанавливает `focused` на `false`
 
-### Rendering
+## Rendering API
+
+### View
 
 ```go
 func (in *Input) View(w, h int) string
 ```
 
-Renders the input as a string of dimensions `w × h`.
+Отрисовывает компонент.
 
-- If `h >= 3`, the input is rendered inside a bordered box (`viewBoxed`).
-- Otherwise, it is rendered inline (`viewInline`).
+**Параметры:**
+- `w` — доступная ширина в символах
+- `h` — доступная высота в строках
 
-The rendered output is designed to be placed in a terminal grid. The component uses the provided width to truncate or pad the content line as necessary.
+**Поведение:**
+- Если `h >= 3`: отрисовывает в боксе (с рамкой)
+- Иначе: отрисовывает inline (просто текст)
+- Возвращает строку с отрисованным содержимым
 
-### Bubble Tea Update Loop
+### View Modes
+
+#### Boxed Mode (h >= 3)
+
+Отрисовывает компонент внутри рамки:
+- Верхняя граница: `╭───╮`
+- Нижняя граница: `╰───╯`
+- Боковые границы: `│`
+- Контент центрирован вертикально
+
+#### Inline Mode (h < 3)
+
+Отрисовывает просто как строку текста без рамки.
+
+## Rendering Details
+
+### renderLine
+
+```go
+func (in *Input) renderLine(maxW int) string
+```
+
+Строит строку с подсказкой, значением и подсветкой курсора.
+
+**Поведение:**
+1. Добавляет текст-подсказку (`Prompt`)
+2. Обрезает значение, если не влезает в `maxW`
+3. Подсвечивает символ под курсором ANSI-кодом `\x1b[7m`
+4. Добавляет курсор после значения, если он находится в пределах строки
+
+### truncateTailToWidth
+
+```go
+func truncateTailToWidth(s string, maxW, cursor int) string
+```
+
+Обрезает строку так, чтобы курсор оставался видимым.
+
+**Стратегия:**
+- Если `cursor < maxW`: берёт первые `maxW` символов
+- Иначе: центрирует содержимое вокруг курсора
+
+## Update API
+
+### Update
 
 ```go
 func (in *Input) Update(msg tea.Msg) tea.Cmd
 ```
 
-Handles keyboard input when the component is focused. Non-key messages are ignored. When blurred, no key events are processed. Returns `nil` (no command) for all cases.
+Обработчик ввода с клавиатуры (Bubble Tea).
 
-## Keyboard Handling
+**Параметры:**
+- `msg` — сообщение типа `tea.KeyMsg`
 
-When focused, the input responds to the following keys:
+**Возвращает:**
+- `tea.Cmd` — nil (команды не возвращаются)
 
-| Key | Action |
-|-----|--------|
-| `backspace` | Deletes the rune before the cursor. |
-| `delete` | Deletes the rune at the cursor. |
-| `left` | Moves the cursor one rune left. |
-| `right` | Moves the cursor one rune right. |
-| `home` | Moves the cursor to the start of the value. |
-| `end` | Moves the cursor to the end of the value. |
-| `tab` / `shift+tab` | Intentionally ignored; reserved for parent focus traversal. |
-| `enter` | No-op by default (submit hook is not implemented). |
-| Printable characters | Inserts the character at the cursor position. |
+**Поведение:**
+- Игнорирует сообщения, если компонент не в фокусе
+- Обрабатывает:
+  - `backspace` — удаляет символ перед курсором
+  - `delete` — удаляет символ под курсором
+  - `left`/`right` — перемещение курсора
+  - `home`/`end` — перемещение к началу/концу
+  - `enter` — отправка (submit)
+  - Табы — передача родительскому компоненту
+  - Любые одиночные символы — вставка
+- Клавиши управления курсором ограничены границами значения
 
-The cursor is always clamped to the valid range `[0, len([]rune(Value))]` after each operation.
-
-## Rendering Details
-
-### Inline Mode (`h < 3`)
-
-The prompt and value are rendered on a single line using `inputStyle`. The line is padded on the right to width `w` and duplicated across all `h` rows. This produces a filled block of `h` identical lines.
-
-### Boxed Mode (`h >= 3`)
-
-Draws a rounded box border using `inputBorderStyle` (unfocused) or `inputFocusBorderStyle` (focused). The interior is width `w-2` and height `h-2`. The content line is vertically centered; if the interior height is greater than one, the content line is also drawn on the top interior row to help centering.
-
-The box uses the following Unicode drawing characters:
-- `╭` / `╰` corners
-- `─` horizontal line
-- `│` vertical line
-
-### Cursor Highlight
-
-The cursor is rendered as a highlighted character using ANSI inverse video (`\x1b[7m ... \x1b[0m`). If the cursor is positioned after the last rune, a highlighted space is drawn to indicate the end-of-text cursor.
-
-### Truncation
-
-If `Prompt + Value` exceeds the available width, the value is truncated from the left so the cursor remains visible. The function `truncateTailToWidth` keeps a window of runes centered around the cursor near the right side of the visible area.
-
-## Internal Functions
+### Insert
 
 ```go
-func (in *Input) renderLine(maxW int) string
 func (in *Input) insertAtCursor(s string)
-func (in *Input) deleteBeforeCursor()
-func (in *Input) deleteAtCursor()
-func (in *Input) clampCursor()
-func truncateTailToWidth(s string, maxW, cursor int) string
 ```
 
-All text mutations operate on rune slices to ensure correct Unicode handling. The cursor position is always maintained in runes, not bytes.
+Вставляет текст в позицию курсора.
+
+**Поведение:**
+1. Преобразует `Value` в slice `rune`
+2. Вставляет символы после курсора
+3. Конвертирует обратно в строку
+4. Сдвигает курсор на длину вставленного текста
+
+### Delete Operations
+
+#### Delete Before Cursor
+
+```go
+func (in *Input) deleteBeforeCursor()
+```
+
+Удаляет символ перед курсором.
+
+**Поведение:**
+1. Преобразует `Value` в slice `rune`
+2. Удаляет символ на позиции `Cursor-1`
+3. Сдвигает `Cursor` на `-1`
+
+#### Delete At Cursor
+
+```go
+func (in *Input) deleteAtCursor()
+```
+
+Удаляет символ под курсором.
+
+**Поведение:**
+1. Преобразует `Value` в slice `rune`
+2. Удаляет символ на позиции `Cursor`
+
+## Cursor Clamping
+
+```go
+func (in *Input) clampCursor()
+```
+
+Ограничивает курсор валидным диапазоном.
+
+**Поведение:**
+- `Cursor < 0` → `Cursor = 0`
+- `Cursor > len(runes(Value))` → `Cursor = len(runes(Value))`
+
+## Type Definition
+
+```go
+type Input struct {
+    Value   string   // текст значения
+    Cursor  int      // позиция курсора в символах
+    Prompt  string   // текст-подсказка
+    Width   int      // желаемая ширина (0 = авто)
+    focused bool     // состояние фокуса
+}
+```
+
+## Private Methods
+
+### viewBoxed
+
+```go
+func (in *Input) viewBoxed(w, h int) string
+```
+
+Отрисовывает компонент в режиме бокса.
+
+**Использует:**
+- `inputBorderStyle` для нефокусированного состояния
+- `inputFocusBorderStyle` для фокусированного состояния
+- `inputStyle` для контента
+
+### viewInline
+
+```go
+func (in *Input) viewInline(w, h int) string
+```
+
+Отрисовывает компонент в inline-режиме.
 
 ## Styles
 
-The component uses package-level Lipgloss styles:
-
 ```go
-var (
-    inputStyle            = lipgloss.NewStyle().Foreground(lipgloss.Color(gbLight1))
-    inputBorderStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color(gbDark4))
-    inputFocusBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(gbBlue))
-)
+var inputStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color(gbLight1))
+var inputBorderStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color(gbDark4))
+var inputFocusBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(gbBlue))
 ```
 
-- `inputStyle` colors the text.
-- `inputBorderStyle` colors the border when unfocused.
-- `inputFocusBorderStyle` colors the border when focused.
+- `inputStyle` — стиль контента
+- `inputBorderStyle` — стиль рамки (нефокус)
+- `inputFocusBorderStyle` — стиль рамки (фокус)
 
-These styles reference palette constants (`gbLight1`, `gbDark4`, `gbBlue`) defined elsewhere in the `warp` package.
+## Invariants
 
-## Dependencies
+1. **Cursor всегда валиден:** `0 <= Cursor <= len(runes(Value))`
+2. **Focused изменяет стиль рамки**
+3. **View всегда возвращает строку**
+4. **Update игнорирует не-keyMsg и нефокусные сообщения**
+5. **Вставка ограничена доступной шириной**
 
-- `github.com/charmbracelet/bubbletea` — Bubble Tea message types and update loop.
-- `github.com/charmbracelet/lipgloss` — Terminal styling and width measurement.
-- `strings` — String manipulation utilities.
+## Constraints
 
-## Important Notes
+- Не поддерживается мультисимвольный ввод за один раз (только по одному символу)
+- Обрезание при переполнении: приоритет у курсора
+- Фокус не сохраняется между рендерами (внешний контроль)
 
-- The cursor position is measured in **runes**, not bytes. This is essential for correct handling of multi-byte Unicode characters.
-- `Update` returns `nil` for all messages, including `enter`; callers should implement submission logic externally if needed.
-- Tab navigation is intentionally not handled inside the component; it is expected to be managed by a parent container.
-- The `Width` field exists but is not used in `View`; the actual width is taken from the `w` argument passed to `View`.
-- The boxed layout assumes a minimum height of 3; values below this fall back to inline rendering.
+## Usage Pattern
+
+```go
+input := NewInput("Name:")
+input.Focus()
+
+// Обработка событий
+func keyPress(msg tea.Msg) {
+    cmd := input.Update(msg)
+    if cmd != nil {
+        // handle custom commands
+    }
+}
+
+// Рендеринг
+func view(w, h int) string {
+    return input.View(w, h)
+}
+
+// Управление состоянием
+input.SetValue("Alice")
+input.SetCursor(5)
+```
+
+## TDD Considerations
+
+Тестируемые аспекты:
+- Обработка разных клавиш
+- Ограничение курсора
+- Отрисовка в разных режимах
+- Обрезание при переполнении
+
+Требуются моки для:
+- Bubble Tea messaging
+- Липгloss стилей (можно тестировать логику без отрисовки)
+
+## References
+
+- Bubble Tea: https://github.com/charmbracelet/bubbletea
+- Lip Gloss: https://github.com/charmbracelet/lipgloss
+- Human Horizon Go Code Style: `guides/common/Стиль_Кода_Go.md`
+- Human Horizon Code Documentation: `guides/common/Документация_Кода.md`

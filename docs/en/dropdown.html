@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dropdown</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Dropdown</h1>
+        
+        <h2>Overview</h2>
+        <p>This module implements a dropdown menu widget for the Warp UI system. It provides a collapsible menu component that can be opened to display a list of selectable items. The dropdown supports mouse and keyboard navigation, item selection, and custom callbacks.</p>
+        
+        <h2>Types</h2>
+        
+        <h3>DropdownItem</h3>
+        <div class="signature"><pre><code class="language-typescript">type DropdownItem struct {
+    Label    string
+    Selected bool
+}</code></pre></div>
+        <p><code>DropdownItem</code> represents a single item in a dropdown menu.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>Label</code></td>
+                    <td><code>string</code></td>
+                    <td>The text label displayed for this dropdown item.</td>
+                </tr>
+                <tr>
+                    <td><code>Selected</code></td>
+                    <td><code>bool</code></td>
+                    <td>Whether this item is currently selected. Only one item can be selected at a time.</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h3>DropdownMenu</h3>
+        <div class="signature"><pre><code class="language-typescript">type DropdownMenu struct {
+    Label    string
+    Items    []DropdownItem
+    Open     bool
+    Hovered  int
+    OnSelect func(idx int)
+}</code></pre></div>
+        <p><code>DropdownMenu</code> is a panel that shows a button and an expandable list of items.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>Label</code></td>
+                    <td><code>string</code></td>
+                    <td>The label text for the dropdown button (shown when closed).</td>
+                </tr>
+                <tr>
+                    <td><code>Items</code></td>
+                    <td><code>[]DropdownItem</code></td>
+                    <td>The list of dropdown items to display in the menu.</td>
+                </tr>
+                <tr>
+                    <td><code>Open</code></td>
+                    <td><code>bool</code></td>
+                    <td>Whether the dropdown menu is currently open (expanded) or closed.</td>
+                </tr>
+                <tr>
+                    <td><code>Hovered</code></td>
+                    <td><code>int</code></td>
+                    <td>The index used for styling. Set to -1 when the menu opens or the button is clicked. Not updated on mouse hover.</td>
+                </tr>
+                <tr>
+                    <td><code>OnSelect</code></td>
+                    <td><code>func(idx int)</code></td>
+                    <td>A callback function that is called when an item is selected.</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h2>Functions</h2>
+        
+        <h3>NewDropdownMenu</h3>
+        <div class="signature"><pre><code class="language-typescript">func NewDropdownMenu(label string, items []DropdownItem) *DropdownMenu</code></pre></div>
+        <p>Creates a new dropdown menu with the given label and items.</p>
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>label</code> — The label text for the dropdown button</li>
+            <li><code>items</code> — A slice of <code>DropdownItem</code> structures</li>
+        </ul>
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li>A new <code>*DropdownMenu</code> instance with <code>Open</code> set to <code>false</code> and <code>Hovered</code> set to -1</li>
+        </ul>
+        
+        <h3>View</h3>
+        <div class="signature"><pre><code class="language-typescript">func (d *DropdownMenu) View(w, h int) string</code></pre></div>
+        <p>Renders the dropdown button when closed, or the open menu when expanded.</p>
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>w</code> — The width in characters for the rendered output</li>
+            <li><code>h</code> — The height in characters for the rendered output</li>
+        </ul>
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li>A string containing the rendered output using Bubble Tea text styles</li>
+        </ul>
+        
+        <h3>Update</h3>
+        <div class="signature"><pre><code class="language-typescript">func (d *DropdownMenu) Update(msg tea.Msg) tea.Cmd</code></pre></div>
+        <p>Handles mouse and keyboard input for the dropdown menu.</p>
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li><code>msg</code> — A Bubble Tea message (mouse or keyboard event)</li>
+        </ul>
+        <p><strong>Returns:</strong></p>
+        <ul>
+            <li>A <code>tea.Cmd</code> (nil in this implementation, no commands are issued)</li>
+        </ul>
+        
+        <h3>Close</h3>
+        <div class="signature"><pre><code class="language-typescript">func (d *DropdownMenu) Close()</code></pre></div>
+        <p>Closes the dropdown menu, setting <code>Open</code> to <code>false</code>.</p>
+        <p>This can be called manually or via keyboard input (Escape key).</p>
+        
+        <h2>Behavior Details</h2>
+        
+        <h3>Opening the Dropdown</h3>
+        <p>Clicking on the dropdown button (when closed) opens the menu. The button is at row 0 of the rendered output.</p>
+        
+        <h3>Closing the Dropdown</h3>
+        <p>The dropdown can be closed by:</p>
+        <ul>
+            <li>Clicking on the dropdown button</li>
+            <li>Pressing the <code>Escape</code> key</li>
+            <li>Calling the <code>Close()</code> method</li>
+        </ul>
+        
+        <h3>Navigating the Menu</h3>
+        <p>When the dropdown is open, users can navigate items using:</p>
+        <ul>
+            <li><code>↑</code> (up arrow) — Move selection up</li>
+            <li><code>↓</code> (down arrow) — Move selection down</li>
+        </ul>
+        <p>The <code>Hovered</code> field is set to <code>-1</code> when the menu opens or the button is clicked. It is used for rendering styling but is not updated on mouse hover events.</p>
+        
+        <h3>Selecting an Item</h3>
+        <p>An item is selected by:</p>
+        <ul>
+            <li>Pressing <code>Enter</code> while navigating items</li>
+            <li>Clicking on an item in the menu</li>
+        </ul>
+        <p>When an item is selected:</p>
+        <ol>
+            <li>All other items have <code>Selected</code> set to <code>false</code></li>
+            <li>The selected item has <code>Selected</code> set to <code>true</code></li>
+            <li>The dropdown closes automatically</li>
+            <li>The <code>OnSelect</code> callback is invoked with the selected item index</li>
+        </ol>
+        
+        <h3>Rendering Behavior</h3>
+        <ul>
+            <li>Text is truncated to fit the available width, with <code>…</code> appended if needed</li>
+            <li>The button row shows the label with a ▼ (down arrow) when closed, ▲ (up arrow) when open</li>
+            <li>Selected items are prefixed with <code>✓</code></li>
+            <li>Items at index <code>Hovered</code> receive special styling (but <code>Hovered</code> is only set on button click, not on mouse hover)</li>
+            <li>Selected items receive special styling</li>
+        </ul>
+        
+        <h2>Example Usage</h2>
+        
+        <h3>Creating and Using a Dropdown</h3>
+        <pre><code class="language-go">package main
+
+import (
+    "fmt"
+    warp "your/module/path"
+)
+
+func main() {
+    // Create dropdown items
+    items := []warp.DropdownItem{
+        {Label: "Option 1"},
+        {Label: "Option 2"},
+        {Label: "Option 3"},
+    }
+
+    // Create the dropdown menu with a callback
+    dropdown := warp.NewDropdownMenu("Select:", items)
+    dropdown.OnSelect = func(idx int) {
+        fmt.Printf("Selected item at index: %d\n", idx)
+    }
+
+    // Render the dropdown (initially closed)
+    view := dropdown.View(40, 10)
+    fmt.Println(view)
+
+    // Open the dropdown
+    dropdown.Open = true
+    view = dropdown.View(40, 10)
+    fmt.Println(view)
+
+    // Close the dropdown
+    dropdown.Close()
+    view = dropdown.View(40, 10)
+    fmt.Println(view)
+}</code></pre>
+        
+        <h2>Styles</h2>
+        <p>The dropdown uses Bubble Tea's text style system for rendering. The following style constants are used internally:</p>
+        <ul>
+            <li><code>dropdownButtonStyle</code> — Style for the dropdown button</li>
+            <li><code>dropdownItemStyle</code> — Default style for menu items</li>
+            <li><code>dropdownItemHoverStyle</code> — Style for hovered items</li>
+            <li><code>dropdownItemSelectedStyle</code> — Style for selected items</li>
+        </ul>
+        
+        <h2>Public API Summary</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Type/Function</th>
+                    <th>Visibility</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>DropdownItem</code></td>
+                    <td>Public type</td>
+                    <td>Represents a single dropdown menu item</td>
+                </tr>
+                <tr>
+                    <td><code>DropdownMenu</code></td>
+                    <td>Public type</td>
+                    <td>Represents the complete dropdown menu widget</td>
+                </tr>
+                <tr>
+                    <td><code>NewDropdownMenu</code></td>
+                    <td>Public function</td>
+                    <td>Creates a new dropdown menu instance</td>
+                </tr>
+                <tr>
+                    <td><code>View(w, h int)</code></td>
+                    <td>Public method</td>
+                    <td>Renders the dropdown view</td>
+                </tr>
+                <tr>
+                    <td><code>Update(msg tea.Msg)</code></td>
+                    <td>Public method</td>
+                    <td>Handles input events</td>
+                </tr>
+                <tr>
+                    <td><code>Close()</code></td>
+                    <td>Public method</td>
+                    <td>Closes the dropdown menu</td>
+                </tr>
+                <tr>
+                    <td><code>selectItem(idx int)</code></td>
+                    <td>Private method</td>
+                    <td>Handles item selection logic</td>
+                </tr>
+            </tbody>
+        </table>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

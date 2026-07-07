@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>split</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>split</h1>
+        <p><code>split.go</code> implements the core layout tree structure for the Warp terminal. It defines the node hierarchy for split-pane layouts, supporting vertical/horizontal splits, flexible layouts, and collapsible panels.</p>
+
+        <h2>Types</h2>
+
+        <h3>Direction</h3>
+        <p>Specifies the split orientation.</p>
+        <div class="signature"><pre><code class="language-typescript">type Direction int</code></pre></div>
+        <p>Constants:</p>
+        <ul>
+            <li><code>Vertical</code> — splits left/right (side by side)</li>
+            <li><code>Horizontal</code> — splits top/bottom (stacked)</li>
+        </ul>
+
+        <h3>ResizeMsg</h3>
+        <p>Message sent by the layout engine to a panel when its allocated rectangle changes. Carries the panel's content size in cells (without borders or padding).</p>
+        <div class="signature"><pre><code class="language-typescript">type ResizeMsg struct {
+    Width  int
+    Height int
+}</code></pre></div>
+
+        <h3>MinPanelSize</h3>
+        <div class="signature"><pre><code class="language-typescript">const MinPanelSize = 3</code></pre></div>
+        <p>Minimum size in characters for any panel.</p>
+
+        <h3>SplitConfig</h3>
+        <p>Internal node in the panel tree that splits its area between two children.</p>
+        <div class="signature"><pre><code class="language-typescript">type SplitConfig struct {
+    Direction Direction
+    Fraction  float64 // Share of First child (0.0–1.0)
+    First     *Node
+    Second    *Node
+    Dragging  bool // true during drag-and-drop
+}</code></pre></div>
+
+        <h3>NodeCollapse</h3>
+        <p>Holds the collapsed state for a node. When <code>Active</code> is true, the node renders with a fixed size.</p>
+        <div class="signature"><pre><code class="language-typescript">type NodeCollapse struct {
+    Active bool
+    Width  int     // fixed width when collapsed (for vertical layouts)
+    Height int     // fixed height when collapsed (for horizontal layouts)
+    Saved  float64 // saved fraction to restore on expand
+}</code></pre></div>
+
+        <h3>FlexItem</h3>
+        <p>A single item inside a <code>FlexConfig</code>.</p>
+        <div class="signature"><pre><code class="language-typescript">type FlexItem struct {
+    Node      *Node
+    Grow      int  // flex-grow weight
+    Shrink    int  // flex-shrink (unused for now)
+    Basis     int  // flex-basis (min size), 0 = auto
+    Collapsed bool // when true, the item takes only 1 line/char
+}</code></pre></div>
+
+        <h3>FlexConfig</h3>
+        <p>Lays out its children in a row or column with weighted sizes.</p>
+        <div class="signature"><pre><code class="language-typescript">type FlexConfig struct {
+    Direction Direction
+    Items     []*FlexItem
+    Dragging  bool
+}</code></pre></div>
+
+        <h3>Node</h3>
+        <p>A node in the panel tree — either a terminal (<code>Panel</code>) or internal (<code>Split</code>/<code>Flex</code>).</p>
+        <div class="signature"><pre><code class="language-typescript">type Node struct {
+    Panel    Panel
+    Split    *SplitConfig
+    Flex     *FlexConfig
+    Collapse *NodeCollapse
+}</code></pre></div>
+
+        <h2>Methods</h2>
+
+        <h3>IsLeaf()</h3>
+        <p>Returns true if this node contains a <code>Panel</code> (not a <code>Split</code> or <code>Flex</code>).</p>
+        <div class="signature"><pre><code class="language-typescript">func (n *Node) IsLeaf() bool</code></pre></div>
+        <pre><code class="language-go">func (n *Node) IsLeaf() bool {
+    return n.Panel != nil
+}</code></pre>
+
+        <h3>IsCollapsed()</h3>
+        <p>Returns true if the node is currently collapsed.</p>
+        <div class="signature"><pre><code class="language-typescript">func (n *Node) IsCollapsed() bool</code></pre></div>
+        <pre><code class="language-go">func (n *Node) IsCollapsed() bool {
+    return n.Collapse != nil && n.Collapse.Active
+}</code></pre>
+
+        <h3>CollapsedSize()</h3>
+        <p>Returns the collapsed size for the given direction, or 0 if not collapsed.</p>
+        <div class="signature"><pre><code class="language-typescript">func (n *Node) CollapsedSize(d Direction) int</code></pre></div>
+        <pre><code class="language-go">func (n *Node) CollapsedSize(d Direction) int {
+    if n.Collapse == nil || !n.Collapse.Active {
+        return 0
+    }
+    if d == Vertical {
+        if n.Collapse.Width > 0 {
+            return n.Collapse.Width
+        }
+        return 1
+    }
+    if n.Collapse.Height > 0 {
+        return n.Collapse.Height
+    }
+    return 1
+}</code></pre>
+
+        <h3>findNode()</h3>
+        <p>Locates the node containing the given panel in the tree. Returns nil if not found.</p>
+        <div class="signature"><pre><code class="language-typescript">func (n *Node) findNode(panel Panel) *Node</code></pre></div>
+        <pre><code class="language-go">func (n *Node) findNode(panel Panel) *Node {
+    if n == nil {
+        return nil
+    }
+    if n.Panel == panel {
+        return n
+    }
+    if n.Split != nil {
+        if found := n.Split.First.findNode(panel); found != nil {
+            return found
+        }
+        if found := n.Split.Second.findNode(panel); found != nil {
+            return found
+        }
+    }
+    if n.Flex != nil {
+        for _, item := range n.Flex.Items {
+            if found := item.Node.findNode(panel); found != nil {
+                return found
+            }
+        }
+    }
+    return nil
+}</code></pre>
+
+        <h3>replaceNode()</h3>
+        <p>Replaces <code>oldNode</code> with <code>newNode</code> in the tree. Returns true if replacement was successful.</p>
+        <div class="signature"><pre><code class="language-typescript">func (n *Node) replaceNode(old, new *Node) bool</code></pre></div>
+        <pre><code class="language-go">func (n *Node) replaceNode(old, new *Node) bool {
+    if n == nil {
+        return false
+    }
+    if n.Split != nil {
+        if n.Split.First == old {
+            n.Split.First = new
+            return true
+        }
+        if n.Split.Second == old {
+            n.Split.Second = new
+            return true
+        }
+        return n.Split.First.replaceNode(old, new) || n.Split.Second.replaceNode(old, new)
+    }
+    if n.Flex != nil {
+        for _, item := range n.Flex.Items {
+            if item.Node == old {
+                item.Node = new
+                return true
+            }
+            if item.Node.replaceNode(old, new) {
+                return true
+            }
+        }
+    }
+    return false
+}</code></pre>
+
+        <h3>collectLeafNodes()</h3>
+        <p>Collects all leaf (<code>Panel</code>) nodes in order.</p>
+        <div class="signature"><pre><code class="language-typescript">func (n *Node) collectLeafNodes() []*Node</code></pre></div>
+        <pre><code class="language-go">func (n *Node) collectLeafNodes() []*Node {
+    if n == nil {
+        return nil
+    }
+    if n.IsLeaf() {
+        return []*Node{n}
+    }
+    var result []*Node
+    if n.Split != nil {
+        result = append(result, n.Split.First.collectLeafNodes()...)
+        result = append(result, n.Split.Second.collectLeafNodes()...)
+    }
+    if n.Flex != nil {
+        for _, item := range n.Flex.Items {
+            result = append(result, item.Node.collectLeafNodes()...)
+        }
+    }
+    return result
+}</code></pre>
+
+        <h2>Layout Hierarchy</h2>
+        <p>The layout tree supports three node types:</p>
+        <ul>
+            <li><strong>Panel</strong> — Terminal leaf node (actual window content)</li>
+            <li><strong>Split</strong> — Divides space between two children (vertical or horizontal)</li>
+            <li><strong>Flex</strong> — Distributes children with weighted sizes (row or column)</li>
+        </ul>
+        <p>Nodes can be collapsed, which fixes their size in the given direction.</p>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>

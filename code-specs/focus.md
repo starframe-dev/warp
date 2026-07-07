@@ -1,14 +1,20 @@
-# Specification: focus.go
+# focus.go — Спецификация
 
-## Overview
+## Обзор
 
-`focus.go` defines the focus-management system for the `warp` UI panel tree. It provides interfaces, helpers, and traversal logic for determining which panels can receive keyboard focus, enumerating them in visual order, and moving focus forward or backward through the tree.
+Этот пакет реализует систему управления фокусом клавиатуры для панелей (Panel) в интерфейсе Starframe.
 
-This file is part of the `warp` package and does not expose package-level state; all focus mutation is performed by callers that supply the current and target focusables.
+Пакет предоставляет:
+- Интерфейс `Focusable` для объектов, способных принимать фокус клавиатуры
+- Функции для сбора всех фокусируемых панелей из дерева UI
+- Логика переключения фокуса между панелями
+- Интерфейс `RawKeyReceiver` для панелей, обрабатывающих все нажатия клавиш
 
-## Public API
+## Публичный API
 
-### `Focusable` interface
+### Тип `Focusable`
+
+Интерфейс для панели, способной принимать и терять фокус клавиатуры.
 
 ```go
 type Focusable interface {
@@ -19,15 +25,150 @@ type Focusable interface {
 }
 ```
 
-A `Panel` that can receive keyboard focus. Implementations must provide:
+**Методы:**
 
-- `Focus()` — request focus for the panel.
-- `Blur()` — release focus from the panel.
-- `Focused() bool` — report whether the panel currently has focus.
+| Метод | Описание |
+|-------|----------|
+| `Focus()` | Принимает фокус клавиатуры |
+| `Blur()` | Теряет фокус клавиатуры |
+| `Focused()` | Возвращает `true`, если панель в фокусе |
 
-The embedded `Panel` interface means a `Focusable` is also a valid tree leaf or node panel.
+**Примечание:** Интерфейс включает методы из вложенного интерфейса `Panel`, подробности см. в исходном коде.
 
-### `RawKeyReceiver` interface
+### Функция `isFocusable`
+
+Проверяет, реализует ли панель интерфейс `Focusable`.
+
+```go
+func isFocusable(panel Panel) (Focusable, bool)
+```
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `panel` | `Panel` | Панель для проверки |
+
+| Возврат | Тип | Описание |
+|---------|-----|----------|
+| `(f, ok)` | `(Focusable, bool)` | Фокусируемая панель и флаг `true`, если панель фокусируемая |
+
+**Поведение:**
+- Если `panel == nil`, возвращает `(nil, false)`
+- Если панель реализует `Focusable`, возвращает её и `true`
+- Иначе возвращает `nil, false`
+
+### Функция `collectFocusables`
+
+Собирает все фокусируемые панели из дерева UI в визуальном порядке.
+
+```go
+func collectFocusables(node *Node) []Focusable
+```
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `node` | `*Node` | Корневая узел дерева UI |
+
+| Возврат | Тип | Описание |
+|---------|-----|----------|
+| `result` | `[]Focusable` | Срез фокусируемых панелей в визуальном порядке |
+
+**Поведение:**
+- Если `node == nil`, возвращает `nil`
+- Для листовых узлов (`node.IsLeaf()`): проверяет, фокусируемый ли panel, возвращает срез из одного элемента или `nil`
+- Для разделённых узлов (`node.Split != nil`): рекурсивно собирает из `First` и `Second`
+- Для flex-узлов (`node.Flex != nil`): собирает из всех элементов `node.Flex.Items`
+
+**Порядок:** Панели собираются в порядке, видимом пользователю (visual order).
+
+### Функция `focusIndex`
+
+Возвращает индекс текущей фокусируемой панели в списке.
+
+```go
+func focusIndex(list []Focusable, current Panel) int
+```
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `list` | `[]Focusable` | Список фокусируемых панелей |
+| `current` | `Panel` | Текущая панель |
+
+| Возврат | Тип | Описание |
+|---------|-----|----------|
+| `index` | `int` | Индекс текущей панели или `-1`, если не найдена или `current == nil` |
+
+**Поведение:**
+- Если `current == nil`, возвращает `-1`
+- Иначе ищет панель в списке и возвращает её индекс
+- Если панель не найдена, возвращает `-1`
+
+### Функция `focusNext`
+
+Переключает фокус на следующую фокусируемую панель.
+
+```go
+func focusNext(list []Focusable, current Panel) Focusable
+```
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `list` | `[]Focusable` | Список фокусируемых панелей |
+| `current` | `Panel` | Текущая панель |
+
+| Возврат | Тип | Описание |
+|---------|-----|----------|
+| `next` | `Focusable` | Следующая фокусируемая панель или `nil`, если список пуст |
+
+**Поведение:**
+- Если список пуст, возвращает `nil`
+- Находит индекс текущей панели
+- Возвращает панель на `(index + 1) % len(list)` — циклический переход
+- Если текущая не найдена, ведёт себя как `focusIndex(list, nil)`
+
+### Функция `focusPrev`
+
+Переключает фокус на предыдущую фокусируемую панель.
+
+```go
+func focusPrev(list []Focusable, current Panel) Focusable
+```
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `list` | `[]Focusable` | Список фокусируемых панелей |
+| `current` | `Panel` | Текущая панель |
+
+| Возврат | Тип | Описание |
+|---------|-----|----------|
+| `prev` | `Focusable` | Предыдущая фокусируемая панель или `nil`, если список пуст |
+
+**Поведение:**
+- Если список пуст, возвращает `nil`
+- Находит индекс текущей панели
+- Возвращает панель на `index - 1`
+- При переходе за начало списка (`prev < 0`) использует `len(list) - 1` (циклический переход назад)
+
+### Функция `applyFocus`
+
+Применяет переключение фокуса: вызывает `Blur()` у текущей и `Focus()` у следующей.
+
+```go
+func applyFocus(current, next Focusable)
+```
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| `current` | `Focusable` | Текущая фокусируемая панель |
+| `next` | `Focusable` | Следующая фокусируемая панель |
+
+**Поведение:**
+- Если `current != nil` и `current != next`, вызывает `current.Blur()`
+- Если `next != nil`, вызывает `next.Focus()`
+- Если панели равны, ничего не делает
+
+## Тип `RawKeyReceiver`
+
+Интерфейс для панели, которая хочет получать все нажатия клавиш без перехвата.
 
 ```go
 type RawKeyReceiver interface {
@@ -36,54 +177,102 @@ type RawKeyReceiver interface {
 }
 ```
 
-A `Panel` that wants to receive all keyboard input without interception (for example, a terminal emulator running inside a PTY). Callers can type-assert a `Panel` to this interface to decide whether to route raw keystrokes directly to the panel.
+**Методы:**
 
-## Internal Functions
+| Метод | Описание |
+|-------|----------|
+| `WantsRawKeys()` | Возвращает `true`, если панель хочет получать все клавиатурные вводные данные (например, терминальный эмулятор внутри PTY) |
 
-These functions are not exported, but they are the primary implementation surface for focus traversal. Public focus management elsewhere in the package is expected to delegate to these helpers.
+**Использование:** Этот интерфейс предназначен для панелей, которые должны перехватывать все клавиатурные события, минуя стандартную систему фокуса (например, терминал, редактор кода).
 
-### `isFocusable(panel Panel) (Focusable, bool)`
+## Архитектура
 
-Type-asserts a `Panel` to `Focusable`. Returns `nil, false` if `panel` is `nil`.
+### Дерево UI
 
-### `collectFocusables(node *Node) []Focusable`
+Система работает с иерархической структурой UI, где:
+- `*Node` — узел дерева
+- `Panel` — панель, отображаемая в узле
+- `Split` — разделённый контейнер с `First` и `Second` дочерними узлами
+- `Flex` — flex-контейнер с массивом `Items`
 
-Walks the panel tree starting at `node` and returns all focusable panels in visual order. It traverses:
+### Порядок перебора
 
-- `node.Split.First`, then `node.Split.Second` for split containers.
-- `node.Flex.Items` in order for flex containers.
+Функция `collectFocusables` обходит дерево в визуальном порядке:
+1. Сначала левая/первая ветка `Split.First`
+2. Затем правая/вторая ветка `Split.Second`
+3. Затем элементы `Flex.Items`
 
-If the node is a leaf, the function checks the panel itself.
+## Примеры использования
 
-If `node` is `nil`, returns `nil`.
+```go
+// Получить все фокусируемые панели
+focusables := collectFocusables(rootNode)
 
-### `focusIndex(list []Focusable, current Panel) int`
+// Переключить фокус вперёд
+next := focusNext(focusables, currentPanel)
+if next != nil {
+    applyFocus(currentPanel, next)
+}
 
-Returns the index of `current` in `list`, or `-1` if `current` is `nil` or not found.
+// Переключить фокус назад
+prev := focusPrev(focusables, currentPanel)
+if prev != nil {
+    applyFocus(currentPanel, prev)
+}
+```
 
-### `focusNext(list []Focusable, current Panel) Focusable`
+## Тестирование
 
-Returns the focusable after `current` in `list`, wrapping to the beginning. Returns `nil` if `list` is empty.
+Рекомендуемые тесты:
 
-### `focusPrev(list []Focusable, current Panel) Focusable`
+```go
+func TestCollectFocusables_EmptyNode(t *testing.T) {
+    node := &Node{Split: nil, Flex: nil}
+    got := collectFocusables(node)
+    if got != nil {
+        t.Errorf("collectFocusables(nil node) = %v, want nil", got)
+    }
+}
 
-Returns the focusable before `current` in `list`, wrapping to the end. Returns `nil` if `list` is empty.
+func TestCollectFocusables_Leaf(t *testing.T) {
+    // Тест сбора из листового узла
+}
 
-### `applyFocus(current, next Focusable)`
+func TestFocusNext(t *testing.T) {
+    tests := []struct {
+        name    string
+        list    []Focusable
+        current Panel
+        want    Focusable
+    }{
+        // тесты для focusNext
+    }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            got := focusNext(tt.list, tt.current)
+            if got != tt.want {
+                t.Errorf("focusNext() = %v, want %v", got, tt.want)
+            }
+        })
+    }
+}
 
-Calls `Blur()` on `current` if it is non-`nil` and not the same panel as `next`, then calls `Focus()` on `next` if it is non-`nil`.
+func TestFocusPrev(t *testing.T) {
+    // Тесты для focusPrev, включая циклический переход
+}
 
-## Important Implementation Details
+func TestApplyFocus(t *testing.T) {
+    current, next := MockFocusable{}, MockFocusable{}
+    current.Focused = true
+    
+    // Проверка вызова Blur/Focus
+}
+```
 
-- Focus traversal is **visual order**: splits are visited first-child then second-child, and flex items are visited in slice order.
-- Traversal is **recursive** and allocates a new slice for each call; large trees may create many temporary slices.
-- Identity is checked by Go interface comparison (`f == current`). This relies on the underlying panel implementation being comparable in the sense used by the caller (typically the same concrete value).
-- Focus wrapping is cyclic: moving past the last focusable returns the first, and moving before the first returns the last.
-- `applyFocus` does not check whether `next` is already focused; callers should ensure `next` is the intended destination.
-- The `RawKeyReceiver` interface is declared here alongside focus logic because it is closely related to keyboard input routing, but it does not participate in focus traversal.
+## Чеклист
 
-## Relationships
-
-- `Focusable` embeds `Panel` (defined elsewhere in the package).
-- `collectFocusables` depends on `Node.IsLeaf()`, `Node.Split`, and `Node.Flex` (defined elsewhere in the package).
-- Callers that want to move focus should collect focusables, compute the next target with `focusNext`/`focusPrev`, and then apply it with `applyFocus`.
+- [ ] Все публичные функции имеют документацию
+- [ ] Интерфейсы `Focusable` и `RawKeyReceiver` документированы
+- [ ] Примеры использования приведены
+- [ ] Тесты покрыты основные сценарии переключения фокуса
+- [ ] Поведение при пустых списках и nil проверено

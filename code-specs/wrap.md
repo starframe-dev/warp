@@ -1,69 +1,193 @@
-# Specification: `wrap.go`
+# wrap.md — Спецификация модуля wrap
 
-## Overview
+## Обзор
 
-`wrap.go` provides text-wrapping utilities for terminal-rendered strings. All functions use `github.com/charmbracelet/lipgloss.Width` to measure visible width, so ANSI escape sequences and multi-cell characters are handled correctly. The package supports wrapping at word boundaries, wrapping only at spaces (allowing overflow), and joining results back into a single string.
+Модуль `wrap` предоставляет утилиты для переноса текста. Поддерживает два режима:
 
-## Public API
+- **WordWrap** — перенос на границах слов, разрывая длинные слова
+- **SpaceWrap** — перенос на пробелах, не разрывая слова (перелистовка)
 
-### Functions
+Использует `lipgloss.Width` для учёта ANSI-кодов и графического рендеринга.
 
-#### `WordWrap(text string, width int) []string`
+## Публичный API
 
-- **Behavior**: Wraps `text` so that no output line exceeds `width` visible cells.
-- **Input lines**: Splits `text` on `\n` first, preserving paragraph boundaries.
-- **Word boundaries**: Preferentially breaks at whitespace. If a word is longer than `width`, it is broken mid-word at a visual boundary.
-- **Width handling**: Returns `nil` if `width <= 0`.
-- **Return**: Slice of wrapped lines, without trailing newline characters.
+### Функция `WordWrap`
 
-#### `SpaceWrap(text string, width int) []string`
+```go
+func WordWrap(text string, width int) []string
+```
 
-- **Behavior**: Wraps `text` at spaces. No word is ever split; words longer than `width` are allowed to overflow onto their own line.
-- **Input lines**: Splits `text` on `\n` first, preserving paragraph boundaries.
-- **Whitespace handling**: Uses `strings.Fields` to tokenize by whitespace; multiple spaces collapse to a single separator.
-- **Width handling**: Returns `nil` if `width <= 0`.
-- **Return**: Slice of wrapped lines.
+Переносит текст по границам слов так, чтобы ни одна строка не превышала `width`.
 
-#### `WrapToString(text string, width int, useSpaceWrap bool) string`
+**Параметры:**
+- `text` — входной текст (может содержать `\n` для множественных строк)
+- `width` — максимальная ширина строки в графических единицах
 
-- **Behavior**: Convenience wrapper that calls `SpaceWrap` or `WordWrap` and joins the resulting lines with `\n`.
-- **Parameters**:
-  - `text` — input text to wrap.
-  - `width` — maximum visible width per line.
-  - `useSpaceWrap` — if `true`, uses `SpaceWrap`; otherwise uses `WordWrap`.
-- **Return**: A single string with embedded newline characters. No trailing newline is appended.
+**Возвращает:**
+- `[]string` — срез строк, перенесённых по ширине
 
-## Private implementation details
+**Поведение:**
+- Если `width <= 0`, возвращает `nil`
+- Длинные слова разрезаются посередине, если не влезают в строку
+- Каждая входная строка обрабатывается отдельно
 
-### `wrapLine(line string, width int) []string`
+---
 
-- Core implementation of `WordWrap` for a single line.
-- **Short-circuit**: If `lipgloss.Width(line) <= width`, returns `[]string{line}`.
-- **Long-word overflow**: When a word boundary cannot be found within the width, it advances by one visible cell boundary at a time using `lipgloss.Width(line[start:i+1])`.
-- **Whitespace trimming**: Each emitted line has trailing whitespace removed via `strings.TrimRightFunc(..., unicode.IsSpace)`.
-- **Leading whitespace**: After a break, leading whitespace on the next line is skipped.
+### Функция `SpaceWrap`
 
-### `wrapAtSpaces(line string, width int) []string`
+```go
+func SpaceWrap(text string, width int) []string
+```
 
-- Core implementation of `SpaceWrap` for a single line.
-- **Short-circuit**: If `lipgloss.Width(line) <= width`, returns `[]string{line}`.
-- **Empty whitespace-only lines**: If `strings.Fields` returns no words, returns `[]string{line}` unchanged.
-- **Greedy packing**: Builds each line greedily: adds a word if the current width plus one space plus the word width fits within `width`.
-- **Overflow behavior**: A word wider than `width` is placed on its own line and will exceed the requested width.
+Переносит текст по пробелам. Слова, превышающие `width`, вытекают за границы.
 
-### `isWordBreak(b byte) bool`
+**Параметры:**
+- `text` — входной текст (может содержать `\n` для множественных строк)
+- `width` — максимальная ширина строки в графических единицах
 
-- Reports whether `b` is a whitespace byte using `unicode.IsSpace`.
-- Currently unused by the active wrapping logic; kept as a helper for future word-boundary detection.
+**Возвращает:**
+- `[]string` — срез строк, перенесённых по пробелам
 
-## Types
+**Поведение:**
+- Если `width <= 0`, возвращает `nil`
+- Слова НЕ разрезаются, длинное слово вытекает за границы
+- Каждая входная строка обрабатывается отдельно
 
-This file defines no new types or structs. All functions operate on plain `string` and `[]string` values.
+---
 
-## Important notes
+### Функция `WrapToString`
 
-- **Visible width, not byte count**: Width is measured with `lipgloss.Width`, which accounts for ANSI styles and wide runes.
-- **Width `<= 0`**: All public entry points return `nil` (or an empty string through `WrapToString`) for non-positive widths.
-- **Newlines preserved**: Any existing `\n` in the input are treated as line breaks before wrapping logic is applied.
-- **Space collapsing**: `SpaceWrap` collapses consecutive whitespace and ignores leading/trailing whitespace within a line via `strings.Fields`.
-- **Trailing whitespace trimmed**: `WordWrap` removes trailing whitespace from each emitted line.
+```go
+func WrapToString(text string, width int, useSpaceWrap bool) string
+```
+
+Комбинированная функция для получения отформатированного текста.
+
+**Параметры:**
+- `text` — входной текст
+- `width` — максимальная ширина строки
+- `useSpaceWrap` — если `true`, использовать `SpaceWrap`, иначе `WordWrap`
+
+**Возвращает:**
+- `string` — перенесённый текст, строки соединены `\n`
+
+---
+
+## Внутренние функции
+
+### Функция `wrapLine`
+
+```go
+func wrapLine(line string, width int) []string
+```
+
+Переносит одну строку по границам слов.
+
+**Поведение:**
+- Если `lipgloss.Width(line) <= width`, возвращает строку как есть
+- Иначе ищет границы слов для переноса
+- Проходит по строке, разбивая её на части
+
+---
+
+### Функция `wrapAtSpaces`
+
+```go
+func wrapAtSpaces(line string, width int) []string
+```
+
+Переносит одну строку по пробелам.
+
+**Поведение:**
+- Если `lipgloss.Width(line) <= width`, возвращает строку как есть
+- Разбивает строку на слова через `strings.Fields`
+- Собирает слова в строки, не превышающие `width`
+- Если строка пуста, возвращает её как есть
+
+---
+
+### Функция `isWordBreak`
+
+```go
+func isWordBreak(b byte) bool
+```
+
+Проверяет, является ли символ границей слова (пробельный символ).
+
+**Возвращает:**
+- `bool` — `true` если символ пробел
+
+---
+
+## Внутренние типы
+
+### Тип `warp`
+
+Внутренний пакет `warp` содержит:
+
+- **функции** `WordWrap`, `SpaceWrap`, `WrapToString`
+- **внутренние функции** `wrapLine`, `wrapAtSpaces`, `isWordBreak`
+
+Импортирует:
+- `strings` — для работы со строками
+- `unicode` — для работы с символами
+- `github.com/charmbracelet/lipgloss` — для учёта ANSI-ширины
+
+---
+
+## Правила проектирования
+
+### Использование `lipgloss.Width`
+
+Вместо `len()` используется `lipgloss.Width()` для корректного учёта:
+- ANSI-escape кодов цвета
+- Unicode-символов с разной шириной (полная/узкая)
+- Графического рендеринга в терминале
+
+### Разрыв длинных слов
+
+`WordWrap` разрезает слова по ширине, если они не влезают целиком. Это обеспечивает, что ни одна строка не превышает заданную ширину.
+
+### Сохранение структуры
+
+Каждая входная строка обрабатывается отдельно, сохраняя структуру документа.
+
+### Обработка пустых строк
+
+Пустые строки и строки только пробелов обрабатываются корректно.
+
+---
+
+## Архитектурные решения
+
+### Компактная реализация
+
+Модуль представляет собой набор утилитарных функций без сложной архитектуры.
+
+### Использование стандартной библиотеки
+
+Используются только стандартные пакеты (`strings`, `unicode`) и внешняя библиотека `lipgloss` для графического рендеринга.
+
+---
+
+## Таргет Terminal
+
+Модуль предназначен для терминального таргета:
+
+- Работает с ANSI-escape кодами
+- Учёт ширины графических символов
+- Интеграция с `bubbletea` через `lipgloss`
+
+---
+
+## Разрешённые библиотеки
+
+- `github.com/charmbracelet/lipgloss` — графический рендеринг и учёт ширины
+
+---
+
+## Философия
+
+- Простота важнее универсальности
+- Корректность с учётом графической ширины
+- Минимальный API для простых задач

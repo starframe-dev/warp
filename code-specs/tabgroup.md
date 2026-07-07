@@ -1,180 +1,417 @@
-# TabGroup Specification
+# TabGroup — Спецификация
 
-## Overview
+## Описание
 
-`TabGroup` is a `Panel` implementation that renders a tab bar and displays the active tab's content. It can be used as a root panel or embedded inside splits, flex layouts, and other containers. Tabs are positioned at the top, bottom, left, right, or can be hidden entirely (`TabNone`). Each tab owns a `Tab` instance that manages its own panel tree, focus state, and floating panes.
+`TabGroup` — это компонент Panel, который отображает панель вкладок (tab bar) и переключение между вкладками. Предназначен для использования внутри splits, flex layouts или как корневой panel.
 
-The tab group is responsible for:
-- Rendering the tab bar and the active tab's content.
-- Routing keyboard and mouse input to the active tab or tab bar.
-- Tracking clickable regions in the tab bar for switching, closing, and creating tabs.
-- Forwarding resize and unknown messages to all tabs so background panels continue to receive updates.
+## Публичный API
 
-## Public API
-
-### Types
-
-#### `type TabGroup struct`
-
-The panel that contains a list of tabs and renders the active tab.
-
-Key fields (internal):
-- `tabs []*Tab` — all tabs in the group.
-- `activeTab int` — index of the currently visible tab.
-- `width, height int` — last allocated dimensions.
-- `tabPosition TabPosition` — where the tab bar is drawn.
-- `tabRegions []tabRegion` — clickable regions for each tab in the current frame.
-- `newTabRegion *tabRegion` — clickable region for the "+" new-tab button.
-- `verticalTabWidth int` — width of the tab bar when positioned on the left or right.
-
-#### `type TabPosition int`
-
-Defined in `tab.go` and used by `TabGroup` to control tab bar placement:
+### Конструкторы
 
 ```go
+// NewTabGroup создаёт TabGroup panel с одной дефолтной вкладкой "main".
+//
+// @param pos — позиция панели вкладок (TabTop, TabBottom, TabLeft, TabRight, TabNone)
+// @returns *TabGroup — новый TabGroup
+func NewTabGroup(pos TabPosition) *TabGroup
+```
+
+```go
+// NewTab создаёт новую вкладку и переключается на неё.
+//
+// @param name — имя вкладки для отображения в tab bar
+// @returns *Tab — ссылка на созданную вкладку
+func (tg *TabGroup) NewTab(name string) *Tab
+```
+
+### Методы доступа
+
+```go
+// ActiveTab возвращает текущую активную вкладку.
+//
+// @returns *Tab — активная вкладка, или nil если вкладок нет
+func (tg *TabGroup) ActiveTab() *Tab
+```
+
+```go
+// CloseTab закрывает вкладку по индексу.
+//
+// @param idx — индекс вкладки для закрытия
+func (tg *TabGroup) CloseTab(idx int)
+```
+
+```go
+// SwitchTab переключает на вкладку по индексу.
+//
+// @param idx — индекс вкладки для переключения
+func (tg *TabGroup) SwitchTab(idx int)
+```
+
+```go
+// NextTab переключает на следующую вкладку.
+//
+// Работает циклически (последняя → первая).
+func (tg *TabGroup) NextTab()
+```
+
+```go
+// PrevTab переключает на предыдущую вкладку.
+//
+// Работает циклически (первая → последняя).
+func (tg *TabGroup) PrevTab()
+```
+
+```go
+// NewTab создаёт новую вкладку с именем "tab" и переключается на неё.
+//
+// @returns tea.Cmd — команда (nil)
+func (tg *TabGroup) NewTab() tea.Cmd
+```
+
+### Обработка ввода
+
+```go
+// NextTab переключает на следующую вкладку по Ctrl+Tab.
+// @sideeffect net — не используется
+func (tg *TabGroup) NextTab() tea.Cmd
+```
+
+```go
+// PrevTab переключает на предыдущую вкладку по Ctrl+Shift+Tab.
+// @sideeffect net — не используется
+func (tg *TabGroup) PrevTab() tea.Cmd
+```
+
+```go
+// CloseTab закрывает активную вкладку по Ctrl+W.
+//
+// Нельзя закрыть последнюю вкладку.
+// @sideeffect mutation — удаление из списка вкладок
+func (tg *TabGroup) CloseTab() tea.Cmd
+```
+
+```go
+// NewTab создаёт новую вкладку по Ctrl+T.
+// @sideeffect mutation — добавление новой вкладки
+func (tg *TabGroup) NewTab() tea.Cmd
+```
+
+### Рендеринг
+
+```go
+// View рендерит таббар + контент активной вкладки.
+//
+// @param w — ширина компонента
+// @param h — высота компонента
+// @returns string — отрендеренный текст
+func (tg *TabGroup) View(w, h int) string
+```
+
+```go
+// Elements возвращает элементы активной вкладки со сдвигом от tab bar.
+//
+// @param w — ширина компонента
+// @param h — высота компонента
+// @returns []Element — элементы с учётом позиции таббара
+func (tg *TabGroup) Elements(w, h int) []Element
+```
+
+## Типы
+
+### TabGroup
+
+```go
+// TabGroup представляет панель вкладок.
+//
+// Может использоваться как компонент внутри splits, flex layouts или как корневой panel.
+// Поддерживает несколько позиций: TabTop, TabBottom, TabLeft, TabRight, TabNone.
+//
+// @sideeffect render — рендеринг через View()
+// @sideeffect mutation — создание/удаление вкладок через NewTab(), CloseTab()
+type TabGroup struct {
+    tabs      []*Tab           // список всех вкладок
+    activeTab int              // индекс активной вкладки
+    width     int              // текущая ширина
+    height    int              // текущая высота
+    tabPosition      TabPosition    // позиция таббара
+    tabRegions       []tabRegion    // области клика по вкладкам
+    newTabRegion     *tabRegion     // область для создания новой вкладки
+    verticalTabWidth int            // ширина вертикального таббара
+}
+```
+
+### Tab
+
+```go
+// Tab представляет отдельную вкладку.
+// Содержит контент и метаданные для отображения в tab bar.
+//
+// @sideeffect render — рендеринг контента через renderContent()
+type Tab struct {
+    name      string           // имя вкладки
+    content   Panel            // панель контента
+    tabRegion tabRegion        // область клика в tab bar
+}
+```
+
+### tabRegion
+
+```go
+// tabRegion описывает кликабельную область в таббаре.
+//
+// @sideeffect — внутренний тип, не используется напрямую
+type tabRegion struct {
+    idx    int          // индекс вкладки, -1 если это область создания новой вкладки
+    startX int          // начало области X
+    endX   int          // конец области X
+    closeX int          // X позиция кнопки закрытия, -1 если нет
+}
+```
+
+### TabPosition
+
+```go
+// TabPosition определяет позицию таббара относительно контента.
+type TabPosition int
+
+// Константы:
 const (
-    TabTop    TabPosition = iota
-    TabBottom
-    TabLeft
-    TabRight
-    TabNone
+    TabTop    TabPosition = iota // сверху
+    TabBottom                    // снизу
+    TabLeft                      // слева
+    TabRight                     // справа
+    TabNone                      // без таббара (только контент)
 )
 ```
 
-### Constructor
+## Внутренние типы
 
-#### `func NewTabGroup(pos TabPosition) *TabGroup`
+### padRight
 
-Creates a `TabGroup` with the requested tab bar position and a single default tab named `"main"`. The new tab is automatically active.
+```go
+// padRight добавляет пробелы справа до указанной ширины.
+// Используется для выравнивания вертикальных вкладок.
+//
+// @param s — строка для выравнивания
+// @param w — целевая ширина
+// @returns string — отцентрированная строка
+func padRight(s string, w int) string
+```
 
-### Methods
+## Реализация
 
-#### `func (tg *TabGroup) NewTab(name string) *Tab`
+### Обновление состояния (Update)
 
-Creates a new tab, appends it to the group, and switches focus to it. Returns the created `*Tab`. The tab is initialized with an empty placeholder panel.
+```go
+// Update обрабатывает сообщения: KeyMsg, MouseMsg, WindowSizeMsg, ResizeMsg.
+// Передаёт сообщения в панели вкладок для broadcast.
+//
+// @param msg tea.Msg — входящее сообщение
+// @returns tea.Cmd — команда (batch для множественных)
+func (tg *TabGroup) Update(msg tea.Msg) tea.Cmd
+```
 
-#### `func (tg *TabGroup) ActiveTab() *Tab`
+### Обработка клавиатуры (handleKeyMsg)
 
-Returns the currently active tab, or `nil` if no tab is selected.
+```go
+// handleKeyMsg обрабатывает клавиатурные события:
+//   - Ctrl+C — завершение работы (tea.Quit)
+//   - Ctrl+Tab — NextTab
+//   - Ctrl+Shift+Tab — PrevTab
+//   - Ctrl+W — CloseTab (активная вкладка)
+//   - Ctrl+T — NewTab (новая вкладка)
+//   - Передаёт остальные клавиши активной вкладке
+//
+// @param msg tea.KeyMsg — клавиатурное сообщение
+// @returns tea.Cmd — команда (обычно nil)
+func (tg *TabGroup) handleKeyMsg(msg tea.KeyMsg) tea.Cmd
+```
 
-#### `func (tg *TabGroup) NextTab()`
+### Обработка мыши (handleMouseMsg)
 
-Cycles forward to the next tab, wrapping around if necessary. Does nothing if there is only one tab.
+```go
+// handleMouseMsg обрабатывает клики:
+//   - Если клик в таббаре (isOnTabBar) — handleTabBarClick
+//   - Иначе передаёт клику активной вкладке
+//
+// @param msg tea.MouseMsg — мышиное сообщение
+// @returns tea.Cmd — команда (обычно nil)
+func (tg *TabGroup) handleMouseMsg(msg tea.MouseMsg) tea.Cmd
+```
 
-#### `func (tg *TabGroup) PrevTab()`
+### Проверка положения таббара (isOnTabBar)
 
-Cycles backward to the previous tab, wrapping around if necessary. Does nothing if there is only one tab.
+```go
+// isOnTabBar проверяет, находится ли клик в области таббара.
+//
+// @param x — координата X
+// @param y — координата Y
+// @returns bool — true если клик в таббаре
+func (tg *TabGroup) isOnTabBar(x, y int) bool
+```
 
-#### `func (tg *TabGroup) View(w, h int) string`
+### Обработка клика по таббару (handleTabBarClick)
 
-Renders the full tab group: the tab bar plus the active tab's content. The layout depends on `tabPosition`:
+```go
+// handleTabBarClick обрабатывает клики по таббару:
+//   - Клик на вкладке — переключение (switchTab)
+//   - Клик на + — создание новой вкладки (NewTab)
+//   - Клик на × — закрытие вкладки (closeTab)
+//
+// @param msg tea.MouseMsg — мышиное сообщение с координатами
+// @returns tea.Cmd — команда (обычно nil)
+func (tg *TabGroup) handleTabBarClick(msg tea.MouseMsg) tea.Cmd
+```
 
-- `TabTop`: tab bar on the first row, content below.
-- `TabBottom`: content first, tab bar on the last row.
-- `TabLeft`: vertical tab bar on the left, content on the right.
-- `TabRight`: content first, vertical tab bar on the right.
-- `TabNone`: only the active tab content is rendered.
+### Рендеринг таббара (renderTabBar)
 
-For top/bottom positions the tab bar consumes one row. For left/right positions the tab bar consumes `verticalTabWidth` columns, which is computed each frame based on the widest tab label.
+```go
+// renderTabBar рендерит горизонтальный или вертикальный таббар.
+//
+// @param width — ширина для рендеринга
+// @returns string — отрендеренный текст таббара
+func (tg *TabGroup) renderTabBar(width int) string
+```
 
-#### `func (tg *TabGroup) Elements(w, h int) []Element`
+#### renderHorizontalTabBar
 
-Implements `ElementProvider`. Collects interactive elements from the active tab's panel tree and offsets their coordinates by the content area origin (accounts for the tab bar position). Also shifts child element coordinates recursively.
+```go
+// renderHorizontalTabBar рендерит горизонтальный таббар (TabTop, TabBottom).
+//
+// Форматирует названия вкладок:
+//   - Активная вкладка: "▎ NAME ×"
+//   - Неактивная вкладка: " NAME "
+//   - Максимум 20 символов в названии
+//
+// @param width — полная ширина таббара
+// @returns string — горизонтальный таббар
+func (tg *TabGroup) renderHorizontalTabBar(width int) string
+```
 
-#### `func (tg *TabGroup) Update(msg tea.Msg) tea.Cmd`
+#### renderVerticalTabBar
 
-Handles input and lifecycle messages:
+```go
+// renderVerticalTabBar рендерит вертикальный таббар (TabLeft, TabRight).
+//
+// Вычисляет максимальную ширину названий, выравнивает по правому краю.
+//
+// @returns string — вертикальный таббар (строка за строкой)
+func (tg *TabGroup) renderVerticalTabBar(width int) string
+```
 
-- `tea.KeyMsg`: routed to `handleKeyMsg`.
-- `tea.MouseMsg`: routed to `handleMouseMsg`.
-- `tea.WindowSizeMsg`: stores the new size and forwards the message to every tab.
-- `ResizeMsg`: stores the new size and forwards it to every tab so child panels can receive their allocated size.
-- Unknown messages (e.g. `PtyReadyMsg`, `PtyOutputMsg`): broadcast to every tab via `tab.broadcastMsg` so all panels, including background tabs, can respond.
+### Калькуляция размеров (contentWidth, contentHeight, contentOffset)
 
-## Behavior
+```go
+// contentWidth вычисляет ширину контента с учётом позиции таббара.
+func (tg *TabGroup) contentWidth(totalW int) int
 
-### Tab Bar Rendering
+// contentHeight вычисляет высоту контента с учётом позиции таббара.
+func (tg *TabGroup) contentHeight(totalH int) int
 
-`renderTabBar` dispatches to horizontal or vertical rendering based on `tabPosition`.
+// contentOffset возвращает смещение X,Y для контента.
+func (tg *TabGroup) contentOffset() (int, int)
+```
 
-#### Horizontal Tab Bar (`TabTop`/`TabBottom`)
+### Стилизация (Styles)
 
-- Each tab is rendered as a label with surrounding padding.
-- Active tab: `▎ <name> ×` (left bar, name, close glyph).
-- Inactive tab: ` <name> ` (padded name).
-- Tab names longer than 20 bytes are truncated to `...`.
-- A ` + ` button is appended at the end for creating a new tab.
-- Clickable regions are stored in `tabRegions` with the tab index, start column, end column, and close-button column (active tab only).
-- The tab bar is padded to the full width with the tab bar background.
+Используются следующие стили (константы в коде):
 
-#### Vertical Tab Bar (`TabLeft`/`TabRight`)
+- `inactiveTabStyle` — стиль неактивных вкладок
+- `activeTabStyle` — стиль активной вкладки
+- `newTabStyle` — стиль кнопки создания новой вкладки (+)
+- `tabBarStyle` — общий стиль таббара
 
-- Each tab is rendered on its own line.
-- Active tab: `▎ <name> ×`.
-- Inactive tab: ` <name> `.
-- Tab names longer than 15 bytes are truncated.
-- A ` + ` button appears on the line after the last tab.
-- All tab labels are padded to the width of the widest label so the bar is rectangular.
-- `verticalTabWidth` is set to the final padded width.
-- Clickable regions use the row index for `startX`/`endX` and the last column for the close button.
+## Поведение
 
-### Mouse Handling
+### Создание вкладки
 
-When a mouse message arrives:
+1. Вызов `NewTab(name)` создаёт новую вкладку с заданным именем.
+2. Новая вкладка становится активной.
+3. Обновляется `tabRegions` для отрисовки таббара.
 
-1. `isOnTabBar` checks whether the event coordinates fall within the tab bar region.
-2. If on the tab bar, `handleTabBarClick` handles left presses:
-   - Clicking a tab region switches to that tab.
-   - Clicking the `×` close glyph on the active tab closes it.
-   - Clicking the `+` region creates a new tab named `"tab"`.
-   - Vertical tabs use the row coordinate to index `tabRegions`; the new-tab row uses `idx == -1`.
-3. If not on the tab bar, the mouse message is translated by the content offset and forwarded to `tab.handleMouse` with the active tab's content dimensions.
+### Закрытие вкладки
 
-### Keyboard Handling
+1. Вызов `closeTab(idx)` удаляет вкладку из массива `tabs`.
+2. Если активная вкладка была удалена, выбирается последняя оставшаяся.
+3. Нельзя закрыть последнюю оставшуюся вкладку.
 
-`handleKeyMsg` intercepts the following global shortcuts before forwarding other keys to the active tab:
+### Переключение вкладок
 
-| Shortcut | Action |
-|----------|--------|
-| `ctrl+c` | Quit the application (`tea.Quit`). |
-| `ctrl+tab` | Switch to the next tab. |
-| `ctrl+shift+tab` | Switch to the previous tab. |
-| `ctrl+w` | Close the active tab (ignored if only one tab remains). |
-| `ctrl+t` | Create a new tab named `"tab"`. |
+- `NextTab()`: `(activeTab + 1) % len(tabs)`
+- `PrevTab()`: `(activeTab - 1 + len(tabs)) % len(tabs)`
+- Клик на вкладке в таббаре переключает на неё.
 
-Any other key message is forwarded to `tab.handleKeys` on the active tab, which in turn forwards it to the focused panel.
+### Рендеринг
 
-### Tab Closing
+1. Вызывается `View(w, h)` при каждом рендеринге.
+2. Вычисляется позиция таббара и смещение контента.
+3. Рендерится таббар + контент активной вкладки через `lipgloss.Join`.
 
-`closeTab` removes a tab by index. The last tab cannot be closed. After removal, if the active index is out of bounds it is clamped to the new last tab. `ctrl+w` closes the currently active tab.
+### Обработка сообщений
 
-### Tab Switching
+- `tea.KeyMsg` — клавиатурные события
+- `tea.MouseMsg` — мышиные события
+- `tea.WindowSizeMsg` — изменение размера окна
+- `ResizeMsg` — изменение размера сессии
+- Остальные сообщения (PtyReadyMsg, PtyOutputMsg) — передаются всем вкладкам через `broadcastMsg`
 
-`switchTab` validates the index and sets `activeTab`. `NextTab` and `PrevTab` wrap modulo the number of tabs.
+## Тесты
 
-## Important Implementation Details
+Рекомендуемые тесты:
 
-- `TabGroup` implements the `Panel` interface (`View`, `Update`) and `ElementProvider` (`Elements`).
-- The tab bar always consumes one row for top/bottom positions and `verticalTabWidth` columns for left/right positions. Content dimensions are reduced accordingly.
-- `contentOffset` returns the origin `(x, y)` of the content area relative to the tab group's top-left corner. It is used to shift mouse coordinates and element bounds.
-- `padRight` is a small helper that pads a string to a given visual width using `lipgloss.Width`.
-- `tabRegion` is an internal struct that records the index, start/end columns, and close-button column of a tab in the rendered bar. It is rebuilt every frame during rendering.
-- `newTabRegion` stores the region of the `+` button in horizontal layouts; in vertical layouts the new-tab row is represented by a `tabRegion` with `idx == -1`.
-- Tab label truncation uses byte-length checks (`len(name) > 20` / `len(name) > 15`), not rune count, which can cut multi-byte runes in edge cases.
-- The active tab's close glyph is always shown and clickable; inactive tabs have no close button in the current implementation.
-- `Elements` recursively shifts not only top-level element bounds but also all `Children` via `shiftElements`.
-- `Update` broadcasts unrecognized messages to all tabs, not just the active one, so background panels such as terminal emulators continue to receive output.
+```go
+func TestTabGroup_NewTab(t *testing.T) {
+    tg := NewTabGroup(TabTop)
+    tab := tg.NewTab("test")
+    assert.Equal(t, 1, len(tg.tabs))
+    assert.Equal(t, 0, tg.activeTab)
+}
 
-## Dependencies
+func TestTabGroup_CloseTab(t *testing.T) {
+    tg := NewTabGroup(TabTop)
+    tg.NewTab("a")
+    tg.NewTab("b")
+    tg.closeTab(0)
+    assert.Equal(t, 1, len(tg.tabs))
+    assert.Equal(t, "b", tg.ActiveTab().name)
+}
 
-- `github.com/charmbracelet/bubbletea` for `tea.Msg`, `tea.KeyMsg`, `tea.MouseMsg`, `tea.WindowSizeMsg`, and command types.
-- `github.com/charmbracelet/lipgloss` for styles and layout helpers (`lipgloss.Width`, `lipgloss.JoinVertical`, `lipgloss.JoinHorizontal`).
-- `tab.go` for `Tab`, `TabPosition`, and related tab behavior.
-- `styles.go` for `tabBarStyle`, `activeTabStyle`, `inactiveTabStyle`, and `newTabStyle`.
-- `element.go` for `Element`, `collectElements`, and `shiftElements`.
+func TestTabGroup_NextTab(t *testing.T) {
+    tg := NewTabGroup(TabTop)
+    tg.NewTab("a")
+    tg.NewTab("b")
+    tg.NewTab("c")
+    tg.NextTab()
+    assert.Equal(t, 1, tg.activeTab) // b активна
+}
 
-## Notes
+func TestTabGroup_PrevTab(t *testing.T) {
+    tg := NewTabGroup(TabTop)
+    tg.NewTab("a")
+    tg.NewTab("b")
+    tg.NewTab("c")
+    tg.PrevTab()
+    assert.Equal(t, 2, tg.activeTab) // c активна
+}
+```
 
-- `TabGroup` does not currently expose a way to programmatically close a specific tab by index from outside the package; `closeTab` is unexported.
-- Tab names are not validated or deduplicated; callers can create multiple tabs with the same name.
-- The new tab created via the `+` button or `ctrl+t` is always named `"tab"`. Callers can rename a tab by modifying the returned `*Tab` if the field is exported, or by creating a tab with `NewTab(name)` directly.
+## Ключевые Правила
+
+1. Нельзя закрыть последнюю вкладку
+1. Переключение вкладок циклическое
+1. Активная вкладка всегда индекс 0-н-1 в массиве `tabs`
+1. `tabRegions` пересчитывается при каждом рендеринге горизонтального таббара
+1. Вертикальный таббар использует `padRight` для выравнивания
+1. Максимум 20 символов в названии вкладки (горизонтальный)
+1. Максимум 15 символов в названии вкладки (вертикальный)
+1. `verticalTabWidth` устанавливается из максимального названия в вертикальном таббаре
+1. `newTabRegion` — отдельная область справа от таббара для создания новых вкладок
+1. Клик на + всегда создаёт новую вкладку, независимо от позиции
+1. Закрыть можно только активную вкладку через Ctrl+W или клик на ×
+
+## Совместимость
+
+- Требует Bubble Tea (`github.com/charmbracelet/bubbletea`)
+- Требует Lip Gloss (`github.com/charmbracelet/lipgloss`)
+- Использует `unicode/utf8` для подсчёта символов
+- Использует `fmt` и `strings` для форматирования

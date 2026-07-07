@@ -1,12 +1,10 @@
-# Specification: `collapsible.go`
+# Collapsible
 
-## Overview
+## Назначение
 
-`collapsible.go` implements `Collapsible`, a `warp` panel decorator that can be toggled between an expanded state (which renders its inner `Panel` normally) and a collapsed state (which renders only a single-line title bar). It is part of the `warp` package and uses the Charm `lipgloss` styles defined in `styles.go`.
+`Collapsible` — панель, которая может сворачиваться в однострочную шапку с заголовком. Компонент предназначен для использования в TUI-приложениях на базе Bubble Tea.
 
-## Public Types
-
-### `Collapsible`
+## Обзор
 
 ```go
 type Collapsible struct {
@@ -16,61 +14,196 @@ type Collapsible struct {
 }
 ```
 
-- `Title` — text displayed in the collapsed title bar.
-- `Collapsed` — current state; `true` shows the title bar, `false` renders `Content`.
-- `Content` — the inner `Panel` to render when expanded. May be `nil`.
+Компонент хранит:
+- `Title` — текст заголовка (сворачиваемая часть)
+- `Collapsed` — флаг состояния (свёрнута или развернута)
+- `Content` — панель, отображаемая при развернутом состоянии
 
-`Collapsible` satisfies the `Panel` interface (`View` and `Update`).
+## Публичный API
 
-## Public API
+### NewCollapsible
 
-### `NewCollapsible(title string, content Panel) *Collapsible`
+```go
+func NewCollapsible(title string, content Panel) *Collapsible
+```
 
-Constructor. Creates a `Collapsible` with the given title and inner content panel. `Collapsed` defaults to `false`.
+Создаёт новую сворачиваемую панель.
 
-### `(c *Collapsible) View(w, h int) string`
+**Параметры:**
+- `title` (string) — текст заголовка панели
+- `content` (Panel) — панель, отображаемая при развернутом состоянии
 
-Renders the panel.
+**Возвращает:**
+- `*Collapsible` — новый экземпляр компонента
 
-- If `Collapsed` is `true`, returns the single-line collapsed title bar via `renderCollapsed(w)`.
-- If `Collapsed` is `false` and `Content` is non-`nil`, delegates to `c.Content.View(w, h)`.
-- If `Collapsed` is `false` and `Content` is `nil`, returns an empty string.
+**Пример:**
+```go
+content := NewPanel("Some content")
+c := NewCollapsible("Panel Title", content)
+```
 
-### `(c *Collapsible) Update(msg tea.Msg) tea.Cmd`
+### View
 
-Forwards Bubbletea messages to the inner content panel. If `Content` is `nil`, returns `nil`.
+```go
+func (c *Collapsible) View(w, h int) string
+```
 
-### `(c *Collapsible) Toggle()`
+Рендерит представление компонента.
 
-Inverts the `Collapsed` state (`true` ↔ `false`).
+**Параметры:**
+- `w` (int) — ширина доступной области
+- `h` (int) — высота доступной области
 
-## Important Implementation Details
+**Возвращает:**
+- `string` — отрендеренный текст представления
 
-### Collapsed Title Bar Rendering (`renderCollapsed`)
+**Поведение:**
+- Если компонент в свернутом состоянии — возвращает однострочную шапку с индикатором и заголовком
+- Если компонент развернут и `Content` не nil — делегирует рендеринг во внутренний компонент
+- Если компонент развернут и `Content` nil — возвращает пустую строку
 
-- Returns empty string if width `w <= 0`.
-- Uses a `▶` indicator. The indicator is currently set to `▶` in the collapsed branch; the code also contains logic for `▼` when not collapsed, but that branch is unreachable because `renderCollapsed` is only called when `Collapsed` is `true`.
-- Reserves `5` rune cells for the indicator, spaces, and box corners: `indicator + " " + title` plus the left corner `┌` and right corner `┐`.
-- Truncates the title with `...` if it exceeds `w - reserve - 3`. If the available title width is `0`, the title is omitted.
-- Pads the remaining width with `─` characters so the bar fills exactly width `w`.
-- Applies `collapsibleStyle` to the left portion and `collapsibleBorderStyle` to the right border/padding portion.
+### Update
 
-### Style Dependencies
+```go
+func (c *Collapsible) Update(msg tea.Msg) tea.Cmd
+```
 
-`renderCollapsed` depends on two package-level styles defined in `styles.go`:
+Обработчик сообщений Bubble Tea.
 
-- `collapsibleStyle` — foreground `gbLight1`, background `gbDark1`.
-- `collapsibleBorderStyle` — foreground `gbDark4`.
+**Параметры:**
+- `msg` (tea.Msg) — входящее сообщение
 
-### Dependencies
+**Возвращает:**
+- `tea.Cmd` — команда для запуска, если требуется
 
-- Standard library: `strings`.
-- External: `github.com/charmbracelet/bubbletea` (`tea.Msg`).
-- Package: `Panel` interface defined in `panel.go`.
+**Поведение:**
+- Делегирует обработку сообщений внутреннему компоненту `Content`
+- Если `Content` nil — возвращает nil
 
-## Behavior Summary
+### Toggle
 
-- `Collapsible` is a lightweight wrapper around a `Panel` that provides a collapse/expand mechanic.
-- In the expanded state, it behaves transparently: input messages and rendering pass through to the inner panel.
-- In the collapsed state, only the title bar is rendered; the inner panel receives no messages and produces no content.
-- State changes are explicit via `Toggle()`; there is no built-in keyboard or mouse handling in this file.
+```go
+func (c *Collapsible) Toggle()
+```
+
+Переключает состояние между свернутым и развернутым.
+
+**Поведение:**
+- Инвертирует значение поля `Collapsed`
+
+### renderCollapsed
+
+```go
+func (c *Collapsible) renderCollapsed(w int) string
+```
+
+Внутренняя функция для рендеринга свернутого состояния.
+
+**Параметры:**
+- `w` (int) — доступная ширина
+
+**Возвращает:**
+- `string` — отрендеренный текст шапки
+
+**Поведение:**
+- Отображает индикатор (`▶` или `▼`)
+- Обрезает заголовок, если он слишком длинный
+- Добавляет отступы для выравнивания
+
+## Публичные поля
+
+### Title
+
+Тип: `string`
+
+Отображаемый заголовок панели. При свернутом состоянии обрезается до доступной ширины.
+
+### Collapsed
+
+Тип: `bool`
+
+Флаг состояния:
+- `true` — компонент свернут, отображается только шапка
+- `false` — компонент развернут, отображается контент
+
+### Content
+
+Тип: `Panel`
+
+Панель, отображаемая при развернутом состоянии. Может быть nil, если контент не требуется.
+
+## Реализация
+
+### Рендеринг свернутого состояния
+
+Функция `renderCollapsed` вычисляет отступы и обрезает заголовок при необходимости.
+
+**Индикатор:**
+- `▶` — когда компонент свернут
+- `▼` — когда компонент развернут
+
+**Обрезка заголовка:**
+- Резервируется место под индикатором (5 символов)
+- Максимальная длина заголовка рассчитывается как `w - reserve - 3`
+- Если длина превышает лимит — обрезается с добавлением `...`
+
+**Отступы:**
+- Вычисляются как `w - len(title) - reserve`
+- Если отступ отрицательный — устанавливается в 0
+
+### Стили
+
+Используются внешние функции стилей:
+- `collapsibleStyle.Render(...)` — стиль для заголовка
+- `collapsibleBorderStyle.Render(...)` — стиль для границ
+
+### Индикатор
+
+Индикатор показывает текущее состояние:
+- `▶` — свернуто (стрелка вправо)
+- `▼` — развернуто (стрелка вниз)
+
+## Ограничения
+
+- Ширина `w` должна быть положительной (если `w <= 0` — возвращается пустая строка)
+- Заголовок обрезается, если `len(title) > w - reserve`
+- `Content` может быть nil — в этом случае при развернутом состоянии возвращается пустая строка
+
+## Тестирование
+
+Рекомендуется покрывать следующие сценарии:
+- Свернутое состояние с коротким заголовком
+- Свернутое состояние с длинным заголовком (с обрезкой)
+- Развернутое состояние с контентом
+- Развернутое состояние без контента (nil Content)
+- Переключение состояний через Toggle()
+- Обработка разных значений ширины (w)
+
+## Примеры использования
+
+### Базовый пример
+
+```go
+content := NewPanel("Some content here")
+collapsible := NewCollapsible("My Panel", content)
+
+// Toggle state
+collapsible.Toggle()
+
+// Render
+view := collapsible.View(80, 24)
+```
+
+### Свободное использование
+
+```go
+collapsible := NewCollapsible("Title", nil)
+collapsible.Collapsed = true
+view := collapsible.View(100, 24)
+```
+
+## Примечания
+
+- Компонент следует паттерну "свёртываемая панель"
+- Используется Bubble Tea для TUI-рендеринга
+- Стили определяются внешними функциями (`collapsibleStyle`, `collapsibleBorderStyle`)
