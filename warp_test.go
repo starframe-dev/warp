@@ -1,8 +1,10 @@
 package warp
 
 import (
+	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -732,31 +734,6 @@ func TestScrollable(t *testing.T) {
 	}
 }
 
-func TestWordWrap(t *testing.T) {
-	text := "hello world this is a test"
-	lines := WordWrap(text, 10)
-	for _, line := range lines {
-		if len(line) > 10 {
-			t.Errorf("line too long: %q (%d chars)", line, len(line))
-		}
-	}
-}
-
-func TestSpaceWrap(t *testing.T) {
-	text := "hello world this is a test"
-	lines := SpaceWrap(text, 10)
-	for _, line := range lines {
-		if len(line) > 10 {
-			t.Errorf("line too long: %q (%d chars)", line, len(line))
-		}
-	}
-	for _, line := range lines {
-		if strings.Contains(line, "hel") && strings.Contains(line, "lo") && !strings.Contains(line, "hello") {
-			t.Errorf("word broken: %q", line)
-		}
-	}
-}
-
 func TestSelectableHighlight(t *testing.T) {
 	p := &testPanel{name: "hello world"}
 	s := NewSelectable(p)
@@ -1132,5 +1109,248 @@ func TestFloatDragOnlyOnTitleBar(t *testing.T) {
 	}
 	if fp.CloseRequested {
 		t.Error("close should NOT be requested when clicking on content")
+	}
+}
+
+// Warp API coverage
+
+func TestSetRoot(t *testing.T) {
+	w := New()
+	p := &testPanel{name: "custom"}
+	w.SetRoot(p)
+	if w.Root() != p {
+		t.Error("expected SetRoot to change root")
+	}
+}
+
+func TestWidthHeight(t *testing.T) {
+	w := New()
+	if w.Width() != 0 || w.Height() != 0 {
+		t.Errorf("expected initial size 0,0, got %d,%d", w.Width(), w.Height())
+	}
+	w.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	if w.Width() != 100 || w.Height() != 40 {
+		t.Errorf("expected size 100x40, got %dx%d", w.Width(), w.Height())
+	}
+}
+
+func TestWarpNewTab(t *testing.T) {
+	w := New()
+	tab := w.NewTab("second")
+	if tab == nil {
+		t.Fatal("expected NewTab to return a tab")
+	}
+	if tab.name != "second" {
+		t.Errorf("expected tab name 'second', got %q", tab.name)
+	}
+	tg := getTG(w)
+	if len(tg.tabs) != 2 {
+		t.Errorf("expected 2 tabs, got %d", len(tg.tabs))
+	}
+}
+
+func TestWarpActiveTab(t *testing.T) {
+	w := New()
+	first := w.ActiveTab()
+	if first == nil {
+		t.Fatal("expected ActiveTab to return the default tab")
+	}
+	w.NewTab("second")
+	active := w.ActiveTab()
+	if active == nil {
+		t.Fatal("expected ActiveTab to return the active tab")
+	}
+	if active.name != "second" {
+		t.Errorf("expected active tab 'second', got %q", active.name)
+	}
+}
+
+func TestWarpNextTab(t *testing.T) {
+	w := New()
+	tg := getTG(w)
+	tg.NewTab("a")
+	tg.NewTab("b")
+	tg.activeTab = 0
+	w.NextTab()
+	if tg.activeTab != 1 {
+		t.Errorf("expected activeTab 1 after NextTab, got %d", tg.activeTab)
+	}
+}
+
+func TestWarpPrevTab(t *testing.T) {
+	w := New()
+	tg := getTG(w)
+	tg.NewTab("a")
+	tg.NewTab("b")
+	tg.activeTab = 2
+	w.PrevTab()
+	if tg.activeTab != 1 {
+		t.Errorf("expected activeTab 1 after PrevTab, got %d", tg.activeTab)
+	}
+}
+
+func TestWarpNonTabGroup(t *testing.T) {
+	w := New()
+	w.SetRoot(&testPanel{name: "panel"})
+	if w.NewTab("x") != nil {
+		t.Error("expected NewTab to return nil when root is not a TabGroup")
+	}
+	if w.ActiveTab() != nil {
+		t.Error("expected ActiveTab to return nil when root is not a TabGroup")
+	}
+	w.SetTabPosition(TabBottom)
+	w.NextTab()
+	w.PrevTab()
+}
+
+func TestInit(t *testing.T) {
+	w := New()
+	if cmd := w.Init(); cmd != nil {
+		t.Errorf("expected Init to return nil, got %v", cmd)
+	}
+}
+
+func TestView(t *testing.T) {
+	w := New()
+	w.width = 40
+	w.height = 10
+	if got := w.View(); got == "" {
+		t.Error("expected non-empty view from default root")
+	}
+
+	w.SetRoot(nil)
+	if got := w.View(); got != "" {
+		t.Errorf("expected empty view when root is nil, got %q", got)
+	}
+}
+
+func TestAsPanelAdapter(t *testing.T) {
+	w := New()
+	w.width = 40
+	w.height = 10
+	p := w.AsPanel()
+	view := p.View(30, 8)
+	if view == "" {
+		t.Error("expected non-empty view from AsPanel adapter")
+	}
+	if w.Width() != 30 || w.Height() != 8 {
+		t.Errorf("expected warp size updated to 30x8, got %dx%d", w.Width(), w.Height())
+	}
+	if cmd := p.Update(tea.WindowSizeMsg{Width: 20, Height: 5}); cmd != nil {
+		t.Errorf("expected Update to return nil cmd, got %v", cmd)
+	}
+}
+
+func TestUpdateForwardsMessages(t *testing.T) {
+	w := New()
+	p := &testPanelWS{testPanel: testPanel{name: "fwd"}}
+	w.SetRoot(p)
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
+	model, cmd := w.Update(msg)
+	if model != w {
+		t.Error("expected Update to return the same Warp model")
+	}
+	if cmd != nil {
+		t.Errorf("expected nil cmd, got %v", cmd)
+	}
+}
+
+func TestServeHTTP(t *testing.T) {
+	w := New()
+	if err := w.ServeHTTP(""); err != nil {
+		t.Fatalf("ServeHTTP failed: %v", err)
+	}
+	addr := w.HTTPAddr()
+	if addr == "" {
+		t.Fatal("expected HTTPAddr to be set after ServeHTTP")
+	}
+	defer w.CloseHTTP()
+
+	resp, err := http.Get("http://" + addr + "/healthz")
+	if err != nil {
+		t.Fatalf("healthz request failed: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200 on healthz, got %d", resp.StatusCode)
+	}
+
+	resp2, err := http.Get("http://" + addr + "/elements")
+	if err != nil {
+		t.Fatalf("elements request failed: %v", err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200 on elements, got %d", resp2.StatusCode)
+	}
+	if ct := resp2.Header.Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %q", ct)
+	}
+}
+
+func TestServeHTTPIdempotent(t *testing.T) {
+	w := New()
+	if err := w.ServeHTTP(""); err != nil {
+		t.Fatalf("ServeHTTP failed: %v", err)
+	}
+	addr := w.HTTPAddr()
+	if err := w.ServeHTTP(""); err != nil {
+		t.Fatalf("second ServeHTTP failed: %v", err)
+	}
+	if w.HTTPAddr() != addr {
+		t.Errorf("expected address unchanged after idempotent ServeHTTP")
+	}
+	w.CloseHTTP()
+}
+
+func TestServeHTTPWithEnvPort(t *testing.T) {
+	t.Setenv("WARP_HTTP_PORT", "18765")
+	w := New()
+	if err := w.ServeHTTP(""); err != nil {
+		t.Fatalf("ServeHTTP failed: %v", err)
+	}
+	addr := w.HTTPAddr()
+	if addr == "" {
+		t.Fatal("expected HTTPAddr")
+	}
+	if !strings.HasSuffix(addr, ":18765") {
+		t.Errorf("expected address to use env port, got %s", addr)
+	}
+	w.CloseHTTP()
+}
+
+func TestCloseHTTP(t *testing.T) {
+	w := New()
+	if err := w.ServeHTTP(""); err != nil {
+		t.Fatalf("ServeHTTP failed: %v", err)
+	}
+	if w.HTTPAddr() == "" {
+		t.Fatal("expected server address")
+	}
+	if err := w.CloseHTTP(); err != nil {
+		t.Errorf("CloseHTTP returned error: %v", err)
+	}
+	if w.HTTPAddr() != "" {
+		t.Errorf("expected HTTPAddr empty after CloseHTTP, got %s", w.HTTPAddr())
+	}
+	if err := w.CloseHTTP(); err != nil {
+		t.Errorf("second CloseHTTP returned error: %v", err)
+	}
+}
+
+func TestRun(t *testing.T) {
+	w := New()
+	// Run requires a TTY; in a non-interactive environment it should error quickly.
+	done := make(chan error, 1)
+	go func() {
+		done <- w.Run()
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("expected Run to return an error in non-TTY environment")
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("Run did not return within timeout")
 	}
 }

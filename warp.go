@@ -115,6 +115,9 @@ func (w *Warp) View() string {
 	if w.root == nil {
 		return ""
 	}
+	if w.width == 0 || w.height == 0 {
+		return "Loading..."
+	}
 	return w.root.View(w.width, w.height)
 }
 
@@ -182,9 +185,9 @@ func (w *Warp) ServeHTTP(addr string) error {
 	w.httpAddr = ln.Addr().String()
 
 	w.httpServer = &http.Server{Handler: mux}
-	go func() {
-		_ = w.httpServer.Serve(ln)
-	}()
+	go func(srv *http.Server) {
+		_ = srv.Serve(ln)
+	}(w.httpServer)
 	return nil
 }
 
