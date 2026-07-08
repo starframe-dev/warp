@@ -1,4 +1,6 @@
 .lore
+node_modules
+pnpm-lock.yaml
 
 # Binaries
 *.exe
