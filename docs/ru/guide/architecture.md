@@ -1,6 +1,6 @@
 ---
 title: Архитектура
-description: Архитектура Warp: панели, дерево Node, вкладки, фокус, стили и Element tree.
+description: "Архитектура Warp: панели, дерево Node, вкладки, фокус, стили и Element tree."
 ---
 
 # Архитектура
