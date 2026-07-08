@@ -2,6 +2,7 @@
 docs/node_modules
 docs/pnpm-lock.yaml
 docs/.vitepress/cache
+docs/.vitepress/dist
 
 # Binaries
 *.exe
