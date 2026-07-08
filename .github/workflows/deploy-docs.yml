@@ -37,10 +37,15 @@ jobs:
       - name: Build VitePress
         run: pnpm vitepress build
 
+      - name: Prepare artifact for /warp/docs/ path
+        run: |
+          mkdir -p _site/docs
+          cp -r .vitepress/dist/* _site/docs/
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/.vitepress/dist
+          path: docs/_site
 
   deploy:
     needs: build
