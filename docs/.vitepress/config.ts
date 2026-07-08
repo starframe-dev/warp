@@ -4,7 +4,7 @@ export default defineConfig({
   title: 'Warp',
   description: 'Go TUI Layout Engine — tabs, splits, flex, floats, modals, popover',
   lang: 'en-US',
-  base: '/docs/',
+  base: '/warp/docs/',
 
   locales: {
     root: {
