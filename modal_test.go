@@ -288,7 +288,7 @@ func TestModalButton(t *testing.T) {
 	}
 }
 
-func TestStripANSI(t *testing.T) {
+func TestStripANSIModal(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string

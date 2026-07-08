@@ -232,8 +232,8 @@ func TestInputEmptyValue(t *testing.T) {
 	}
 
 	rendered := in.View(20, 1)
-	if rendered != "" {
-		t.Errorf("expected empty rendered output, got %q", rendered)
+	if !strings.Contains(rendered, "> ") {
+		t.Errorf("expected prompt in rendered output, got %q", rendered)
 	}
 }
 

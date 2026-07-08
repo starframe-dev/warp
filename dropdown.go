@@ -141,18 +141,3 @@ func (d *DropdownMenu) selectItem(idx int) {
 func (d *DropdownMenu) Close() {
 	d.Open = false
 }
-
-var (
-	dropdownButtonStyle     = tea.Style{Foreground: tea.Color(cyan)}
-	dropdownItemStyle       = tea.Style{Foreground: tea.Color(white)}
-	dropdownItemHoverStyle  = tea.Style{Foreground: tea.Color(highlight), Background: tea.Color(blue)}
-	dropdownItemSelectedStyle = tea.Style{Foreground: tea.Color(yellow), Bold: true}
-)
-
-const (
-	cyan      = 36
-	white     = 15
-	highlight = 10
-	blue      = 1
-	yellow    = 3
-)

@@ -481,10 +481,12 @@ func TestTabHandleKeys(t *testing.T) {
 	tab := NewTab("test")
 	rec := &tabRecordingPanel{}
 	tab.SetRootPanel(rec)
+	tab.focused = rec
 	tab.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+	rec.last = nil // clear broadcast message
 
 	key := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
-	tab.HandleKeys(key)
+	tab.handleKeys(key)
 
 	if rec.last == nil {
 		t.Fatal("expected panel to receive forwarded key message")
@@ -499,9 +501,10 @@ func TestTabHandleKeysNoFocus(t *testing.T) {
 	rec := &tabRecordingPanel{}
 	tab.SetRootPanel(rec)
 	tab.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+	rec.last = nil // clear broadcast message
 
 	key := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
-	tab.HandleKeys(key)
+	tab.handleKeys(key)
 
 	if rec.last != nil {
 		t.Fatal("expected no message when tab has no focus")
@@ -577,8 +580,8 @@ func TestTabClampFraction(t *testing.T) {
 	if got := clampFraction(0.05); got != 0.1 {
 		t.Fatalf("clampFraction(0.05) = %f, want 0.1", got)
 	}
-	if got := clampFraction(0.09); got != 0.09 {
-		t.Fatalf("clampFraction(0.09) = %f, want 0.09", got)
+	if got := clampFraction(0.09); got != 0.1 {
+		t.Fatalf("clampFraction(0.09) = %f, want 0.1", got)
 	}
 	if got := clampFraction(0.1); got != 0.1 {
 		t.Fatalf("clampFraction(0.1) = %f, want 0.1", got)

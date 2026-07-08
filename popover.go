@@ -29,31 +29,6 @@ type Popover struct {
 	selected int
 }
 
-// visualBytePos returns the byte index at the given visual column (0-indexed).
-// It handles ANSI escape codes by skipping them.
-func visualBytePos(s string, col int) int {
-	visual := 0
-	pos := 0
-	for i, r := range s {
-		if r == '\x1b' {
-			// Skip ANSI escape sequence
-			for j := i + 1; j < len(s) && s[j] != 'm'; j++ {
-				i = j
-			}
-			if i+1 < len(s) && s[i+1] == 'm' {
-				i++
-			}
-		}
-		visual++
-		if visual > col {
-			pos = i + 1
-			break
-		}
-		pos = i + 1
-	}
-	return pos
-}
-
 // Overlay renders the popover on top of existing content lines.
 // Returns the overlaid lines.
 func (p *Popover) Overlay(lines []string, totalW, totalH int) []string {
@@ -135,8 +110,9 @@ func (p *Popover) Overlay(lines []string, totalW, totalH int) []string {
 		leftPart := ansi.Truncate(orig, menuX, "")
 		// Right part: everything after menuX+boxW visual columns.
 		rightStart := visualBytePos(orig, menuX+boxW)
+		var rightPart string
 		if rightStart < len(orig) {
-			rightPart := orig[rightStart:]
+			rightPart = orig[rightStart:]
 		}
 
 		// Pad left part to menuX visual columns.
