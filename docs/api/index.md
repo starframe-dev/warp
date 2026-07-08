@@ -1,49 +1,50 @@
-# Публичный API
+---
+title: Warp — API Reference
+description: Complete API reference for the Warp Go TUI layout engine
+---
 
-> Полная спецификация: [`specs/api.md`](https://github.com/starframe-dev/warp/blob/main/specs/api.md)
+# API Reference
 
-## Warp
+## Core Types
 
-```go
-w := warp.New()
-w.SetRoot(panel)
-w.Run()
-```
+| Type | Description |
+|------|-------------|
+| `Warp` | Root Bubbletea model, wraps a Panel |
+| `TabGroup` | Panel with tab bar and content area |
+| `Tab` | Manages a tree of splits, flex, floats |
+| `Panel` | Interface: `View(w, h)` and `Update(msg)` |
+| `Node` | Tree node: leaf Panel, SplitConfig, or FlexConfig |
+| `SplitConfig` | Vertical/horizontal split with fraction |
+| `FlexConfig` | Row/column flex with grow weights |
+| `FlexItemSpec` | Panel + Grow weight for flex layouts |
+| `FloatPane` | Floating panel overlay |
+| `TabPosition` | TabTop, TabBottom, TabLeft, TabRight, TabNone |
 
-## TabGroup
+## Components
 
-```go
-tg := warp.NewTabGroup(warp.TabTop)
-tg.NewTab("name")
-tg.ActiveTab()
-```
+| Component | Constructor | Description |
+|-----------|-------------|-------------|
+| Collapsible | `NewCollapsible(title, panel)` | Expand/collapse section |
+| Scrollable | `NewScrollable(panel)` | Scrollable viewport |
+| DropdownMenu | `NewDropdownMenu(label, items)` | Dropdown list |
+| Selectable | `NewSelectable(panel)` | Text selection |
+| Input | `NewInput(prompt)` | Text input field |
+| Modal | `NewModal(title, content, buttons, onClose)` | Dialog window |
+| Popover | `&warp.Popover{Items, X, Y, OnClose}` | Context menu |
 
-## Tab
+## Interfaces
 
-```go
-tab.SplitVertical(parent, 0.5, newPanel)
-tab.SplitHorizontal(parent, 0.5, newPanel)
-tab.FlexRow(parent, []warp.FlexItemSpec{...})
-tab.Float(panel, x, y, w, h)
-tab.FocusNext()
-tab.FocusPrev()
-```
+| Interface | Methods |
+|-----------|---------|
+| `Focusable` | `Focus()`, `Blur()`, `Focused() bool` |
+| `RawKeyReceiver` | `HandleRawKey(msg tea.KeyMsg) tea.Cmd` |
+| `ElementProvider` | `Elements(w, h) []Element` |
 
-## Panel
+## Helpers
 
-```go
-type Panel interface {
-    View(width, height int) string
-    Update(msg tea.Msg) tea.Cmd
-}
-```
-
-## Компоненты
-
-- `NewCollapsible(title, panel)` — сворачиваемая панель
-- `NewScrollable(panel)` — скроллируемая панель
-- `NewDropdownMenu(label, items)` — выпадающее меню
-- `NewSelectable(panel)` — выделение текста
-- `NewInput(prompt)` — текстовый ввод
-- `NewModal(title, content, buttons, onClose)` — модальное окно
-- `Popover` — контекстное меню
+| Function | Description |
+|----------|-------------|
+| `WordWrap(text, width)` | Word-wrap text |
+| `SpaceWrap(text, width)` | Space-wrap text |
+| `StripANSI(s)` | Remove ANSI codes |
+| `FindElement(elems, role, name, action)` | Find in element tree |

@@ -60,3 +60,10 @@ func main() {
 ```bash
 go run ./cmd/demo/
 ```
+
+## Documentation
+
+- [English Guide](/guide/getting-started)
+- [Русское руководство](/ru/guide/getting-started)
+- [API Reference](/api/)
+- [API на русском](/ru/api/)
