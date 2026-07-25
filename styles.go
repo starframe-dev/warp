@@ -84,6 +84,9 @@ var (
 
     borderDragStyle = lipgloss.NewStyle().
             Foreground(borderDragColor)
+
+    collapseStyle = lipgloss.NewStyle().
+            Foreground(borderColor)
 )
 
 // Float pane styles

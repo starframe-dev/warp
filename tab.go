@@ -99,6 +99,51 @@ func (t *Tab) SplitVertical(parent Panel, fraction float64, newPanel Panel) {
     }
 }
 
+// SetSplitCollapse configures a collapse symbol on the border of a vertical split.
+// The "<" symbol appears at the given row (0-indexed) instead of "│".
+// When clicked, onCollapse is called. It should return a tea.Cmd to trigger re-render.
+func (t *Tab) SetSplitCollapse(parent Panel, collapseRow int, onCollapse func() tea.Cmd) {
+    // Find the parent node that has a Split containing the given panel.
+    node := t.root.findSplitParent(parent)
+    if node == nil || node.Split == nil {
+        return
+    }
+    node.Split.CollapseRow = collapseRow
+    // Wrap the callback to also toggle the node's Collapse state.
+    // The first child of the split is the panel that should collapse.
+    firstChild := node.Split.First
+    node.Split.OnCollapse = func() tea.Cmd {
+        if firstChild.Collapse == nil {
+            firstChild.Collapse = &NodeCollapse{
+                Active: true,
+                Width:  1,
+            }
+        } else {
+            firstChild.Collapse.Active = !firstChild.Collapse.Active
+        }
+        return onCollapse()
+    }
+}
+
+// ToggleSplitCollapse toggles the collapse state of the split containing the given panel.
+// This is used when the panel itself handles expand (e.g. clicking on a collapsed panel)
+// and needs to sync the warp node's collapse state.
+func (t *Tab) ToggleSplitCollapse(parent Panel) {
+    node := t.root.findSplitParent(parent)
+    if node == nil || node.Split == nil {
+        return
+    }
+    firstChild := node.Split.First
+    if firstChild.Collapse == nil {
+        firstChild.Collapse = &NodeCollapse{
+            Active: true,
+            Width:  1,
+        }
+    } else {
+        firstChild.Collapse.Active = !firstChild.Collapse.Active
+    }
+}
+
 // SplitHorizontal splits the panel horizontally (top/bottom).
 // fraction is the share for the top panel (0.0–1.0).
 func (t *Tab) SplitHorizontal(parent Panel, fraction float64, newPanel Panel) {
@@ -414,6 +459,10 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
     mx := msg.X - offsetX
     my := msg.Y - offsetY
 
+    // Refresh borders before processing mouse events so that collapse state
+    // changes (which affect border visibility) are reflected immediately.
+    t.lastBorders = findBorders(t.root, 0, 0, cw, ch)
+
     // Check float panes first (top z-order)
     hitFloat := false
     for i := len(t.floats) - 1; i >= 0; i-- {
@@ -465,6 +514,16 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
     case tea.MouseButtonLeft:
         switch msg.Action {
         case tea.MouseActionPress:
+            // Check collapse symbol on borders first
+            for _, bh := range t.lastBorders {
+                if bh.Split != nil && bh.Split.CollapseRow >= 0 && bh.Split.OnCollapse != nil {
+                    if mx == bh.X && my == bh.Y+bh.Split.CollapseRow {
+                        tabDebugLog("MOUSE press on collapse symbol mx=%d my=%d\n", mx, my)
+                        return bh.Split.OnCollapse()
+                    }
+                }
+            }
+            // Check border dragging
             for i, bh := range t.lastBorders {
                 if t.hitBorder(bh, mx, my) {
                     tabDebugLog("MOUSE press on border mx=%d my=%d\n", mx, my)
@@ -479,7 +538,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
                     return nil
                 }
             }
-            // Click on a panel — focus it, toggle collapsible
+            // Click on a panel — focus it, toggle collapsible, then forward
             if hit := t.panelAt(mx, my, cw, ch); hit != nil {
                 t.focused = hit.Node.Panel
                 // Toggle collapsible on title bar click
@@ -489,6 +548,18 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
                         t.updateFlexCollapsed(hit.Node)
                         return nil
                     }
+                }
+                // Forward mouse event to the panel
+                relMsg := tea.MouseMsg{
+                    X:      mx - hit.X,
+                    Y:      my - hit.Y,
+                    Action: msg.Action,
+                    Button: msg.Button,
+                    Type:   msg.Type,
+                    Alt:    msg.Alt,
+                }
+                if hit.Node.Panel != nil {
+                    return hit.Node.Panel.Update(relMsg)
                 }
             }
         case tea.MouseActionMotion:

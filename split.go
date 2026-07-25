@@ -1,5 +1,9 @@
 package warp
 
+import (
+	tea "github.com/charmbracelet/bubbletea"
+)
+
 // Direction specifies the split orientation.
 type Direction int
 
@@ -29,6 +33,11 @@ type SplitConfig struct {
     First     *Node
     Second    *Node
     Dragging  bool // true during drag-and-drop
+
+    // CollapseRow is the row (0-indexed) where the border shows "<" instead of "|".
+    // When clicked, OnCollapse is called. It should return a tea.Cmd to trigger re-render.
+    CollapseRow  int
+    OnCollapse   func() tea.Cmd // called when the "<" on the border is clicked
 }
 
 // NodeCollapse holds the collapsed state for a node.
@@ -113,6 +122,33 @@ func (n *Node) findNode(panel Panel) *Node {
     if n.Flex != nil {
         for _, item := range n.Flex.Items {
             if found := item.Node.findNode(panel); found != nil {
+                return found
+            }
+        }
+    }
+    return nil
+}
+
+// findSplitParent finds the node whose Split contains the given panel.
+// Unlike findNode which returns the leaf node, this returns the split parent.
+func (n *Node) findSplitParent(panel Panel) *Node {
+    if n == nil {
+        return nil
+    }
+    if n.Split != nil {
+        if n.Split.First.Panel == panel || n.Split.Second.Panel == panel {
+            return n
+        }
+        if found := n.Split.First.findSplitParent(panel); found != nil {
+            return found
+        }
+        if found := n.Split.Second.findSplitParent(panel); found != nil {
+            return found
+        }
+    }
+    if n.Flex != nil {
+        for _, item := range n.Flex.Items {
+            if found := item.Node.findSplitParent(panel); found != nil {
                 return found
             }
         }

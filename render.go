@@ -51,6 +51,13 @@ func renderVerticalSplit(split *SplitConfig, w, h int) []string {
     // Isolate the border from panel styles on either side.
     borderChar = ansi.ResetStyle + borderChar + ansi.ResetStyle
 
+    // Collapse symbol ("<") shown at CollapseRow instead of "│".
+    // Only shown when OnCollapse is set (explicitly configured).
+    collapseChar := ""
+    if split.OnCollapse != nil && split.CollapseRow >= 0 && !noBorder {
+        collapseChar = ansi.ResetStyle + collapseStyle.Render("<") + ansi.ResetStyle
+    }
+
     result := make([]string, h)
     for y := 0; y < h; y++ {
         left := ""
@@ -63,6 +70,8 @@ func renderVerticalSplit(split *SplitConfig, w, h int) []string {
         }
         if noBorder {
             result[y] = left + right
+        } else if collapseChar != "" && y == split.CollapseRow {
+            result[y] = left + collapseChar + right
         } else {
             result[y] = left + borderChar + right
         }

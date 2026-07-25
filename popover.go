@@ -25,6 +25,9 @@ type Popover struct {
 	// rendered dimensions (set by Overlay)
 	boxW, boxH int
 
+	// clamped position (set by Overlay) — used by HandleMouse for hit-testing
+	clampedX, clampedY int
+
 	// selection
 	selected int
 }
@@ -97,6 +100,10 @@ func (p *Popover) Overlay(lines []string, totalW, totalH int) []string {
 		}
 	}
 
+	// Store clamped position for hit-testing in HandleMouse.
+	p.clampedX = menuX
+	p.clampedY = menuY
+
 	// Place box lines, preserving original content left/right.
 	for i, boxLine := range boxLines {
 		idx := menuY + i
@@ -134,14 +141,31 @@ func (p *Popover) HandleMouse(msg tea.MouseMsg) bool {
 		return false
 	}
 
-	menuX := p.X
-	menuY := p.Y // lines include header at 0, same as mouse Y
+	// Recompute clamped position (same as Overlay).
+	// We need totalW and totalH to clamp. The popover doesn't store them,
+	// so we use the stored boxW/boxH and assume totalW/boxW are from the
+	// last Overlay call. The clamped position is computed fresh each time.
+	// Since we don't have totalW/totalH here, we approximate by clamping
+	// against a reasonable terminal size. The actual clamping is done in
+	// Overlay which has access to the full lines slice.
+	//
+	// For hit-testing, we use the ORIGINAL X/Y because the popover's
+	// visual position is determined by Overlay which clamps. But the
+	// mouse coordinates are in screen space, so we need to use the
+	// CLAMPED position for hit-testing.
+	//
+	// We store the clamped position from the last Overlay call.
+	// If not available, fall back to original X/Y.
+	menuX := p.clampedX
+	menuY := p.clampedY
+	if menuX < 0 {
+		menuX = p.X
+	}
+	if menuY < 0 {
+		menuY = p.Y
+	}
 	boxW := p.boxW
 	boxH := p.boxH
-
-	// Recompute clamped position (same as Overlay).
-	// We use the stored boxW/boxH and original X/Y.
-	// The clamped position is computed fresh each time for consistency.
 
 	switch msg.Action {
 	case tea.MouseActionPress:
