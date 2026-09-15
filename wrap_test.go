@@ -186,6 +186,78 @@ func TestWrapToString(t *testing.T) {
 	}
 }
 
+func TestWrapLine(t *testing.T) {
+	tests := []struct {
+		name     string
+		line     string
+		width    int
+		expected []string
+	}{
+		{
+			name:     "line fits",
+			line:     "hi",
+			width:    10,
+			expected: []string{"hi"},
+		},
+		{
+			name:     "word boundary",
+			line:     "hello world",
+			width:    5,
+			expected: []string{"hello", "world"},
+		},
+		{
+			name:     "hard break",
+			line:     "abcdef",
+			width:    3,
+			expected: []string{"abc", "def"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := wrapLine(tt.line, tt.width)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("wrapLine(%q, %d) = %v, want %v", tt.line, tt.width, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestWrapAtSpaces(t *testing.T) {
+	tests := []struct {
+		name     string
+		line     string
+		width    int
+		expected []string
+	}{
+		{
+			name:     "fits",
+			line:     "hello world",
+			width:    20,
+			expected: []string{"hello world"},
+		},
+		{
+			name:     "empty",
+			line:     "",
+			width:    5,
+			expected: []string{""},
+		},
+		{
+			name:     "wrap",
+			line:     "hello world",
+			width:    5,
+			expected: []string{"hello", "world"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := wrapAtSpaces(tt.line, tt.width)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("wrapAtSpaces(%q, %d) = %v, want %v", tt.line, tt.width, got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestIsWordBreak(t *testing.T) {
 	if !isWordBreak(' ') {
 		t.Error("expected space to be a word break")

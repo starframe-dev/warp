@@ -1,6 +1,8 @@
 package warp
 
-import "testing"
+import (
+	"testing"
+)
 
 type splitTestPanel struct {
 	BasePanel
@@ -118,6 +120,44 @@ func TestNodeFindNode(t *testing.T) {
 	}
 	if got := (*Node)(nil).findNode(p1); got != nil {
 		t.Errorf("findNode on nil receiver = %v, want nil", got)
+	}
+}
+
+func TestNodeFindSplitParent(t *testing.T) {
+	p1 := splitTestPanel{id: 1}
+	p2 := splitTestPanel{id: 2}
+	p3 := splitTestPanel{id: 3}
+
+	leaf1 := &Node{Panel: p1}
+	leaf2 := &Node{Panel: p2}
+	leaf3 := &Node{Panel: p3}
+
+	inner := &Node{Split: &SplitConfig{
+		First:  leaf2,
+		Second: leaf3,
+	}}
+	root := &Node{Split: &SplitConfig{
+		First:  leaf1,
+		Second: inner,
+	}}
+
+	if got := root.findSplitParent(p1); got != root {
+		t.Errorf("findSplitParent(p1) = %v, want %v", got, root)
+	}
+	if got := inner.findSplitParent(p2); got != inner {
+		t.Errorf("findSplitParent(p2) = %v, want %v", got, inner)
+	}
+	if got := inner.findSplitParent(p3); got != inner {
+		t.Errorf("findSplitParent(p3) = %v, want %v", got, inner)
+	}
+	if got := root.findSplitParent(p2); got != inner {
+		t.Errorf("findSplitParent from root for p2 = %v, want %v", got, inner)
+	}
+	if got := root.findSplitParent(splitTestPanel{id: 99}); got != nil {
+		t.Errorf("findSplitParent(unknown) = %v, want nil", got)
+	}
+	if got := (*Node)(nil).findSplitParent(p1); got != nil {
+		t.Errorf("findSplitParent on nil receiver = %v, want nil", got)
 	}
 }
 

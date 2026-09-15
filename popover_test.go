@@ -171,6 +171,24 @@ func TestVisualBytePos(t *testing.T) {
 	})
 }
 
+func TestPopoverYClamp(t *testing.T) {
+	popover := &Popover{
+		Items: []PopoverItem{{Name: "A", Action: func() {}}},
+		X: 0, Y: 23,
+	}
+	lines := blankLines(80, 24)
+	result := popover.Overlay(lines, 80, 24)
+	if popover.boxW <= 0 || popover.boxH <= 0 {
+		t.Fatal("expected dimensions set")
+	}
+	for i, l := range result {
+		vw := ansi.StringWidth(l)
+		if vw != 80 {
+			t.Errorf("line %d: expected width 80, got %d", i, vw)
+		}
+	}
+}
+
 func TestPopoverHandleMouse(t *testing.T) {
 	itemClicked := ""
 	closed := false

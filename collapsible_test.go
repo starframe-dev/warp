@@ -164,3 +164,42 @@ func TestCollapsibleRenderCollapsedIndicator(t *testing.T) {
 		t.Errorf("collapsed indicator should not be down: %q", got)
 	}
 }
+
+func TestCollapsibleViewCollapsedZeroWidthEdge(t *testing.T) {
+	// renderCollapsed returns "" for w <= 0.
+	c := NewCollapsible("T", &testPanel{name: "inner"})
+	c.Collapsed = true
+
+	if got := c.View(-1, 1); got != "" {
+		t.Errorf("negative width collapsed view = %q, want empty", got)
+	}
+
+	// Title longer than any positive width produces maxLen 0 -> empty title,
+	// but the bar is still rendered (title + padding only).
+	if got := c.View(1, 1); got == "" {
+		t.Errorf("tiny-width collapsed view = %q, want non-empty", got)
+	}
+}
+
+func TestCollapsibleViewExpandedNilContent(t *testing.T) {
+	c := &Collapsible{Title: "no content", Content: nil}
+	if got := c.View(40, 5); got != "" {
+		t.Errorf("expanded view with nil content = %q, want empty", got)
+	}
+}
+
+func TestCollapsibleToggleIdempotentOnNilContent(t *testing.T) {
+	c := &Collapsible{Title: "x", Content: nil}
+	c.Toggle()
+	if !c.Collapsed {
+		t.Error("Toggle did not set collapsed")
+	}
+	c.Toggle()
+	if c.Collapsed {
+		t.Error("Toggle did not restore state")
+	}
+	// Update still safe with nil content.
+	if cmd := c.Update(nil); cmd != nil {
+		t.Errorf("Update cmd = %v, want nil", cmd)
+	}
+}

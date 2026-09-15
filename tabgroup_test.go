@@ -260,6 +260,36 @@ func TestTabGroupUpdateWindowSize(t *testing.T) {
 	}
 }
 
+func TestTabGroupUpdateMouseCloseTab(t *testing.T) {
+	tg := NewTabGroup(TabTop)
+	tg.NewTab("a")
+	tg.NewTab("b")
+	_ = tg.View(80, 5)
+	closeX := tg.tabRegions[tg.activeTab].closeX
+	if closeX < 0 {
+		t.Fatal("expected close button X to be set for active tab")
+	}
+	tg.Update(tea.MouseMsg{X: closeX, Y: 0, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	if len(tg.tabs) != 2 {
+		t.Fatalf("expected 2 tabs after closing, got %d", len(tg.tabs))
+	}
+	if tg.activeTab != 1 {
+		t.Fatalf("expected activeTab=1 after close, got %d", tg.activeTab)
+	}
+}
+
+
+func TestTabGroupUpdateMouseNotOnTabBar(t *testing.T) {
+	tg := NewTabGroup(TabNone)
+	p := &tgTestPanel{}
+	tg.ActiveTab().SetRootPanel(p)
+	_ = tg.View(30, 6)
+	tg.Update(tea.MouseMsg{X: 0, Y: 0, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	if !p.updated {
+		t.Fatal("expected mouse press to be forwarded to content panel")
+	}
+}
+
 func TestTabGroupUpdateResizeMsg(t *testing.T) {
 	tg := NewTabGroup(TabTop)
 	_ = tg.Update(ResizeMsg{Width: 80, Height: 24})

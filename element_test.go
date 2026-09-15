@@ -142,6 +142,31 @@ func TestElementProviderFunc(t *testing.T) {
 	}
 }
 
+func TestFindElementNotFound(t *testing.T) {
+	elems := []Element{
+		{Role: "group", Name: "Toolbar", Bounds: Bounds{X: 0, Y: 0, W: 10, H: 1}},
+	}
+	if _, ok := FindElement(elems, "button", "Save", "save"); ok {
+		t.Fatal("expected not found, got found")
+	}
+	if _, ok := FindElement(nil, "", "", ""); ok {
+		t.Fatal("expected not found on empty slice")
+	}
+}
+
+func TestFindElementActionFilter(t *testing.T) {
+	elems := []Element{
+		{Role: "button", Name: "Save", Action: "save", Bounds: Bounds{X: 0, Y: 0, W: 4, H: 1}},
+	}
+	if _, ok := FindElement(elems, "", "", "delete"); ok {
+		t.Fatal("expected not found for wrong action")
+	}
+	el, ok := FindElement(elems, "", "", "save")
+	if !ok || el.Action != "save" {
+		t.Fatalf("expected found save, got %+v ok=%v", el, ok)
+	}
+}
+
 func TestFindElement(t *testing.T) {
 	elems := []Element{
 		{

@@ -1354,3 +1354,29 @@ func TestRun(t *testing.T) {
 		t.Error("Run did not return within timeout")
 	}
 }
+
+func TestViewLoading(t *testing.T) {
+	w := New()
+	if got := w.View(); got != "Loading..." {
+		t.Errorf("expected 'Loading...', got %q", got)
+	}
+}
+
+func TestUpdateNilRoot(t *testing.T) {
+	w := New()
+	w.SetRoot(nil)
+	model, cmd := w.Update(tea.KeyMsg{Type: tea.KeyRunes})
+	if model != w {
+		t.Error("expected same model returned")
+	}
+	if cmd != nil {
+		t.Errorf("expected nil cmd, got %v", cmd)
+	}
+}
+
+func TestServeHTTPErr(t *testing.T) {
+	w := New()
+	if err := w.ServeHTTP("0.0.0.0:0bad"); err == nil {
+		t.Error("expected error for invalid listen address")
+	}
+}
