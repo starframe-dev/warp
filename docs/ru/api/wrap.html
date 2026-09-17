@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>wrap</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>wrap.go</h1>
+
+        <p>Утилиты переноса текста для пакета <code>warp</code>. Все измерения ширины —
+        это <em>визуальные</em> ширины, вычисляемые функцией
+        <code>lipgloss.Width</code> (форк go-runewidth) — это значит, что ANSI-управляющие
+        последовательности, символы нулевой ширины и другие управляющие символы
+        корректно обрабатываются при определении места разрыва строки. <em>Визуальная
+        ширина</em> в 0 символов означает «символы, которые видит человеческий глаз», а не
+        длину строки в байтах.</p>
+
+        <h2>Публичный API</h2>
+
+        <h3><code>WordWrap</code></h3>
+        <div class="signature"><pre><code class="language-typescript">func WordWrap(text string, width int) []string
+</code></pre></div>
+        <p>Переносит текст по границам <em>слов</em> так, чтобы ни одна строка не превышала
+        <code>width</code> визуальных колонок. Слова длиннее <code>width</code> разрываются
+        посередине (жёсткий разрыв). Строка во входном тексте, сама по себе короче
+        <code>width</code>, остаётся без изменений. Сначала входной текст разбивается по
+        <code>"\n"</code>, затем каждая строка переносится независимо — выходные строки
+        никогда не содержат <code>\n</code>.</p>
+        <ul>
+            <li>Если <code>width &lt;= 0</code>, результатом будет <code>nil</code>.</li>
+            <li>Входной текст без каких-либо символов, шире <code>width</code>,
+                возвращается без изменений.</li>
+            <li>Каждый элемент возвращаемого среза — одна визуальная строка шириной не более
+                <code>width</code> колонок.</li>
+        </ul>
+        <pre><code class="language-go">lines := warp.WordWrap("the quick brown fox", 10)
+// lines[0] == "the quick"
+// lines[1] == "brown fox"
+// lines[2] == nil (if width &lt;= 0)
+</code></pre>
+
+        <h3><code>SpaceWrap</code></h3>
+        <div class="signature"><pre><code class="language-typescript">func SpaceWrap(text string, width int) []string
+</code></pre></div>
+        <p>Переносит текст по границам <em>пространств</em> так, чтобы ни одна строка не
+        превышала <code>width</code> визуальных колонок. В отличие от
+        <code>WordWrap</code>, здесь <em>не</em> разбиваются слова посередине — одиночное слово
+        длиннее <code>width</code> вылезает за пределы строки, и результат всё равно
+        формируется. Границы слов берутся из <code>strings.Fields</code> (любая последовательность
+        пробельных символов схлопывается в одно пространство).</p>
+        <ul>
+            <li>Если <code>width &lt;= 0</code>, результатом будет <code>nil</code>.</li>
+            <li>Пустой вход возвращает одну пустую строку.</li>
+        </ul>
+        <pre><code class="language-go">lines := warp.SpaceWrap("hello   world foo", 12)
+// lines[0] == "hello"
+// lines[1] == "world foo"
+</code></pre>
+
+        <h3><code>WrapToString</code></h3>
+        <div class="signature"><pre><code class="language-typescript">func WrapToString(text string, width int, useSpaceWrap bool) string
+</code></pre></div>
+        <p>Удобная обёртка вокруг <code>WordWrap</code> /
+        <code>SpaceWrap</code>, склеивающая полученные строки через
+        <code>"\n"</code>. Это единственный экспортируемый функция, возвращающая строку
+        напрямую; функции, возвращающие срезы выше, дают вызывающему контроль над тем,
+        как строки отображаются (например, TUI-рендереру, которому нужно знать, сколько
+        строк было выдано).</p>
+        <pre><code class="language-go">s := warp.WrapToString("a b c d e f g h i j k", 8, false)
+// s == "a b c d\nf g h i\nj k"
+</code></pre>
+
+        <h2>Заметки по реализации</h2>
+        <ul>
+            <li><code>wrapLine</code> (используется в <code>WordWrap</code>) проходит строку
+                посимвольно, отслеживая последнее место границы слова, которое она видела,
+                поэтому длинное слово разрывается только если естественной точки переноса
+                до превышения визуальной ширины не было.</li>
+            <li><code>wrapAtSpaces</code> (используется в <code>SpaceWrap</code>) сначала
+                токенизирует через <code>strings.Fields</code>, затем жадно упаковывает
+                слова в строки, добавляя между ними одно пространство. Разделитель
+                «пробел» учитывается в визуальную ширину.</li>
+            <li>Вспомогательная функция <code>isWordBreak</code> существует как
+                байтовое удобство вокруг <code>unicode.IsSpace</code>; она в настоящее
+                время не используется в пакете, но сохранена для потенциального
+                внешнего использования.</li>
+            <li>Оба варианта опираются на <code>lipgloss.Width</code> для визуальной
+                ширины. Это значит, что строку, например
+                <code>"\x1b[31mred\x1b[0m"</code>, измеряется как 3 символа, а не как
+                длина управляющей последовательности.</li>
+            <li>Две стратегии различаются лишь в одном: <code>WordWrap</code>
+                жёстко разбивает слова длиннее ширины;
+                <code>SpaceWrap</code> этого не делает и выдаст единую строку,
+                выходящую за ширину, если пространств не оказалось.</li>
+        </ul>
+
+        <h2>Зависимости</h2>
+        <ul>
+            <li><code>github.com/charmbracelet/lipgloss</code> — предоставляет
+                <code>lipgloss.Width</code>, форк go-runewidth, используемый как
+                источник истины для визуальной ширины символов.</li>
+        </ul>
+
+        <h2>Ограничения</h2>
+        <ul>
+            <li>Обе функции обрабатывают только <code>"\n"</code> как разделитель
+                строк; возврат каретки и другие юникодные переносы строк во входных
+                данных не считаются разрывами строк и сохраняются в выводе как есть
+                (обрабатываются логикой ширины).</li>
+            <li>Понятия дефисации или склейки слов через границу переноса не
+                существует; перенос всегда происходит на границе пробельного
+                символа (или посреди слова для <code>WordWrap</code>).</li>
+        </ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

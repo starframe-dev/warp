@@ -29,4 +29,4 @@ Warp components implement `Panel` and compose through the same layout tree.
 
 ## Theme
 
-Use `SetTheme(ThemeColors{...})` to replace the default palette. The [Theme API](../api/theme) lists semantic fields and their mappings.
+Use `SetTheme(ThemeColors{...})` to replace the default palette. The <a href="../api/theme.html">Theme API</a> lists semantic fields and their mappings.

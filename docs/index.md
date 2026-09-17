@@ -67,5 +67,3 @@ go run ./cmd/demo/
 - [Русское руководство](/ru/guide/getting-started)
 - [API Reference](/api/)
 - [API на русском](/ru/api/)
-- [Generated source reference](/guide/generated-reference)
-- [Сгенерированный справочник](/ru/guide/generated-reference)

@@ -1,7 +1,7 @@
 # Warp — Handoff
 
 [2026-09-17] Problem: code-check generated TabGroup tests assumed a tab-bar width for every position and used row zero for a vertical active tab → Solution: align the tests with the current vertical-only width calculation, active-tab row, and visual padding behavior.
-[2026-09-17] Problem: VitePress treated links to code-check HTML artifacts as dead Markdown routes → Solution: keep those artifacts on the code-check paths and link to them with raw HTML anchors from a curated VitePress reference page.
+[2026-09-17] Problem: generated code-check pages were exposed through a separate reference page and led to 404s → Solution: remove that page and place the unmodified EN/RU output in the API section; retain docs/en and docs/ru as code-check source paths.
 
 ## Что это
 

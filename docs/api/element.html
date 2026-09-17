@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>element</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Element</h1>
+
+        <p>The <code>element.go</code> file defines the representation of semantic UI elements and the helpers used to expose, collect and look them up inside a panel. An element is a tree node: it carries a <em>role</em>, an optional <em>name</em> and an optional <em>action</em>, a screen <em>bounds</em> (a cell-coordinates rectangle), and a list of child elements.</p>
+
+        <h2>Types</h2>
+
+        <h3><code>Element</code></h3>
+        <div class="signature"><pre class="language-go"><code>type Element struct {
+    Role     string    `json:"role"`
+    Name     string    `json:"name"`
+    Action   string    `json:"action,omitempty"`
+    Bounds   Bounds    `json:"bounds"`
+    Children []Element `json:"children,omitempty"`
+}
+</code></pre></div>
+        <p>JSON encoding notes:</p>
+        <ul>
+            <li><code>Role</code> and <code>Name</code> are always present.</li>
+            <li><code>Action</code> is omitted when empty.</li>
+            <li><code>Children</code> is omitted when the slice is empty (use the pointer form of <code>json</code> tag).</li>
+        </ul>
+
+        <h3><code>Bounds</code></h3>
+        <div class="signature"><pre class="language-go"><code>type Bounds struct {
+    X int `json:"x"`
+    Y int `json:"y"`
+    W int `json:"w"`
+    H int `json:"h"`
+}
+</code></pre></div>
+        <p>Defines a rectangular screen region in cell coordinates: top-left corner at <code>(X, Y)</code>, width <code>W</code>, height <code>H</code>.</p>
+
+        <h3><code>Bounds.Center</code></h3>
+        <div class="signature"><pre class="language-go"><code>func (b Bounds) Center() (int, int)
+</code></pre></div>
+        <p>Returns the centre cell as integer coordinates using integer division: <code>(X + W/2, Y + H/2)</code>.</p>
+
+        <h3><code>ElementProvider</code></h3>
+        <div class="signature"><pre class="language-go"><code>type ElementProvider interface {
+    Elements(width, height int) []Element
+}
+</code></pre></div>
+        <p>Implemented by panels that can expose their UI elements. The method takes the current panel dimensions in cells and returns the root list of elements (children are nested inside each <code>Element</code>).</p>
+
+        <h3><code>ElementProviderFunc</code></h3>
+        <div class="signature"><pre class="language-go"><code>type ElementProviderFunc func(width, height int) []Element
+
+func (f ElementProviderFunc) Elements(width, height int) []Element
+</code></pre></div>
+        <p>Adapts a plain function to the <code>ElementProvider</code> interface. Useful for one-off providers that don't warrant a struct.</p>
+
+        <h2>Functions</h2>
+
+        <h3><code>collectElements</code></h3>
+        <div class="signature"><pre class="language-go"><code>func collectElements(panel Panel, width, height int) []Element
+</code></pre></div>
+        <p>Package-private helper. Returns <code>nil</code> when <code>panel</code> is nil. Otherwise it type-asserts the panel to <code>ElementProvider</code> and calls <code>Elements(width, height)</code>; if the assertion fails, <code>nil</code> is returned. Used by the warp pipeline to collect elements from a panel.</p>
+
+        <h3><code>FindElement</code></h3>
+        <div class="signature"><pre class="language-go"><code>func FindElement(elems []Element, role, name, action string) (Element, bool)
+</code></pre></div>
+        <p>Recursively searches a list of elements for the first element whose role, name and action match. Empty search strings are treated as wildcards (match anything). Returns the matched <code>Element</code> and <code>true</code> when found, zero value and <code>false</code> otherwise.</p>
+
+        <pre><code class="language-go">if el, ok := FindElement(panel.Elems, "", "submit", ""); ok {
+    x, y := el.Bounds.Center()
+    // press at (x, y)
+}
+</code></pre>
+
+        <h2>Behaviour Notes</h2>
+        <ul>
+            <li>The tree is <em>ordered</em>: <code>FindElement</code> returns the <em>first</em> match in a depth-first pre-order traversal, so the caller is responsible for disambiguating by role/name/action.</li>
+            <li><code>collectElements</code> is the only path through which the warp runtime gathers elements. It treats "no provider" and "nil panel" identically (both yield <code>nil</code>).</li>
+            <li>Bounds are in cell coordinates, not pixels — the warp runtime scales them to pixels at draw time.</li>
+        </ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

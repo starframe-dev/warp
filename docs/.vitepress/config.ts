@@ -6,17 +6,15 @@ import { defineConfig } from 'vitepress'
 
 const docsRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-async function generatedFiles(root: string): Promise<string[]> {
+async function htmlFiles(root: string): Promise<string[]> {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
   const files: string[] = []
 
   for (const entry of entries) {
     const absolutePath = path.join(root, entry.name)
     if (entry.isDirectory()) {
-      files.push(...await generatedFiles(absolutePath))
-      continue
-    }
-    if (entry.isFile() && entry.name.endsWith('.html')) {
+      files.push(...await htmlFiles(absolutePath))
+    } else if (entry.isFile() && entry.name.endsWith('.html')) {
       files.push(absolutePath)
     }
   }
@@ -24,19 +22,21 @@ async function generatedFiles(root: string): Promise<string[]> {
   return files
 }
 
-function codeCheckDocsPlugin(): Plugin {
+function apiHtmlPlugin(): Plugin {
   return {
-    name: 'copy-code-check-docs',
+    name: 'copy-api-html',
     async generateBundle() {
-      for (const language of ['en', 'ru']) {
-        const languageRoot = path.join(docsRoot, language)
-        const files = await generatedFiles(languageRoot)
+      const roots = [
+        { source: path.join(docsRoot, 'api'), target: 'api' },
+        { source: path.join(docsRoot, 'ru', 'api'), target: 'ru/api' },
+      ]
 
-        for (const absolutePath of files) {
-          const relativePath = path.relative(languageRoot, absolutePath).split(path.sep).join('/')
+      for (const root of roots) {
+        for (const absolutePath of await htmlFiles(root.source)) {
+          const relativePath = path.relative(root.source, absolutePath).split(path.sep).join('/')
           this.emitFile({
             type: 'asset',
-            fileName: path.posix.join(language, relativePath),
+            fileName: path.posix.join(root.target, relativePath),
             source: await readFile(absolutePath),
           })
         }
@@ -72,7 +72,6 @@ export default defineConfig({
                 { text: 'Layouts', link: '/guide/layouts' },
                 { text: 'Components', link: '/guide/components' },
                 { text: 'Focus & Input', link: '/guide/focus-input' },
-                { text: 'Generated source reference', link: '/guide/generated-reference' },
               ],
             },
           ],
@@ -81,24 +80,24 @@ export default defineConfig({
               text: 'API Reference',
               items: [
                 { text: 'Overview', link: '/api/' },
-                { text: 'Warp', link: '/api/warp' },
-                { text: 'TabGroup', link: '/api/tabgroup' },
-                { text: 'Tab', link: '/api/tab' },
-                { text: 'Panel', link: '/api/panel' },
-                { text: 'Split & Flex', link: '/api/split' },
-                { text: 'Float', link: '/api/float' },
-                { text: 'Collapsible', link: '/api/collapsible' },
-                { text: 'Scrollable', link: '/api/scrollable' },
-                { text: 'Dropdown', link: '/api/dropdown' },
-                { text: 'Selectable', link: '/api/selectable' },
-                { text: 'Input', link: '/api/input' },
-                { text: 'Modal', link: '/api/modal' },
-                { text: 'Popover', link: '/api/popover' },
-                { text: 'Focus', link: '/api/focus' },
-                { text: 'Element tree', link: '/api/element' },
-                { text: 'Word Wrap', link: '/api/wrap' },
-                { text: 'Styles', link: '/api/styles' },
-                { text: 'Theme', link: '/api/theme' },
+                { text: 'Warp', link: '/api/warp.html' },
+                { text: 'TabGroup', link: '/api/tabgroup.html' },
+                { text: 'Tab', link: '/api/tab.html' },
+                { text: 'Panel', link: '/api/panel.html' },
+                { text: 'Split & Flex', link: '/api/split.html' },
+                { text: 'Float', link: '/api/float.html' },
+                { text: 'Collapsible', link: '/api/collapsible.html' },
+                { text: 'Scrollable', link: '/api/scrollable.html' },
+                { text: 'Dropdown', link: '/api/dropdown.html' },
+                { text: 'Selectable', link: '/api/selectable.html' },
+                { text: 'Input', link: '/api/input.html' },
+                { text: 'Modal', link: '/api/modal.html' },
+                { text: 'Popover', link: '/api/popover.html' },
+                { text: 'Focus', link: '/api/focus.html' },
+                { text: 'Element tree', link: '/api/element.html' },
+                { text: 'Word Wrap', link: '/api/wrap.html' },
+                { text: 'Styles', link: '/api/styles.html' },
+                { text: 'Theme', link: '/api/theme.html' },
               ],
             },
           ],
@@ -125,7 +124,6 @@ export default defineConfig({
                 { text: 'Компоновка', link: '/ru/guide/layouts' },
                 { text: 'Компоненты', link: '/ru/guide/components' },
                 { text: 'Фокус и ввод', link: '/ru/guide/focus-input' },
-                { text: 'Сгенерированный справочник', link: '/ru/guide/generated-reference' },
               ],
             },
           ],
@@ -134,24 +132,24 @@ export default defineConfig({
               text: 'API',
               items: [
                 { text: 'Обзор', link: '/ru/api/' },
-                { text: 'Warp', link: '/ru/api/warp' },
-                { text: 'TabGroup', link: '/ru/api/tabgroup' },
-                { text: 'Tab', link: '/ru/api/tab' },
-                { text: 'Panel', link: '/ru/api/panel' },
-                { text: 'Split & Flex', link: '/ru/api/split' },
-                { text: 'Float', link: '/ru/api/float' },
-                { text: 'Collapsible', link: '/ru/api/collapsible' },
-                { text: 'Scrollable', link: '/ru/api/scrollable' },
-                { text: 'Dropdown', link: '/ru/api/dropdown' },
-                { text: 'Selectable', link: '/ru/api/selectable' },
-                { text: 'Input', link: '/ru/api/input' },
-                { text: 'Modal', link: '/ru/api/modal' },
-                { text: 'Popover', link: '/ru/api/popover' },
-                { text: 'Focus', link: '/ru/api/focus' },
-                { text: 'Дерево элементов', link: '/ru/api/element' },
-                { text: 'Word Wrap', link: '/ru/api/wrap' },
-                { text: 'Стили', link: '/ru/api/styles' },
-                { text: 'Тема', link: '/ru/api/theme' },
+                { text: 'Warp', link: '/ru/api/warp.html' },
+                { text: 'TabGroup', link: '/ru/api/tabgroup.html' },
+                { text: 'Tab', link: '/ru/api/tab.html' },
+                { text: 'Panel', link: '/ru/api/panel.html' },
+                { text: 'Split & Flex', link: '/ru/api/split.html' },
+                { text: 'Float', link: '/ru/api/float.html' },
+                { text: 'Collapsible', link: '/ru/api/collapsible.html' },
+                { text: 'Scrollable', link: '/ru/api/scrollable.html' },
+                { text: 'Dropdown', link: '/ru/api/dropdown.html' },
+                { text: 'Selectable', link: '/ru/api/selectable.html' },
+                { text: 'Input', link: '/ru/api/input.html' },
+                { text: 'Modal', link: '/ru/api/modal.html' },
+                { text: 'Popover', link: '/ru/api/popover.html' },
+                { text: 'Focus', link: '/ru/api/focus.html' },
+                { text: 'Дерево элементов', link: '/ru/api/element.html' },
+                { text: 'Word Wrap', link: '/ru/api/wrap.html' },
+                { text: 'Стили', link: '/ru/api/styles.html' },
+                { text: 'Тема', link: '/ru/api/theme.html' },
               ],
             },
           ],
@@ -161,7 +159,7 @@ export default defineConfig({
   },
 
   vite: {
-    plugins: [codeCheckDocsPlugin()],
+    plugins: [apiHtmlPlugin()],
   },
 
   themeConfig: {

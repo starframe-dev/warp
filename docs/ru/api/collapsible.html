@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>collapsible</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Collapsible</h1>
+
+        <p>
+            <code>Collapsible</code> — обёртка bubbletea-панели в пакете
+            <code>warp</code>. Она оборачивает любую панель <code>Panel</code> и
+            добавляет поведение сворачивания/разворачивания. Когда панель
+            развёрнута, она делегирует весь рендеринг и обработку сообщений во
+            внутреннюю панель <code>Content</code>. Когда свернута, она рендерит
+            однострочную строку заголовка, собранную из индикатора, заголовка
+            (возможно с обрезкой) и декоративной горизонтальной линии.
+        </p>
+
+        <h2>Публичный API</h2>
+
+        <h3>Type</h3>
+        <div class="signature">
+            <pre><code class="language-go">type Collapsible struct {
+    Title     string
+    Collapsed bool
+    Content   Panel
+}</code></pre>
+        </div>
+
+        <table>
+            <tr>
+                <th>Поле</th>
+                <th>Тип</th>
+                <th>Описание</th>
+            </tr>
+            <tr>
+                <td><code>Title</code></td>
+                <td><code>string</code></td>
+                <td>Отображаемый заголовок, показываемый в строке заголовка при свёрнутом состоянии. Обрезается с <code>...</code>, если не помещается в доступную ширину.</td>
+            </tr>
+            <tr>
+                <td><code>Collapsed</code></td>
+                <td><code>bool</code></td>
+                <td>Свёрнута ли панель в строку заголовка. Публичное поле, чтобы вызывающий код мог напрямую читать или устанавливать состояние.</td>
+            </tr>
+            <tr>
+                <td><code>Content</code></td>
+                <td><code>Panel</code></td>
+                <td>Внутренняя панель контента, рендерится при развёрнутом состоянии. Может быть <code>nil</code>.</td>
+            </tr>
+        </table>
+
+        <h3>NewCollapsible</h3>
+        <div class="signature">
+            <pre><code class="language-go">func NewCollapsible(title string, content Panel) *Collapsible</code></pre>
+        </div>
+        <p>
+            Создаёт новый <code>Collapsible</code> с заданным <code>title</code>
+            и <code>content</code>. Панель стартует в развёрнутом состоянии
+            (<code>Collapsed == false</code>). Возвращает указатель; вызывающий
+            код должен удерживать его и управлять состоянием через
+            <a href="#toggle">Toggle</a>.
+        </p>
+
+        <h3>View</h3>
+        <div class="signature">
+            <pre><code class="language-go">func (c *Collapsible) View(w, h int) string</code></pre>
+        </div>
+        <p>
+            Рендерит панель при ширине <code>w</code> и высоте <code>h</code>.
+            Поведение:
+        </p>
+        <ul>
+            <li>Если <code>Collapsed</code> равно <code>true</code>, рендерит
+                однострочную строку заголовка в свёрнутом состоянии (см.
+                <a href="#renderCollapsed">renderCollapsed</a> ниже).</li>
+            <li>Если <code>Collapsed</code> равно <code>false</code> и
+                <code>Content != nil</code>, возвращает
+                <code>c.Content.View(w, h)</code>.</li>
+            <li>Если <code>Content == nil</code>, возвращает <code>""</code>.</li>
+        </ul>
+        <p>
+            В свёрнутом режиме параметр <code>h</code> игнорируется; строка
+            заголовка всегда однострочная, независимо от высоты.
+        </p>
+
+        <h3>Update</h3>
+        <div class="signature">
+            <pre><code class="language-go">func (c *Collapsible) Update(msg tea.Msg) tea.Cmd</code></pre>
+        </div>
+        <p>
+            Проваливает bubbletea-сообщение во внутреннюю панель
+            <code>Content</code> и возвращает команду, порождённую обработчиком.
+            Возвращает <code>nil</code>, если <code>Content</code> равно
+            <code>nil</code>.
+        </p>
+        <p>
+            Состояние <code>Collapsed</code> <em>не</em> управляется сообщениями —
+            за переключение отвечает вызывающий код через
+            <a href="#toggle">Toggle</a>.
+        </p>
+
+        <h3 id="toggle">Toggle</h3>
+        <div class="signature">
+            <pre><code class="language-go">func (c *Collapsible) Toggle()</code></pre>
+        </div>
+        <p>
+            Инвертирует <code>Collapsed</code>. Это единственный метод, изменяющий
+            состояние, у данного типа. Повторные вызовы переключают состояние туда
+            и обратно; <code>nil</code> в <code>Content</code> не мешает
+            переключению.
+        </p>
+
+        <h2>renderCollapsed</h2>
+        <div class="signature">
+            <pre><code class="language-go">func (c *Collapsible) renderCollapsed(w int) string</code></pre>
+        </div>
+        <p>
+            Непубличный хелпер, который собирает однострочную строку заголовка в
+            свёрнутом состоянии. Макет, слева направо:
+        </p>
+        <ul>
+            <li>Левая ячейка, отренендеренная со стилем
+                <code>collapsibleStyle</code>, содержащая
+                <code>┌</code>, глиф индикатора
+                (<code>▶</code> при свёрнутом состоянии, <code>▼</code> при
+                развёрнутом), пробел и (возможно обрезанный)
+                <code>Title</code>.</li>
+            <li>Правая ячейка, отрендеренная со стилем
+                <code>collapsibleBorderStyle</code>, содержащая последовательность
+                символов <code>─</code>, за которой следует
+                <code>┐</code> — правый верхний угол. Длина последовательности
+                равна <code>padding = w − len(title) − 5</code>, ограничена
+                снизу нулём.</li>
+        </ul>
+        <p>
+            Обрезка резервирует 5 колонок (индикатор, пробел и угловые символы)
+            от доступной ширины. Если оставшаяся длина заголовка была бы
+            отрицательной, заголовок выводится пустым, а строка заголовка
+            всё равно рендерится. Неотрицательное <code>w</code> возвращает пустую
+            строку.
+        </p>
+
+        <h2>Семантика пустого контента</h2>
+        <p>
+            <code>Collapsible</code> с <code>Content == nil</code> ведёт себя как
+            чистый носитель состояния: он всё ещё переключается и рендерит строку
+            заголовка, но при развёрнутом состоянии <code>View</code> возвращает
+            <code>""</code>, а <code>Update</code> поглощает каждое сообщение. Это
+            сделано намеренно — обёртка должна быть безопасной для встраивания в
+            любое дерево без конструирования внутренней панели.
+        </p>
+
+        <h2>Стили</h2>
+        <p>
+            Строка заголовка собирается из двух package-level стилей lipgloss,
+            определённых в <code>styles.go</code> и пересвязанных в
+            <code>theme.go</code>:
+        </p>
+        <ul>
+            <li><code>collapsibleStyle</code> — передний план
+                <code>gbLight1</code>, фон <code>gbDark1</code>. Применяется к
+                левой ячейке, содержащей угол, индикатор и заголовок.</li>
+            <li><code>collapsibleBorderStyle</code> — передний план
+                <code>gbDark4</code>. Применяется к правой ячейке, содержащей
+                последовательность <code>─</code> и угол <code>┐</code>.</li>
+        </ul>
+
+        <h2>Примеры использования</h2>
+        <div class="signature">
+            <pre><code class="language-go">col := NewCollapsible("Settings", settingsPanel)
+
+// Collapse
+col.Toggle()
+
+// Render the collapsed title bar at width 80
+out := col.View(80, 1)
+
+// Forward a message to the inner panel
+cmd := col.Update(tea.KeyMsg{Type: tea.KeyCtrlC})</code></pre>
+        </div>
+
+        <h2>Зависимости</h2>
+        <p>
+            <code>Collapsible</code> зависит от
+            <code>github.com/charmbracelet/bubbletea</code> для типов
+            <code>tea.Msg</code> и <code>tea.Cmd</code>, package-level
+            интерфейса <code>Panel</code>, и значений lipgloss
+            <code>collapsibleStyle</code> / <code>collapsibleBorderStyle</code>
+            из <code>styles.go</code>.
+        </p>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

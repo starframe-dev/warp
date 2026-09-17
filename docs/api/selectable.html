@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>selectable</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Selectable</h1>
+        <p>The <code>Selectable</code> type adds text-selection support to a wrapped <code>Panel</code>. Mouse dragging and Shift+arrow keys create a selection, which is rendered with reversed colors and can be extracted as plain text.</p>
+        <div class="signature"><pre class="language-go"><code>package warp
+
+type Selectable struct {
+    Content Panel
+    AnchorX, AnchorY int
+    CursorX, CursorY int
+    HasSelection bool
+    Selecting    bool
+    lastW, lastH int
+    lastLines    []string
+}</code></pre></div>
+
+        <h2>Overview</h2>
+        <p><code>Selectable</code> wraps any <code>Panel</code> and adds:</p>
+        <ul>
+            <li>Mouse press/motion/release selection (left button)</li>
+            <li>Shift+arrow keyboard selection</li>
+            <li>Ctrl+A to select all, Esc to clear</li>
+            <li>Copy selected text to the system clipboard via OSC 52</li>
+        </ul>
+        <p>The selected region is rendered with the ANSI reverse-video style (<code>\x1b[7m</code>) so the user sees exactly what is selected.</p>
+
+        <h2>Types</h2>
+        <h3>Selectable</h3>
+        <p>Public struct with the following exported fields:</p>
+        <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td>Content</td><td><code>Panel</code></td><td>The wrapped content panel to which selection is added.</td></tr>
+                <tr><td>AnchorX, AnchorY</td><td><code>int</code></td><td>Selection anchor in cell coordinates (fixed on mouse press).</td></tr>
+                <tr><td>CursorX, CursorY</td><td><code>int</code></td><td>Active end of the selection (follows mouse/keyboard).</td></tr>
+                <tr><td>HasSelection</td><td><code>bool</code></td><td>True when a non-empty selection exists.</td></tr>
+                <tr><td>Selecting</td><td><code>bool</code></td><td>True while an active mouse drag is in progress.</td></tr>
+            </tbody>
+        </table>
+        <p>The unexported fields <code>lastW</code>, <code>lastH</code>, and <code>lastLines</code> cache the last rendered dimensions and lines so that <code>SelectedText</code> can extract text using the exact same coordinate system that was used for rendering.</p>
+
+        <h2>Public API</h2>
+        <div class="signature"><pre class="language-go"><code>func NewSelectable(content Panel) *Selectable</code></pre></div>
+        <p>Constructs a new <code>Selectable</code> wrapping the given panel. All selection state starts empty.</p>
+
+        <div class="signature"><pre class="language-go"><code>func (s *Selectable) SelectedText() string</code></pre></div>
+        <p>Returns the currently selected text as a plain string. Uses the cached rendered lines so that the coordinate system matches exactly what is visible on screen. Falls back to rendering at a large size (9999×9999) if <code>View</code> has not been called yet (e.g. in unit tests).</p>
+
+        <div class="signature"><pre class="language-go"><code>func (s *Selectable) ClearSelection()</code></pre></div>
+        <p>Removes the current selection, resetting both <code>HasSelection</code> and <code>Selecting</code>.</p>
+
+        <div class="signature"><pre class="language-go"><code>func (s *Selectable) Copy() tea.Cmd</code></pre></div>
+        <p>Returns a <code>tea.Cmd</code> that copies the selected text to the system clipboard via OSC 52. Intended to be called when the user presses Ctrl+C. Returns <code>nil</code> if there is no selection.</p>
+
+        <div class="signature"><pre class="language-go"><code>func (s *Selectable) SelectAll(w, h int)</code></pre></div>
+        <p>Selects all visible content within the given width and height bounds.</p>
+
+        <div class="signature"><pre class="language-go"><code>func (s *Selectable) View(w, h int) string</code></pre></div>
+        <p>Renders the wrapped content with selection highlight. Caches the rendered lines for later text extraction. Clamps selection coordinates to panel bounds — only the cursor end is clamped, while the anchor stays where the user originally pressed so that reverse-direction drag continues to work correctly.</p>
+
+        <div class="signature"><pre class="language-go"><code>func (s *Selectable) Update(msg tea.Msg) tea.Cmd</code></pre></div>
+        <p>Handles mouse and keyboard messages for selection. Messages not consumed by the selection logic are proxied to the wrapped <code>Panel</code>.</p>
+
+        <h2>Behavior</h2>
+        <h3>Mouse selection</h3>
+        <ul>
+            <li><strong>Press (left button):</strong> Sets the anchor and cursor to the press position; <code>Selecting</code> becomes true.</li>
+            <li><strong>Motion:</strong> Moves the cursor; <code>HasSelection</code> is set to true.</li>
+            <li><strong>Release:</strong> Finalizes the cursor position; clears selection if anchor and cursor coincide.</li>
+        </ul>
+
+        <h3>Keyboard selection</h3>
+        <ul>
+            <li><strong>Shift+Up / Shift+Down / Shift+Left / Shift+Right:</strong> Extends or creates a selection in the given direction. Shift+Tab is intentionally <em>not</em> handled and is proxied to the wrapped panel (e.g. a terminal) so that TUI apps inside the PTY receive it.</li>
+            <li><strong>Ctrl+A:</strong> Selects all visible content (falls back to 80×24 if dimensions are unknown).</li>
+            <li><strong>Esc:</strong> Clears the selection.</li>
+        </ul>
+
+        <h3>Rendering</h3>
+        <p><code>View</code> renders the content and applies the reverse-video style to the selected range. The range is computed via <code>sortedBounds</code>, which normalizes anchor/cursor so that start ≤ end. Lines outside the selection range pass through unchanged. The highlight is applied per-line using the visual (rune) column range, so it is correct even when the content contains multi-byte UTF-8 runes.</p>
+
+        <h3>Text extraction</h3>
+        <p><code>SelectedText</code> walks the cached rendered lines and extracts the visual-range text for each line in the selection. ANSI escape sequences are skipped, and only the runes within the requested visual range are collected. This ensures the extracted text matches exactly what the user sees on screen.</p>
+
+        <h3>ANSI / Unicode handling</h3>
+        <p>Both <code>highlightRange</code> and <code>extractVisRange</code> parse the line byte-by-byte, tracking the visual rune position. ANSI escape sequences (<code>\x1b[...m</code>) are skipped without advancing the visual position. Multi-byte UTF-8 runes are decoded with <code>utf8.DecodeRuneInString</code>. This avoids incorrect slicing of raw bytes.</p>
+
+        <h2>Implementation details</h2>
+        <ul>
+            <li><strong>OSC 52 clipboard:</strong> The <code>Copy</code> method encodes the selected text as base64 and emits the sequence <code>\x1b]52;c;&lt;data&gt;\x07</code>. This works in Bubbletea's alternate screen buffer.</li>
+            <li><strong>Reverse-direction drag:</strong> Only the cursor end is clamped to panel bounds; the anchor is left as-is. This ensures that dragging in the reverse direction still works correctly after a resize or re-render.</li>
+            <li><strong>Selection invalidation:</strong> If the cursor and anchor coincide after a release or a keyboard step, the selection is cleared automatically.</li>
+            <li><strong>Message proxying:</strong> Any message not handled by the selection logic (unrecognized keys, Shift+Tab, resize messages, etc.) is forwarded to <code>Content.Update(msg)</code>, keeping the wrapped panel fully functional.</li>
+        </ul>
+
+        <h2>Example usage</h2>
+        <pre><code class="language-go">sel := NewSelectable(myPanel)
+model.SetProgramView(sel)
+
+// In the model update:
+case tea.KeyMsg:
+    if msg.String() == "ctrl+c" {
+        return sel.Copy()
+    }
+    if msg.String() == "esc" {
+        sel.ClearSelection()
+    }
+
+// To get the selected text (e.g. for paste or display):
+text := sel.SelectedText()</code></pre>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

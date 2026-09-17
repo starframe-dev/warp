@@ -39,7 +39,7 @@ A focusable panel implements `Focusable`. `Tab.FocusNext`, `FocusPrev`, `FocusFi
 
 ## Theme
 
-The default palette is Gruvbox Dark. `SetTheme` rebuilds the package styles at runtime from semantic colors. See [Theme](../api/theme).
+The default palette is Gruvbox Dark. `SetTheme` rebuilds the package styles at runtime from semantic colors. See <a href="../api/theme.html">Theme</a>.
 
 ## Element tree
 

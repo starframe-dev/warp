@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>input</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Input</h1>
+
+        <p>
+            <code>Input</code> — компонент однострочного текстового ввода, построенный поверх Bubble Tea. Он управляет
+            строковым значением, позицией курсора в символах (rune), необязательным префиксом-подсказкой и редактированием
+            с клавиатуры, а рендерит себя либо как однострочную строку, либо как рамку с границами в зависимости от
+            доступной высоты.
+        </p>
+
+        <h2>Типы</h2>
+
+        <h3>Input</h3>
+        <p>Компонент однострочного текстового ввода.</p>
+<pre>
+<code class="language-go">type Input struct {
+    Value   string
+    Cursor  int // cursor position in runes
+    Prompt  string
+    Width   int // desired width (0 = auto from View w)
+    focused bool
+}
+</code>
+</pre>
+
+        <h3>Input — конструктор</h3>
+        <div class="signature"><pre><code class="language-go">func NewInput(prompt string) *Input</code></div>
+        <p>Создаёт новый пустой ввод с заданным промптом.</p>
+
+        <h2>Методы</h2>
+
+        <table>
+            <tr>
+                <th>Метод</th>
+                <th>Описание</th>
+            </tr>
+            <tr>
+                <td><code>SetValue(v string)</code></td>
+                <td>Заменяет значение ввода и перемещает курсор в конец.</td>
+            </tr>
+            <tr>
+                <td><code>SetCursor(pos int)</code></td>
+                <td>Устанавливает позицию курсора в символах и ограничивает её до валидного диапазона.</td>
+            </tr>
+            <tr>
+                <td><code>Focused() bool</code></td>
+                <td>Сообщает, имеет ли ввод в данный момент фокус.</td>
+            </tr>
+            <tr>
+                <td><code>Focus()</code></td>
+                <td>Передаёт фокус вводу.</td>
+            </tr>
+            <tr>
+                <td><code>Blur()</code></td>
+                <td>Снимает фокус с ввода.</td>
+            </tr>
+            <tr>
+                <td><code>View(w, h int) string</code></td>
+                <td>Рендерит ввод; при <code>h >= 3</code> использует рамку с границами, иначе — однострочную строку.</td>
+            </tr>
+            <tr>
+                <td><code>Update(msg tea.Msg) tea.Cmd</code></td>
+                <td>Обрабатывает ввод с клавиатуры (backspace, delete, left/right, home/end, вставка текста), когда фокус на вводе.</td>
+            </tr>
+        </table>
+
+        <h2>Поведение</h2>
+
+        <h3>Рендеринг</h3>
+        <p>
+            <code>View</code> вызывает <code>viewBoxed</code>, когда доступная высота составляет как минимум три
+            строки, отрисовывая рамку со скруглёнными углами и стилем границы в сфокусированном или несфокусированном
+            состоянии. Иначе переключается на <code>viewInline</code>, который рендерит промпт и значение как одну
+            стилизованную строку, повторяющуюся на протяжении всей высоты.
+        </p>
+        <p>
+            Видимая строка формируется <code>renderLine</code>, который конкатенирует префикс-промпт со значением.
+            Если суммарная ширина превышает доступную ширину, значение обрезаются слева так, чтобы курсор оставался
+            видимым. Позиция курсора рендерится с помощью последовательности инвертирования видео
+            (<code>\x1b[7m ... \x1b[0m</code>) вокруг символа (rune) в позиции курсора, либо завершающим
+            инвертируемым пробелом, когда курсор находится в конце значения.
+        </p>
+
+        <h3>Курсор и редактирование</h3>
+        <p>
+            <code>Update</code> обрабатывает <code>tea.KeyMsg</code> только когда фокус на вводе. Распознаваемые клавиши:
+        </p>
+        <ul>
+            <li><code>backspace</code> — удаляет символ перед курсором.</li>
+            <li><code>delete</code> — удаляет символ под курсором.</li>
+            <li><code>left</code> / <code>right</code> — сдвигает курсор на один символ, с ограничением границ.</li>
+            <li><code>home</code> / <code>end</code> — перемещает курсор в начало или конец значения.</li>
+            <li><code>tab</code> / <code>shift+tab</code> — бездействие; обрабатывается родительским компонентом для навигации фокуса.</li>
+            <li><code>enter</code> — плейсхолдер бездействия для будущего сигнала отправки.</li>
+            <li>Клавиши с одним символом — вставляют символ в позиции курсора.</li>
+        </ul>
+        <p>
+            После каждого редактирования <code>clampCursor</code> гарантирует, что курсор остаётся в пределах
+            <code>[0, len(value)]</code> в символах.
+        </p>
+
+        <h2>Внутренние помощники (package-private)</h2>
+        <ul>
+            <li><code>viewBoxed</code> / <code>viewInline</code> — пути рендеринга, зависящие от макета.</li>
+            <li><code>renderLine</code> — строит строку «промпт + значение» с подсветкой курсора.</li>
+            <li><code>truncateTailToWidth</code> — центрирует видимое значение вокруг курсора, сдвигая
+                стартовый индекс, когда курсор уходит за видимую ширину.</li>
+            <li><code>insertAtCursor</code> / <code>deleteBeforeCursor</code> / <code>deleteAtCursor</code> —
+                модификации текста на уровне символов (rune).</li>
+            <li><code>clampCursor</code> — принуждение к инвариантам позиции курсора.</li>
+        </ul>
+
+        <h2>Стилизация</h2>
+        <p>
+            Стилевые определения на уровне пакета на основе lipgloss определены в конце файла:
+            <code>inputStyle</code> (светлый цвет текста), <code>inputBorderStyle</code> (тёмная граница) и
+            <code>inputFocusBorderStyle</code> (синяя граница при фокусе). Эти стили используются и в
+            рамочном, и в однострочном путях рендеринга.
+        </p>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

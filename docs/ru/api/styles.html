@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>styles</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>styles.go</h1>
+
+        <p>
+            Файл <code>styles.go</code> является центральным источником палитры и стилей lipgloss
+            для TUI приложения <code>warp</code>. Он определяет набор цветов Gruvbox Dark один раз,
+            и от него выводится каждый стиль пользовательского интерфейса: панель вкладок,
+            разделительная граница, плавающее окно, сворачиваемый элемент, выпадающее меню и другие
+            элементы. В этом файле нет поведения во время выполнения; он только хранит
+            <em>константы</em> (цвета) и <em>заранее созданные стили</em>, которые используются другими
+            файлами.
+        </p>
+
+        <h2>Поведение модуля</h2>
+        <p>
+            Модуль не содержит функций, изменяющих состояние. Все выведенные значения — это
+            неизменяемые значения <code>lipgloss.Style</code> и непубличные переменные цветов.
+            Это сохраняет файл тривиально локальным: любой компонент пользовательского интерфейса
+            может отрисовать себя, не зная, как стилизуются другие элементы.
+        </p>
+        <p>
+            Цветовая палитра следует схеме
+            <a href="https://github.com/morhetz/gruvbox">Gruvbox Dark</a>:
+        </p>
+        <ul>
+            <li>Масштаб фона <code>gbDark0..gbDark4</code> и нейтральный цвет <code>gbGray</code></li>
+            <li>Светлый текст <code>gbLight1</code></li>
+            <li>Набор акцентных цветов: <code>gbRed</code>, <code>gbGreen</code>, <code>gbYellow</code>, <code>gbBlue</code></li>
+        </ul>
+
+        <h2>Публичный API</h2>
+        <p>
+            Все публичные экспортные значения — это неизменяемые значения стилей. Их безопасно
+            передавать между горутинами, поскольку <code>lipgloss.Style</code> — это неизменяемая
+            структура.
+        </p>
+
+        <div class="signature"><pre class="language-go"><code>func BorderStyle() lipgloss.Style
+func BorderDragStyle() lipgloss.Style
+func BorderHoverStyle() lipgloss.Style
+</code></pre></div>
+
+        <table>
+            <tr>
+                <th>Функция</th>
+                <th>Возвращает</th>
+                <th>Назначение</th>
+            </tr>
+            <tr>
+                <td><code>BorderStyle</code></td>
+                <td><code>lipgloss.Style</code></td>
+                <td>Фон (foreground) обычной разделительной границы между окнами.</td>
+            </tr>
+            <tr>
+                <td><code>BorderDragStyle</code></td>
+                <td><code>lipgloss.Style</code></td>
+                <td>Фон, используемый во время перетаскивания разделительной границы.</td>
+            </tr>
+            <tr>
+                <td><code>BorderHoverStyle</code></td>
+                <td><code>lipgloss.Style</code></td>
+                <td>Фон, отображаемый, когда курсор мыши находится над разделительной границей.</td>
+            </tr>
+        </table>
+
+        <p>
+            Три функции — это небольшие обёртки, а не значения, поскольку
+            <code>lipgloss.Style</code> — это тип по значению, и пакету нужно избежать экспорта
+            непубличных идентификаторов <code>borderStyle</code>, <code>borderDragStyle</code> и
+            <code>borderHoverStyle</code> напрямую. Вызывающие стороны должны считать возвращаемое
+            значение константой и никогда его не изменять.
+        </p>
+
+        <h2>Внутренняя палитра</h2>
+        <p>
+            Непубличные переменные цветов группируются в три концептуальных набора:
+        </p>
+        <ol>
+            <li><strong>Базовая палитра</strong> — <code>gbDark0</code> до <code>gbLight1</code>, <code>gbGray</code> плюс акцентные цвета.</li>
+            <li><strong>Палитра разделительной границы</strong> — <code>borderColor</code>, <code>borderDragColor</code>, <code>borderHoverColor</code> и <code>collapseStyle</code>.</li>
+            <li><strong>Палитры элементов</strong> — цвета вкладки, плавающего окна, выпадающего меню и сворачиваемого элемента, каждый в паре со стилем lipgloss, который их использует.</li>
+        </ol>
+
+        <h2>Группы стилей</h2>
+        <h3>Панель вкладок</h3>
+        <p>
+            Панель вкладок переиспользует самый тёмный цвет фона (<code>tabBarBg = gbDark0</code>)
+            и использует жирный, светлый текст для активной вкладки. Неактивные вкладки используют
+            приглушённый серый цвет текста. Указатель для новой вкладки — зелёный, для закрытия
+            вкладки — красный.
+        </p>
+        <h3>Разделительная граница</h3>
+        <p>
+            <code>borderStyle</code> и <code>collapseStyle</code> оба отрисовываются с текстом
+            <code>gbDark1</code>. Во время перетаскивания цвет меняется на
+            <code>gbYellow</code>, при наведении — на <code>gbDark3</code>.
+        </p>
+        <h3>Плавающее окно</h3>
+        <p>
+            Плавающие окна имеют собственную «хромию»: граница <code>gbGray</code>, заголовочная
+            панель с фоном <code>gbDark1</code> и жирным текстом <code>gbLight1</code>, кнопка
+            закрытия красная, фон тела <code>gbDark0</code>.
+        </p>
+        <h3>Сворачивание</h3>
+        <p>
+            Свёрнутые окна используют <code>gbLight1</code> на <code>gbDark1</code>, а граница
+            вокруг свёрнутого окна использует <code>gbDark4</code>.
+        </p>
+        <h3>Выпадающее меню</h3>
+        <p>
+            Кнопки выпадающего меню используют фон <code>gbDark2</code> с текстом
+            <code>gbLight1</code>. Пункты находятся на фоне <code>gbDark0</code>, при наведении
+            меняется на фон <code>gbDark2</code> с жёлтым текстом, а выбранное состояние становится
+            зелёным с жирным текстом.
+        </p>
+
+        <h2>Пример использования</h2>
+        <div class="signature"><pre class="language-go"><code>// Render a split border in its normal state.
+lipgloss.NewRenderer().Render(wrapText("pane", warp.BorderStyle()))
+
+// While the user drags the border.
+lipgloss.NewRenderer().Render(wrapText("pane", warp.BorderDragStyle()))</code></pre></div>
+
+        <h2>Детали реализации</h2>
+        <ul>
+            <li>Все стили конструируются один раз при инициализации пакета; они не переиспользуются при использовании.</li>
+            <li>Цвета — это захардкоженные шестнадцатеричные значения, а не система тем во время выполнения; переключение тем требует правки этого файла.</li>
+            <li>Здесь нет интерфейса тем или DI; файл является единственным источником правды, который другие файлы пакета импортируют неявно через имена на уровне пакета.</li>
+            <li>Стили — это значения, а не указатели; lipgloss считает их неизменяемыми, поэтому возврат по значению безопасен.</li>
+            <li>У файла нет зависимостей от остальной части пакета, кроме самой библиотеки <code>lipgloss</code>; о нём можно рассуждать локально.</li>
+        </ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

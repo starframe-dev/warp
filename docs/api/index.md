@@ -5,53 +5,48 @@ description: Public types, components, interfaces, and helper functions in Warp.
 
 # API Reference
 
-Warp is a Go TUI layout engine for Bubbletea. The API is organized around a root `Warp`, composable `Panel` values, and a `Tab` layout tree.
+Warp is a Go TUI layout engine for Bubbletea. Build a screen from a root <a href="./panel.html"><code>Panel</code></a>, then compose tabs, splits, flex layouts, floats, and interactive components.
 
 ## Core API
 
 | Type | Purpose |
 |------|---------|
-| [`Warp`](./warp) | Root Bubbletea model and HTTP element server |
-| [`Panel`](./panel) | Component interface |
-| [`TabGroup`](./tabgroup) | Tab bar and active tab management |
-| [`Tab`](./tab) | Split, flex, float, focus, and collapse operations |
-| [`Node`](./split) | Layout tree node |
-| [`SplitConfig`](./split) | Two-child split configuration |
-| [`FlexConfig`](./split) | Row or column flex configuration |
-| [`FlexItem`](./split) / `FlexItemSpec` | Flex item and its grow weight |
-| [`FloatPane`](./float) | Floating panel state |
-| [`Element`](./element) / [`Bounds`](./element) | Semantic UI tree values |
-| [`ThemeColors`](./theme) | Semantic theme palette |
+| <a href="./warp.html"><code>Warp</code></a> | Bubbletea model, root panel, optional element-tree HTTP endpoint |
+| <a href="./panel.html"><code>Panel</code></a> | Interface implemented by every layout panel |
+| <a href="./tabgroup.html"><code>TabGroup</code></a> | Tab bar and active-tab management |
+| <a href="./tab.html"><code>Tab</code></a> | Layout tree, floats, focus, resizing, and collapse operations |
+| <a href="./split.html"><code>Node</code></a> | Layout-tree node |
+| <a href="./split.html"><code>SplitConfig</code></a> / <a href="./split.html"><code>FlexConfig</code></a> | Split and flex configuration |
+| <a href="./float.html"><code>FloatPane</code></a> | Floating panel state |
+| <a href="./element.html"><code>Element</code></a> / <a href="./element.html"><code>Bounds</code></a> | Semantic UI tree and cell coordinates |
+| <a href="./theme.html"><code>ThemeColors</code></a> | Runtime theme palette |
 
 ## Components
 
-| Component | Constructor | Purpose |
-|-----------|-------------|---------|
-| [`Collapsible`](./collapsible) | `NewCollapsible` | Expandable section |
-| [`Scrollable`](./scrollable) | `NewScrollable` | Scrollable viewport |
-| [`DropdownMenu`](./dropdown) | `NewDropdownMenu` | Dropdown list |
-| [`Selectable`](./selectable) | `NewSelectable` | Text selection and copy |
-| [`Input`](./input) | `NewInput` | Single-line text input |
-| [`Modal`](./modal) | `NewModal` / `ShowModalMsg` | Modal dialog |
-| [`Popover`](./popover) | `&Popover{...}` | Context menu |
+| Component | Purpose |
+|-----------|---------|
+| <a href="./collapsible.html"><code>Collapsible</code></a> | Expandable panel section |
+| <a href="./scrollable.html"><code>Scrollable</code></a> | Viewport with keyboard and mouse scrolling |
+| <a href="./dropdown.html"><code>DropdownMenu</code></a> | Button with an expandable item list |
+| <a href="./selectable.html"><code>Selectable</code></a> | Mouse and keyboard text selection |
+| <a href="./input.html"><code>Input</code></a> | Single-line editable input |
+| <a href="./modal.html"><code>Modal</code></a> | Draggable dialog overlay |
+| <a href="./popover.html"><code>Popover</code></a> | Context-menu overlay |
 
-## Interfaces
+## Layout and utilities
 
-- [`Focusable`](./focus) — opt-in keyboard focus
-- [`RawKeyReceiver`](./focus) — terminal-style raw-key preference
-- [`ElementProvider`](./element) — semantic element tree
-
-## Helpers
-
-- [`WordWrap`](./wrap) and `SpaceWrap` — text wrapping
-- [`StripANSI`](./float) — remove ANSI escape sequences
-- [`FindElement`](./element) — recursive element lookup
+- <a href="./split.html"><code>Split</code></a> — directions, resize messages, collapse state, and flex data types
+- <a href="./focus.html"><code>Focus</code></a> — explicit focus interfaces
+- <a href="./styles.html"><code>Styles</code></a> — public border styles and default palette
+- <a href="./wrap.html"><code>WordWrap</code></a> and `SpaceWrap` — terminal-width-aware text wrapping
+- <a href="./float.html"><code>StripANSI</code></a> — remove CSI escape sequences from a string
+- <a href="./element.html"><code>FindElement</code></a> — recursively locate a semantic element
 - `WrapToString` — wrap text and join the resulting lines
 
-## Supporting types
+## Contracts
 
-`Direction`, `TabPosition`, `ResizeMsg`, `NodeCollapse`, `ModalButton`, and `DropdownItem` are documented on the pages for the components that use them.
-
-## Generated per-file reference
-
-code-check also generates low-level HTML documentation for each Go source file. It stays under `docs/en/` and `docs/ru/` because those paths are part of the code-check contract. The curated VitePress pages above are the recommended starting point. See the [generated source reference](../guide/generated-reference) for links to the per-file HTML pages.
+- Panel sizes are measured in terminal cells, not pixels or bytes.
+- `ResizeMsg` carries the allocated content size to leaf panels.
+- Focus traversal is explicit: applications choose their own key bindings and call `FocusNext`, `FocusPrev`, or `FocusPanel`.
+- Warp does not reserve `Tab` or `Shift+Tab` for focus traversal.
+- The default palette is Gruvbox Dark; <a href="./theme.html"><code>SetTheme</code></a> changes the semantic palette at runtime.

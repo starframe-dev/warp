@@ -1,57 +1,52 @@
 ---
-title: API Warp
+title: Справочник API Warp
 description: Публичные типы, компоненты, интерфейсы и функции Warp.
 ---
 
-# API
+# Справочник API
 
-Warp — Go TUI layout engine для Bubble Tea. API строится вокруг корневого `Warp`, составных `Panel` и дерева компоновки `Tab`.
+Warp — движок компоновки TUI на Go для Bubbletea. Создайте экран из корневого <a href="./panel.html"><code>Panel</code></a>, затем объединяйте вкладки, сплиты, flex-компоновки, плавающие панели и интерактивные компоненты.
 
-## Основные типы
+## Основной API
 
 | Тип | Назначение |
 |-----|-----------|
-| [`Warp`](./warp) | Корневая Bubble Tea-модель и HTTP-сервер дерева элементов |
-| [`Panel`](./panel) | Интерфейс компонента |
-| [`TabGroup`](./tabgroup) | Таб-бар и управление активной вкладкой |
-| [`Tab`](./tab) | Операции split, flex, float, фокус и сворачивание |
-| [`Node`](./split) | Узел дерева компоновки |
-| [`SplitConfig`](./split) | Конфигурация разделения на два дочерних узла |
-| [`FlexConfig`](./split) | Горизонтальная или вертикальная flex-компоновка |
-| [`FlexItem`](./split) / `FlexItemSpec` | Элемент flex и его вес |
-| [`FloatPane`](./float) | Состояние плавающей панели |
-| [`Element`](./element) / [`Bounds`](./element) | Значения семантического дерева UI |
-| [`ThemeColors`](./theme) | Семантическая палитра темы |
+| <a href="./warp.html"><code>Warp</code></a> | Модель Bubbletea, корневая панель и необязательный HTTP-метод дерева элементов |
+| <a href="./panel.html"><code>Panel</code></a> | Интерфейс каждой панели в дереве |
+| <a href="./tabgroup.html"><code>TabGroup</code></a> | Панель вкладок и управление активной вкладкой |
+| <a href="./tab.html"><code>Tab</code></a> | Дерево компоновки, floats, фокус, изменение размеров и сворачивание |
+| <a href="./split.html"><code>Node</code></a> | Узел дерева компоновки |
+| <a href="./split.html"><code>SplitConfig</code></a> / <a href="./split.html"><code>FlexConfig</code></a> | Конфигурация split и flex |
+| <a href="./float.html"><code>FloatPane</code></a> | Состояние плавающей панели |
+| <a href="./element.html"><code>Element</code></a> / <a href="./element.html"><code>Bounds</code></a> | Семантическое дерево UI и координаты в ячейках |
+| <a href="./theme.html"><code>ThemeColors</code></a> | Палитра runtime-темы |
 
 ## Компоненты
 
-| Компонент | Конструктор | Назначение |
-|-----------|-------------|-----------|
-| [`Collapsible`](./collapsible) | `NewCollapsible` | Сворачиваемая секция |
-| [`Scrollable`](./scrollable) | `NewScrollable` | Прокручиваемая область |
-| [`DropdownMenu`](./dropdown) | `NewDropdownMenu` | Выпадающий список |
-| [`Selectable`](./selectable) | `NewSelectable` | Выделение и копирование текста |
-| [`Input`](./input) | `NewInput` | Однострочный ввод |
-| [`Modal`](./modal) | `NewModal` / `ShowModalMsg` | Модальное окно |
-| [`Popover`](./popover) | `&Popover{...}` | Контекстное меню |
+| Компонент | Назначение |
+|-----------|-----------|
+| <a href="./collapsible.html"><code>Collapsible</code></a> | Сворачиваемая секция панели |
+| <a href="./scrollable.html"><code>Scrollable</code></a> | Область просмотра со скроллом мышью и клавиатурой |
+| <a href="./dropdown.html"><code>DropdownMenu</code></a> | Кнопка с раскрывающимся списком |
+| <a href="./selectable.html"><code>Selectable</code></a> | Выделение текста мышью и клавиатурой |
+| <a href="./input.html"><code>Input</code></a> | Однострочный редактируемый ввод |
+| <a href="./modal.html"><code>Modal</code></a> | Перетаскиваемый диалоговый overlay |
+| <a href="./popover.html"><code>Popover</code></a> | Overlay контекстного меню |
 
-## Интерфейсы
+## Компоновка и утилиты
 
-- [`Focusable`](./focus) — явный фокус панели
-- [`RawKeyReceiver`](./focus) — намерение получать необработанные клавиши
-- [`ElementProvider`](./element) — семантическое дерево элементов
-
-## Вспомогательные функции
-
-- [`WordWrap`](./wrap) и `SpaceWrap` — перенос текста
-- [`StripANSI`](./float) — удаление ANSI-последовательностей
-- [`FindElement`](./element) — рекурсивный поиск элемента
+- <a href="./split.html"><code>Split</code></a> — направления, сообщения resize, состояние collapse и типы flex
+- <a href="./focus.html"><code>Focus</code></a> — интерфейсы явного фокуса
+- <a href="./styles.html"><code>Styles</code></a> — публичные стили границ и палитра по умолчанию
+- <a href="./wrap.html"><code>WordWrap</code></a> и `SpaceWrap` — перенос текста по ширине терминала
+- <a href="./float.html"><code>StripANSI</code></a> — удаление CSI-последовательностей из строки
+- <a href="./element.html"><code>FindElement</code></a> — рекурсивный поиск семантического элемента
 - `WrapToString` — перенос текста с объединением строк
 
-## Дополнительные типы
+## Контракты
 
-`Direction`, `TabPosition`, `ResizeMsg`, `NodeCollapse`, `ModalButton` и `DropdownItem` описаны на страницах компонентов, которые их используют.
-
-## Сгенерированный справочник файлов
-
-code-check также создаёт подробную HTML-документацию для каждого Go-файла. Она остаётся в `docs/en/` и `docs/ru/`, потому что эти пути являются контрактом code-check. Для работы с API рекомендуются страницы VitePress выше. Ссылки находятся в [сгенерированном справочнике](../guide/generated-reference).
+- Размеры панелей измеряются в ячейках терминала, а не в пикселях или байтах.
+- `ResizeMsg` передаёт листовым панелям выделенный размер содержимого.
+- Фокус переключается явно: приложение само выбирает клавиши и вызывает `FocusNext`, `FocusPrev` или `FocusPanel`.
+- Warp не резервирует `Tab` и `Shift+Tab` для перехода фокуса.
+- По умолчанию используется Gruvbox Dark; <a href="./theme.html"><code>SetTheme</code></a> меняет семантическую палитру во время работы.
