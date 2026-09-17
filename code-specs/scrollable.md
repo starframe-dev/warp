@@ -54,7 +54,7 @@ func NewScrollable(content Panel) *Scrollable
 // 3. Кламит Offset в диапазоне [0, maxOffset]
 // 4. Возвращает видимый срез с padding по ширине
 //
-// @sideeffect io — рендеринг в строку
+// @sideeffect mutation — клампинг Offset при рендере
 func (s *Scrollable) View(w, h int) string
 ```
 
@@ -73,7 +73,6 @@ func (s *Scrollable) View(w, h int) string
 //   "pgup" — вверх на 10, "pgdown" — вниз на 10
 //
 // @sideeffect mutation — изменение поля Offset
-// @pure
 func (s *Scrollable) Update(msg tea.Msg) tea.Cmd
 ```
 
@@ -87,7 +86,8 @@ func (s *Scrollable) Update(msg tea.Msg) tea.Cmd
 // @returns string — отцентрированная/обрезанная строка
 //
 // Логика:
-// 1. Если ширина строки >= w — обрезает до w-1 символа
+// 1. Если ширина строки >= w — находит байтовую границу, где ширина становится > w,
+//    и обрезает до line[:i-1]
 // 2. Иначе добавляет пробелы справа до ширины w
 //
 // @pure
@@ -164,7 +164,7 @@ func (s *Scrollable) Update(msg tea.Msg) tea.Cmd
 | `"up"` | `Offset -= 1`, кламп до 0 |
 | `"down"` | `Offset += 1` |
 | `"pgup"` | `Offset -= 10`, кламп до 0 |
-| `"down"` | `Offset += 10` |
+| `"pgdown"` | `Offset += 10` |
 
 **Побочные эффекты:**
 - Изменение поля `Offset` (mutation)

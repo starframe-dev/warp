@@ -38,6 +38,103 @@ func TestInputFocusBlur(t *testing.T) {
 	}
 }
 
+func TestInputTypingAtCursor(t *testing.T) {
+	in := NewInput(">")
+	in.Focus()
+	in.SetValue("abcd")
+	in.SetCursor(2)
+
+	in.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+	if in.Value != "abXcd" {
+		t.Errorf("expected value 'abXcd', got %q", in.Value)
+	}
+	if in.Cursor != 3 {
+		t.Errorf("expected cursor 3, got %d", in.Cursor)
+	}
+}
+
+func TestInputTypingEmptyKey(t *testing.T) {
+	in := NewInput(">")
+	in.Focus()
+	in.SetValue("a")
+	in.SetCursor(1)
+
+	in.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+	if in.Value != "a" || in.Cursor != 1 {
+		t.Errorf("expected no change, got %q/%d", in.Value, in.Cursor)
+	}
+}
+
+func TestInputTypingKeyEscapeNoOp(t *testing.T) {
+	in := NewInput(">")
+	in.Focus()
+	in.SetValue("ab")
+	in.SetCursor(1)
+
+	in.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	if in.Value != "ab" || in.Cursor != 1 {
+		t.Errorf("expected no change, got %q/%d", in.Value, in.Cursor)
+	}
+}
+
+func TestInputTypingMultiruneKey(t *testing.T) {
+	in := NewInput(">")
+	in.Focus()
+	in.SetValue("ab")
+	in.SetCursor(0)
+
+	in.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+	in.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'Y'}})
+	if in.Value != "XYab" {
+		t.Errorf("expected value 'XYab', got %q", in.Value)
+	}
+	if in.Cursor != 2 {
+		t.Errorf("expected cursor 2, got %d", in.Cursor)
+	}
+}
+
+func TestInputBackspaceAtEmpty(t *testing.T) {
+	in := NewInput(">")
+	in.Focus()
+	in.SetValue("")
+	in.SetCursor(0)
+
+	in.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	if in.Value != "" || in.Cursor != 0 {
+		t.Errorf("expected no change, got %q/%d", in.Value, in.Cursor)
+	}
+}
+
+func TestInputDeleteAtEnd(t *testing.T) {
+	in := NewInput(">")
+	in.Focus()
+	in.SetValue("ab")
+	in.SetCursor(2)
+
+	in.Update(tea.KeyMsg{Type: tea.KeyDelete})
+	if in.Value != "ab" {
+		t.Errorf("expected 'ab', got %q", in.Value)
+	}
+}
+
+func TestInputCursorMovementBounds(t *testing.T) {
+	in := NewInput(">")
+	in.Focus()
+	in.SetValue("ab")
+	in.SetCursor(0)
+
+	in.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	if in.Cursor != 0 {
+		t.Errorf("expected cursor 0, got %d", in.Cursor)
+	}
+
+	in.SetCursor(len([]rune(in.Value)))
+	in.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if in.Cursor != 2 {
+		t.Errorf("expected cursor 2, got %d", in.Cursor)
+	}
+}
+
 func TestInputSetValueAndCursor(t *testing.T) {
 	in := NewInput("> ")
 	in.SetValue("hello")

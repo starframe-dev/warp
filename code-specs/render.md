@@ -2,7 +2,7 @@
 
 ## Описание
 
-Пакет `render` отвечает за рендеринг дерева узлов (node tree) в строковые представления с поддержкой различных макетных паттернов: splits (вертикальные/горизонтальные), flex-контейнеры и leaf-панели.
+Файл `render.go` отвечает за рендеринг дерева узлов (node tree) в строковые представления с поддержкой различных макетных паттернов: splits (вертикальные/горизонтальные), flex-контейнеры и leaf-панели.
 
 ## Публичный API
 
@@ -11,7 +11,7 @@
 #### BorderHit
 
 ```go
-// BorderHit описывает позиционируемую границю (drag handle) для drag-and-drop операций.
+// BorderHit описывает позиционируемую границу (drag handle) для drag-and-drop операций.
 type BorderHit struct {
     Split     *SplitConfig
     Flex      *FlexConfig
@@ -21,68 +21,18 @@ type BorderHit struct {
 }
 ```
 
-#### Node
+### Внутренние функции
 
-```go
-// Node представляет узел дерева интерфейса.
-type Node struct {
-    Panel *Panel
-    Split *SplitConfig
-    Flex  *FlexConfig
-    // ... внутренние поля
-}
+Публичные API-элементы (`Node`, `SplitConfig`, `FlexConfig`, `FlexItem`, `Direction` и т.п.) описаны в других файлах пакета. В `render.go` используются поля:
 
-// IsLeaf возвращает true, если узел является листом (leaf node с Panel).
-func (n *Node) IsLeaf() bool
-// CollapsedSize возвращает размер при свернутом состоянии.
-func (n *Node) CollapsedSize(direction Direction) int
-// IsCollapsed проверяет состояние свёрнутости.
-func (n *Node) IsCollapsed() bool
-```
+- `Node.IsLeaf()`, `Node.Panel.View(w, h)`, `Node.IsCollapsed()`, `Node.CollapsedSize(direction)`
+- `SplitConfig.Direction`, `SplitConfig.First`, `SplitConfig.Second`, `SplitConfig.Fraction`, `SplitConfig.Dragging`, `SplitConfig.OnCollapse`, `SplitConfig.CollapseRow`
+- `FlexConfig.Direction`, `FlexConfig.Items`, `FlexConfig.Dragging`
+- `FlexItem.Node`, `FlexItem.Basis`, `FlexItem.Grow`, `FlexItem.Collapsed`
 
-#### SplitConfig
+## Функции
 
-```go
-// SplitConfig конфигурирует split-распределение между двумя узлами.
-type SplitConfig struct {
-    Direction  Direction // Vertical | Horizontal
-    First      *Node     // Первый (верхний/левый) узел
-    Second     *Node     // Второй (нижний/правый) узел
-    Fraction   float64   // Доля первого узла (0.0-1.0)
-}
-
-// Dragging указывает, что лицевая граница перетаскивается.
-// IsCollapsed проверяет свернутость любого из узлов.
-// CollapsedSize возвращает фиксированный размер при свернутом состоянии.
-```
-
-#### FlexConfig
-
-```go
-// FlexConfig конфигурирует flex-распределение между несколькими узлами.
-type FlexConfig struct {
-    Direction Direction // Horizontal | Vertical
-    Items     []*FlexItem
-}
-
-// Dragging указывает, что лицевая граница перетаскивается.
-```
-
-#### FlexItem
-
-```go
-// FlexItem описывает элемент внутри flex-контейнера.
-type FlexItem struct {
-    Node      *Node
-    Basis     int    // Базовый размер (0 = авто)
-    Grow      int    // Коэффициент роста
-    Collapsed bool   // Свёрнуто ли данный элемент
-}
-```
-
-### Функции
-
-#### renderNode
+### renderNode
 
 ```go
 // renderNode рендерит дерево узлов в строковые линии заданных размеров.
@@ -97,7 +47,7 @@ type FlexItem struct {
 func renderNode(node *Node, w, h int) []string
 ```
 
-#### renderVerticalSplit
+### renderVerticalSplit
 
 ```go
 // renderVerticalSplit рендерит вертикальный split (левый/правый колонки).
@@ -112,7 +62,7 @@ func renderNode(node *Node, w, h int) []string
 func renderVerticalSplit(split *SplitConfig, w, h int) []string
 ```
 
-#### renderHorizontalSplit
+### renderHorizontalSplit
 
 ```go
 // renderHorizontalSplit рендерит горизонтальный split (верхний/нижний строки).
@@ -127,7 +77,7 @@ func renderVerticalSplit(split *SplitConfig, w, h int) []string
 func renderHorizontalSplit(split *SplitConfig, w, h int) []string
 ```
 
-#### renderFlex
+### renderFlex
 
 ```go
 // renderFlex рендерит flex-контейнер с распределением по весам.
@@ -142,7 +92,7 @@ func renderHorizontalSplit(split *SplitConfig, w, h int) []string
 func renderFlex(flex *FlexConfig, w, h int) []string
 ```
 
-#### renderFlexRow
+### renderFlexRow
 
 ```go
 // renderFlexRow рендерит flex-строку (горизонтальное направление).
@@ -158,7 +108,7 @@ func renderFlex(flex *FlexConfig, w, h int) []string
 func renderFlexRow(flex *FlexConfig, w, h int, sizes []int) []string
 ```
 
-#### renderFlexColumn
+### renderFlexColumn
 
 ```go
 // renderFlexColumn рендерит flex-колонку (вертикальное направление).
@@ -174,7 +124,7 @@ func renderFlexRow(flex *FlexConfig, w, h int, sizes []int) []string
 func renderFlexColumn(flex *FlexConfig, w, h int, sizes []int) []string
 ```
 
-#### computeFlexSizes
+### computeFlexSizes
 
 ```go
 // computeFlexSizes вычисляет размеры для flex-элементов по базовым и grow-весам.
@@ -188,7 +138,7 @@ func renderFlexColumn(flex *FlexConfig, w, h int, sizes []int) []string
 func computeFlexSizes(avail int, items []*FlexItem) []int
 ```
 
-#### computeSplitSizes
+### computeSplitSizes
 
 ```go
 // computeSplitSizes вычисляет размеры для split-распределения.
@@ -207,7 +157,7 @@ func computeFlexSizes(avail int, items []*FlexItem) []int
 func computeSplitSizes(avail int, fraction float64, firstCollapsed, secondCollapsed bool, firstSize, secondSize int) (first, second int)
 ```
 
-#### padContent
+### padContent
 
 ```go
 // padContent обеспечивает точные размеры w × h для контента.
@@ -224,7 +174,7 @@ func computeSplitSizes(avail int, fraction float64, firstCollapsed, secondCollap
 func padContent(content string, w, h int) []string
 ```
 
-#### makeEmptyLines
+### makeEmptyLines
 
 ```go
 // makeEmptyLines создаёт массив пустых строк заданных размеров.
@@ -238,7 +188,7 @@ func padContent(content string, w, h int) []string
 func makeEmptyLines(w, h int) []string
 ```
 
-#### findBorders
+### findBorders
 
 ```go
 // findBorders рекурсивно собирает все позиции границ для drag-and-drop.
@@ -246,14 +196,14 @@ func makeEmptyLines(w, h int) []string
 // @param node - Укореняющий узел
 // @param x, y - Стартовая позиция (верхний левый угол)
 // @param w, h - Размеры области
-// @returns []BorderHit — Сословие границ
+// @returns []BorderHit — Список собранных границ
 //
 // @sideeffect none — Функция не имеет побочных эффектов (чистая)
 // @pure
 func findBorders(node *Node, x, y, w, h int) []BorderHit
 ```
 
-#### findFlexBorders
+### findFlexBorders
 
 ```go
 // findFlexBorders собирает границы внутри flex-контейнера.
@@ -261,7 +211,7 @@ func findBorders(node *Node, x, y, w, h int) []BorderHit
 // @param flex - Конфигурация flex-распределения
 // @param x, y - Стартовая позиция
 // @param w, h - Размеры области
-// @returns []BorderHit — Сословие границ
+// @returns []BorderHit — Список собранных границ
 //
 // @sideeffect none — Функция не имеет побочных эффектов (чистая)
 // @pure
@@ -270,88 +220,84 @@ func findFlexBorders(flex *FlexConfig, x, y, w, h int) []BorderHit
 
 ## Поведение
 
-### Splits
+### Split-рендеринг
 
-- **Vertical split** рендерит две колонки с вертикальной границей `│`
-- **Horizontal split** рендерит две строки с горизонтальной границей `─`
-- Когда один из элементов свернут (collapsed), граница не рендерится — элементы встают вплотную
-- При перетаскивании границы (dragging) используется другой стиль (`borderDragStyle`)
-- Размеры вычисляются с учётом `Fraction` и `CollapsedSize`
+- **Vertical split** рендерит две колонки, разделённые вертикальной границей `│`.
+- **Horizontal split** рендерит две группы строк, разделённые горизонтальной границей `─`.
+- Когда один из узлов свернут (`IsCollapsed()`), граница между узлами не рендерится — узлы встают вплотную.
+- При `Dragging = true` граница рендерится через `borderDragStyle` вместо `borderStyle`.
+- Границы обёрнуты `ansi.ResetStyle` с обеих сторон, чтобы стили панелей не утекали через границу.
+- Когда `OnCollapse != nil` и `CollapseRow >= 0`, и граница рендерится (не collapsed), символ границы на строке `CollapseRow` заменяется на collapse-символ `collapseStyle.Render("<")` (изолированный ANSI-стилями).
+- Размеры первого/второго вычисляются через `computeSplitSizes` с учётом `Fraction` и collapsed-состояний.
 
-### Flex
+### Flex-рендеринг
 
-- **Horizontal flex** — элементы в строке, разделённые вертикальными границами
-- **Vertical flex** — элементы в колонке, разделённые горизонтальными границами
-- Размеры вычисляются по формуле: `basis + (remaining / grow_weights)`
-- Свёрнутые элементы получают размер 1 и не участвуют в распределении оставшегося пространства
+- **Horizontal flex** — элементы в строке, разделённые вертикальными границами `│`.
+- **Vertical flex** — элементы в колонке, разделённые горизонтальными границами `─`.
+- Граница между двумя элементами рендерится только если оба соседних элемента не collapsed.
+- Границы обёрнуты `ansi.ResetStyle`, как и в split-рендеринге.
+- Размеры элементов вычисляются через `computeFlexSizes`.
 
-### Collapsed Panels
+### Вычисление размеров flex
 
-- Свернутые панели получают фиксированный размер (`CollapsedSize`)
-- Границы не рендерятся между свернутыми и соседними панелями
-- Размер не может быть меньше `MinPanelSize`
+`computeFlexSizes`:
 
-### Border Rendering
+1. Для каждого элемента берётся базовый размер: `basis = Basis` (если не collapsed и `Basis <= 0`, то `basis = MinPanelSize`); для collapsed элементов `basis = 1`.
+2. `remaining = avail - totalBasis`. Если `remaining <= 0`, возвращаются `sizes` как есть.
+3. Если нет grow-весов (`totalGrow == 0`), `remaining` распределяется поровну между всеми не-collapsed элементами.
+4. Иначе `remaining` распределяется пропорционально `Grow` для каждого не-collapsed элемента, а остаток (остаток от целочисленного деления) дописывается в последний не-collapsed элемент.
+5. Collapsed элементы получают `basis` (обычно 1) и не участвуют в распределении.
 
-- Границы имеют толщину 1 ячейка
-- Вертикальная граница: `│`
-- Горизонтальная граница: `─`
-- При перетаскивании: `borderDragStyle.Render("│")` или `borderDragStyle.Render("─")`
-- ANSI стили изолированы через `ansi.ResetStyle`
+### Вычисление размеров split
+
+`computeSplitSizes`:
+
+1. Если `firstCollapsed`: `first = firstSize` (минимум 1), `second = avail - first`; если `second < MinPanelSize`, то `second = MinPanelSize`, `first = avail - second`.
+2. Если `secondCollapsed`: симметрично.
+3. Иначе `first = int(avail * fraction)` (не меньше `MinPanelSize`), `second = avail - first` (не меньше `MinPanelSize`, иначе коррекция).
+
+### Leaf-рендеринг
+
+- Leaf-узел рендерится через `node.Panel.View(w, h)`, результат прогоняется через `padContent`.
+- `padContent`:
+  1. Обрезает каждую строку по визуальной ширине `w` через `ansi.Truncate(line, w, "")`.
+  2. Дописывает пробелы до визуальной ширины `w` через `ansi.StringWidth`.
+  3. Добавляет `ansi.ResetStyle` в конец каждой строки, чтобы стили не утекали.
+  4. Возвращает ровно `h` строк.
+- Если `w <= 0` или `h <= 0`, возвращает `makeEmptyLines(w, h)`.
+
+### makeEmptyLines
+
+- Если `w <= 0` или `h <= 0`, возвращает `nil`.
+- Иначе возвращает `h` строк по `w` пробелов.
+
+### findBorders / findFlexBorders
+
+- `findBorders` рекурсивно собирает позиции границ:
+  - Для split: позиция границы вычисляется через `computeSplitSizes`; граница добавляется только если оба узла не collapsed.
+  - Для flex: позиция границ вычисляется через `computeFlexSizes`; граница добавляется только если оба соседних элемента не collapsed.
+- `findFlexBorders` — внутренняя версия для flex-контейнера, без split-ветки.
+- Границы внутри flex-контейнера обходятся через `findBorders(item.Node, ...)`, позиции `cx`/`cy` накапливаются по мере обхода.
 
 ## Side Effects Contract
 
-- Все функции пакета `render` помечены как `@pure` или `@sideeffect none`
-- Функции не производят I/O, не модифицируют глобальное состояние, не вызывают внешние API
-- Рендеринг полностью детерминирован при одинаковых входных параметрах
-
-## Примеры
-
-### Вертикальный split
-
-```go
-result := renderVerticalSplit(&SplitConfig{
-    Direction: Vertical,
-    First:     firstNode,
-    Second:    secondNode,
-    Fraction:  0.5,
-}, 80, 24)
-// result: []string — 24 строки по 80 символов
-```
-
-### Горизонтальный flex
-
-```go
-result := renderFlex(&FlexConfig{
-    Direction: Horizontal,
-    Items: []*FlexItem{
-        {Node: node1, Basis: 10, Grow: 1},
-        {Node: node2, Basis: 10, Grow: 2},
-    },
-}, 80, 24, sizes)
-// sizes вычисляется через computeFlexSizes
-```
-
-### Pad content
-
-```go
-content := "Hello\nWorld"
-result := padContent(content, 40, 2)
-// result: []string — 2 строки по 40 символов каждая
-```
+- Все функции файла `render.go` помечены как `@pure` / `@sideeffect none`.
+- Функции не производят I/O, не модифицируют глобальное состояние, не вызывают внешние API.
+- Рендеринг полностью детерминирован при одинаковых входных параметрах.
+- Допустимая внешняя зависимость — пакет `github.com/charmbracelet/x/ansi` (публичные константы/функции `ansi.ResetStyle`, `ansi.StringWidth`, `ansi.Truncate`).
 
 ## Ключевые Правила
 
-1. **Всегда проверяй размеры** — `w <= 0` или `h <= 0` возвращает `nil` или пустые линии
-2. **Учитывай collapsed** — свернутые элементы не получают границы и не участвуют в распределении
-3. **Изолируй ANSI стили** — каждая строка заканчивается `ansi.ResetStyle`
-4. **Минимальный размер** — `MinPanelSize` используется как fallback при недостатке пространства
-5. **Border isolation** — границы изолированы через `ansi.ResetStyle` для предотвращения утечки стилей
+1. **Всегда проверяй размеры** — `w <= 0` или `h <= 0` возвращает `nil` или пустые линии.
+2. **Учитывай collapsed** — границы не рендерятся между collapsed элементами, collapsed flex-элементы не участвуют в распределении, а collapsed split-узлы используют `CollapsedSize(direction)`.
+3. **Изолируй ANSI стили** — каждая строка и граница обёрнута в `ansi.ResetStyle`.
+4. **Минимальный размер** — `MinPanelSize` используется как fallback при недостатке пространства.
+5. **Border isolation** — границы изолированы через `ansi.ResetStyle` для предотвращения утечки стилей.
 
 ## Чеклист
 
-- [ ] Рендер вернёт точно `w × h` строк
-- [ ] Границы рендерятся только между не свернутыми элементами
-- [ ] ANSI стили изолированы на каждой строке
-- [ ] collapsed элементы используют фиксированный размер
-- [ ] Функции помечены с `@sideeffect` или `@pure`
+- [x] Рендер вернёт точно `w × h` строк (для leaf через `padContent`; для split/flex через компоновку из `renderNode`)
+- [x] Границы рендерятся только между не-collapsed элементами
+- [x] ANSI стили изолированы на каждой строке и границе
+- [x] Collapsed split-узлы используют `CollapsedSize(direction)`
+- [x] Все функции помечены как `@pure` / `@sideeffect none`

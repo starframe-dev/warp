@@ -1,67 +1,32 @@
 ---
 title: Components
-description: Built-in Warp components for input, menus, selection, overlays, context menus, and text wrapping.
+description: Warp's built-in input, menu, selection, overlay, scrolling, and wrapping components.
 ---
 
 # Components
 
-Warp includes small components you can compose into panels.
+Warp components implement `Panel` and compose through the same layout tree.
 
-## Input
+## Input and menus
 
-Create an input with:
+- `NewInput(prompt)` creates a single-line field with a rune cursor and editing keys.
+- `NewDropdownMenu(label, items)` creates a button and an expandable list.
+- `Popover` provides a context menu that overlays existing lines.
 
-```go
-warp.NewInput(prompt)
-```
+## Content wrappers
 
-Input supports cursor movement, backspace, arrow keys, `Home`, `End`, and `Delete`.
+- `NewSelectable(panel)` adds mouse and keyboard text selection; `Copy()` returns an OSC 52 command.
+- `NewScrollable(panel)` adds wheel, page, and line scrolling.
+- `NewCollapsible(title, panel)` adds a collapsible title section.
 
-## DropdownMenu
+## Dialogs
 
-Create a dropdown menu with:
+`NewModal(title, content, buttons, onClose)` creates a draggable modal with an overlay, close button, and button actions.
 
-```go
-warp.NewDropdownMenu(label, items)
-```
+## Text
 
-The component renders a `▼` button. Users can hover items and select an item from the list.
+`WordWrap`, `SpaceWrap`, and `WrapToString` handle fixed-width text using terminal display width.
 
-## Selectable
+## Theme
 
-Wrap a panel with selectable text support:
-
-```go
-warp.NewSelectable(panel)
-```
-
-Selectable supports mouse drag selection, `Shift` + arrows, `Ctrl+A`, and `Esc`. It can copy selected text through OSC 52 clipboard sequences.
-
-## Modal
-
-Create a modal dialog with:
-
-```go
-warp.NewModal(title, content, buttons, onClose)
-```
-
-A modal renders as an overlay. Users can drag it and close it.
-
-## Popover
-
-Create a popover directly:
-
-```go
-&warp.Popover{
-	Items:   items,
-	X:       x,
-	Y:       y,
-	OnClose: onClose,
-}
-```
-
-Use popovers for context menus. Clicking outside closes the popover.
-
-## Text wrapping
-
-Warp provides `WordWrap` and `SpaceWrap` utilities for wrapping text inside a fixed width.
+Use `SetTheme(ThemeColors{...})` to replace the default palette. The [Theme API](../api/theme) lists semantic fields and their mappings.

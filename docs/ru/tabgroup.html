@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tabgroup</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>TabGroup</h1>
+        <p>
+            <code>TabGroup</code> — панель Bubble Tea, которая отображает строку вкладок и переключает между дочерними вкладками.
+            Её можно встраивать внутри splits, flex-раскладок или использовать как корневую панель TUI-приложения.
+            Положение вкладок настраивается через <code>TabPosition</code> (top, bottom, left, right, none).
+        </p>
+
+        <h2>Типы</h2>
+        <h3>TabGroup</h3>
+        <div class="signature"><pre><code class="language-go">type TabGroup struct {
+    tabs      []*Tab
+    activeTab int
+    width     int
+    height    int
+
+    tabPosition      TabPosition
+    tabRegions       []tabRegion
+    newTabRegion     *tabRegion
+    verticalTabWidth int
+}</code></pre></div>
+        <p>
+            <code>TabGroup</code> хранит упорядоченный список панелей <code>*Tab</code>, отслеживает индекс активной вкладки
+            и кэширует геометрию каждого кадра (ширину, высоту, области срабатывания вкладок), используемую для обработки кликов мыши.
+        </p>
+
+        <h2>Публичный API</h2>
+        <table>
+            <thead>
+                <tr><th>Символ</th><th>Тип</th><th>Описание</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>NewTabGroup(pos TabPosition) *TabGroup</code></td><td>функция</td><td>Создаёт <code>TabGroup</code> с одной вкладкой по умолчанию с именем "main".</td></tr>
+                <tr><td><code>ActiveTab() *Tab</code></td><td>метод</td><td>Возвращает текущую активную вкладку или <code>nil</code>, если валидная вкладка не выбрана.</td></tr>
+                <tr><td><code>NewTab(name string) *Tab</code></td><td>метод</td><td>Создаёт новую вкладку, переключает на неё и возвращает новую вкладку.</td></tr>
+                <tr><td><code>NextTab()</code></td><td>метод</td><td>Переключает на следующую вкладку (по кругу).</td></tr>
+                <tr><td><code>PrevTab()</code></td><td>метод</td><td>Переключает на предыдущую вкладку (по кругу).</td></tr>
+                <tr><td><code>View(w, h int) string</code></td><td>метод</td><td>Отображает строку вкладок и содержимое активной вкладки.</td></tr>
+                <tr><td><code>Elements(w, h int) []Element</code></td><td>метод</td><td>Возвращает элементы активной вкладки со смещением по положению строки вкладок.</td></tr>
+                <tr><td><code>Update(msg tea.Msg) tea.Cmd</code></td><td>метод</td><td>Обрабатывает сообщения о клавишах, мыши, изменении размера и broadcast-сообщения.</td></tr>
+            </tbody>
+        </table>
+
+        <h2>Поведение</h2>
+        <h3>Переключение вкладок</h3>
+        <p>
+            <code>NextTab</code> и <code>PrevTab</code> переключают по кругу по списку вкладок с помощью модульной арифметики.
+            Если вкладка одна, они ничего не делают. <code>switchTab(idx)</code> — внутренняя функция, которая ограничивает
+            индекс до валидного диапазона перед обновлением <code>activeTab</code>.
+        </p>
+
+        <h3>Создание и закрытие вкладок</h3>
+        <p>
+            <code>NewTab</code> добавляет новую вкладку и сразу переключает на неё.
+            <code>closeTab</code> удаляет вкладку по индексу; если закрывается активная вкладка, индекс активной
+            ограничивается до последней оставшейся вкладки. Закрытие единственной вкладки не делает ничего.
+        </p>
+
+        <h3>Рендеринг</h3>
+        <p>
+            <code>View</code> собирает строку вкладок и содержимое активной вкладки, используя
+            <code>lipgloss.JoinVertical</code> / <code>lipgloss.JoinHorizontal</code> в зависимости от
+            <code>TabPosition</code>. Строка вкладок отображается как горизонтальный ряд меток вкладок
+            (для top/bottom) или как вертикальный столбец (для left/right). Метки вкладок обрезаются до 20 символов
+            (горизонтально) или до 15 символов (вертикально) с многоточием. У активной вкладки метка
+            отображается с префиксом <code>▎</code> и глифом закрытия <code>×</code>.
+        </p>
+
+        <h3>Взаимодействие с мышью</h3>
+        <p>
+            Область срабатывания строки вкладок (<code>tabRegion</code>) вычисляется заново каждый кадр во время рендеринга.
+            Клик по вкладке переключает на неё, клик по глифу закрытия закрывает вкладку, а клик по области
+            <code>+ /</code> создаёт новую вкладку. Логика обработки кликов различается для горизонтальной
+            и вертикальной раскладок строки.
+        </p>
+
+        <h3>Диспетчер сообщений</h3>
+        <p>
+            <code>Update</code> перехватывает <code>tea.KeyMsg</code> (ctrl+c, ctrl+tab, ctrl+shift+tab,
+            ctrl+w, ctrl+t), <code>tea.MouseMsg</code>, <code>tea.WindowSizeMsg</code> и
+            <code>ResizeMsg</code>. Все остальные сообщения broadcast'ятся на каждую вкладку, чтобы дочерние
+            панели (например, PTY-эмуляторы) их получали.
+        </p>
+
+        <h2>Детали реализации</h2>
+        <ul>
+            <li><code>padRight</code> дополняет строку пробелами до целевой ширины, используя подсчёт ширины с учётом rune в lipgloss.</li>
+            <li><code>tabRegion</code> хранит границы кликов по вкладкам; <code>idx == -1</code> отмечает область «новая вкладка».</li>
+            <li>Горизонтальная строка: области вычисляются слева направо с хвостовой областью <code>+</code>;
+                вертикальная строка: области выстраиваются сверху вниз с областью <code>+</code> последней.</li>
+            <li>Геометрия содержимого (<code>contentWidth</code>, <code>contentHeight</code>, <code>contentOffset</code>)
+                подстраивается под положение строки вкладок, чтобы дочерние панели выстраивались правильно.</li>
+            <li><code>shiftElements</code> рекурсивно сдвигает границы элементов, чтобы обработка кликов оставалась
+                согласованной после сдвига координат дочерних элементов строкой вкладок.</li>
+        </ul>
+
+        <h2>Пример</h2>
+        <div class="signature"><pre><code class="language-go">tg := warp.NewTabGroup(warp.TabTop)
+tg.NewTab("editor")
+tg.NewTab("logs")
+
+// Переключение на следующую вкладку
+tg.NextTab()
+</code></pre></div>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

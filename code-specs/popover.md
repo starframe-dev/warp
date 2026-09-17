@@ -38,6 +38,9 @@ type Popover struct {
     // rendered dimensions (set by Overlay)
     boxW, boxH int           // Размеры отрисованного меню
 
+    // clamped position (set by Overlay) — used by HandleMouse for hit-testing
+    clampedX, clampedY int   // Прижатая позиция после клампирования
+
     // selection
     selected int             // Индекс выбранного элемента
 }
@@ -50,6 +53,7 @@ type Popover struct {
 | Width | int | Ширина контента (0 = авто: 20) |
 | OnClose | func() | Callback при закрытии |
 | boxW, boxH | int | Внутренние (rendered) размеры |
+| clampedX, clampedY | int | Прижатая позиция, сохраняемая для hit-test'а |
 | selected | int | Индекс выбранного элемента |
 
 ### Методы
@@ -70,8 +74,8 @@ type Popover struct {
 1. Если `Items` пустой — возвращает оригинальные строки без изменений
 2. Вычисляет эффективную ширину контента (min(Width, totalW), default 20)
 3. Строит содержимое меню с обрамлением
-4. Сохраняет реальные размеры для hit-test'а
-5. Прижимает меню к границам терминала
+4. Сохраняет реальные размеры (`boxW`, `boxH`) для hit-test'а
+5. Прижимает меню к границам терминала и сохраняет прижатую позицию в `clampedX`/`clampedY`
 6. Накладывает меню, сохраняя левую и правую часть оригинального контента
 
 #### `HandleMouse(msg tea.MouseMsg) bool`
@@ -85,8 +89,11 @@ type Popover struct {
 - `true` если событие обработано
 
 **Поведение:**
+
+Для hit-test'а используется прижатая позиция `clampedX`/`clampedY` (если не заданы — исходные `X`/`Y`), а размеры — сохранённые `boxW`/`boxH`.
+
 - **MouseActionPress:**
-  - Если клик внутри меню — вызывает `Action()` выбранного элемента и `OnClose()`
+  - Если клик внутри меню — вызывает `Action()` соответствующего элемента и `OnClose()`
   - Если клик вне меню — вызывает `OnClose()`
 - **MouseActionMotion:**
   - Отслеживает ховер для визуальной обратной связи
@@ -131,7 +138,7 @@ type Popover struct {
 Используются функции из `github.com/charmbracelet/x/ansi`:
 - `ansi.Truncate()` — обрезка строк до визуальных колонок
 - `ansi.StringWidth()` — вычисление ширины строки в колонках
-- `ansiRe.ReplaceAllString()` — очистка от ANSI-кодов
+- `visualBytePos()` — перевод визуальной колонки в позицию байта для нарезки строки
 
 ### Hit-Test
 
@@ -178,11 +185,3 @@ lines := popover.Overlay(lines, terminalW, terminalH)
 popover.HandleMouse(msg)
 popover.HandleKey(msg)
 ```
-
-## Чеклист
-
-- [ ] Публичные методы имеют документацию
-- [ ] Примеры использования включены
-- [ ] Типы имеют комментарии
-- [ ] Внутренние поля имеют комментарии
-- [ ] Обработчики событий имеют комментарии

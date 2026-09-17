@@ -1,62 +1,95 @@
 ---
 title: Split и Flex
-description: API дерева Node, split-раскладки и flex-раскладки Warp.
+description: Типы дерева компоновки для split, flex и сворачиваемых узлов.
 ---
 
 # Split и Flex
 
-Warp использует `Node` для описания дерева раскладки.
+Warp хранит компоновку как дерево `Node`. Узел содержит листовую `Panel`, разделение на два дочерних узла или flex-контейнер.
 
 ## Node
 
-`Node` представляет элемент дерева layout: панель, split или flex-контейнер.
+```go
+type Node struct {
+    Panel    Panel
+    Split    *SplitConfig
+    Flex     *FlexConfig
+    Collapse *NodeCollapse
+}
+
+func (n *Node) IsLeaf() bool
+func (n *Node) IsCollapsed() bool
+func (n *Node) CollapsedSize(direction Direction) int
+```
 
 ## SplitConfig
 
 ```go
 type SplitConfig struct {
-    Direction Direction
-    Fraction  float64
-    First     *Node
-    Second    *Node
-    Dragging  bool
+    Direction   Direction
+    Fraction    float64
+    First       *Node
+    Second      *Node
+    Dragging    bool
+    CollapseRow int
+    OnCollapse  func() tea.Cmd
 }
 ```
 
-`SplitConfig` описывает деление области на две части.
+`Fraction` задаёт долю первого дочернего узла и ограничивается диапазоном `0.1..0.9`. `CollapseRow` и `OnCollapse` включают необязательный маркер сворачивания на вертикальной границе.
 
-- `Direction` — направление деления.
-- `Fraction` — доля первой области.
-- `First` и `Second` — дочерние узлы.
-- `Dragging` — состояние перетаскивания разделителя.
-
-## FlexConfig
+## FlexConfig и FlexItem
 
 ```go
 type FlexConfig struct {
     Direction Direction
-    Items     []FlexItem
+    Items     []*FlexItem
+    Dragging  bool
 }
-```
 
-`FlexConfig` описывает flex-раскладку с набором элементов.
+type FlexItem struct {
+    Node      *Node
+    Grow      int
+    Shrink    int
+    Basis     int
+    Collapsed bool
+}
 
-## FlexItemSpec
-
-```go
 type FlexItemSpec struct {
     Panel Panel
     Grow  int
 }
 ```
 
-`FlexItemSpec` задаёт панель и её коэффициент роста.
+`Tab.FlexRow` и `Tab.FlexColumn` преобразуют `FlexItemSpec` в элементы компоновки. Отрицательный `Grow` трактуется как ноль.
 
 ## Direction
 
 ```go
-VerticalSplit
-HorizontalSplit
+type Direction int
+
+const (
+    Vertical Direction = iota
+    Horizontal
+)
 ```
 
-`VerticalSplit` делит область по вертикали. `HorizontalSplit` делит область по горизонтали.
+`Vertical` располагает дочерние панели рядом. `Horizontal` располагает их сверху вниз.
+
+## Дополнительные типы
+
+```go
+type NodeCollapse struct {
+    Active bool
+    Width  int
+    Height int
+    Saved  float64
+}
+
+type ResizeMsg struct {
+    Width  int
+    Height int
+}
+```
+
+`ResizeMsg` передаёт панели выделенный размер в терминальных ячейках. Минимальный размер панели `MinPanelSize` равен `3`.

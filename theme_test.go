@@ -6,150 +6,141 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// TestSetTheme verifies that SetTheme propagates a ThemeColors palette
-// into every package-level color and style variable.
 func TestSetTheme(t *testing.T) {
-	originals := map[string]lipgloss.Color{
-		"gbDark0":     gbDark0,
-		"gbDark1":     gbDark1,
-		"gbDark2":     gbDark2,
-		"gbDark3":     gbDark3,
-		"gbDark4":     gbDark4,
-		"gbGray":      gbGray,
-		"gbLight1":    gbLight1,
-		"gbRed":       gbRed,
-		"gbGreen":     gbGreen,
-		"gbYellow":    gbYellow,
-		"gbBlue":      gbBlue,
-		"tabBarBg":    tabBarBg,
-		"activeTabBg": activeTabBg,
-		"inactiveFg":   inactiveTabFg,
+	originals := []lipgloss.Color{
+		gbDark0, gbDark1, gbDark2, gbDark3, gbDark4, gbGray,
+		gbLight1, gbRed, gbGreen, gbYellow, gbBlue,
 	}
 
 	defer func() {
-		for k, v := range originals {
-			switch k {
-			case "gbDark0":
-				gbDark0 = v
-			case "gbDark1":
-				gbDark1 = v
-			case "gbDark2":
-				gbDark2 = v
-			case "gbDark3":
-				gbDark3 = v
-			case "gbDark4":
-				gbDark4 = v
-			case "gbGray":
-				gbGray = v
-			case "gbLight1":
-				gbLight1 = v
-			case "gbRed":
-				gbRed = v
-			case "gbGreen":
-				gbGreen = v
-			case "gbYellow":
-				gbYellow = v
-			case "gbBlue":
-				gbBlue = v
-			case "tabBarBg":
-				tabBarBg = v
-			case "activeTabBg":
-				activeTabBg = v
-			case "inactiveFg":
-				inactiveTabFg = v
-			}
-		}
+		gbDark0 = originals[0]
+		gbDark1 = originals[1]
+		gbDark2 = originals[2]
+		gbDark3 = originals[3]
+		gbDark4 = originals[4]
+		gbGray = originals[5]
+		gbLight1 = originals[6]
+		gbRed = originals[7]
+		gbGreen = originals[8]
+		gbYellow = originals[9]
+		gbBlue = originals[10]
 	}()
 
-	styles := lipgloss.Color("#000001")
+	c := lipgloss.Color("#123456")
 	SetTheme(ThemeColors{
-		Background:          "#000001",
-		Surface:             "#000001",
-		Raised:              "#000001",
-		Border:              "#000001",
-		BorderMuted:         "#000001",
-		Text:                "#000001",
-		TextMuted:           "#000001",
-		TextStrong:          "#000001",
-		Accent:              "#000001",
-		AccentMuted:         "#000001",
-		Error:               "#000001",
-		Success:             "#000001",
-		Warning:             "#000001",
-		SelectionBackground: "#000001",
-		SelectionForeground: "#000001",
+		Background:          "#123456",
+		Surface:             "#123456",
+		Raised:              "#123456",
+		Border:              "#123456",
+		BorderMuted:         "#123456",
+		Text:                "#123456",
+		TextMuted:           "#123456",
+		TextStrong:          "#123456",
+		Accent:              "#123456",
+		AccentMuted:         "#123456",
+		Error:               "#123456",
+		Success:             "#123456",
+		Warning:             "#123456",
+		SelectionBackground: "#123456",
+		SelectionForeground: "#123456",
 	})
 
-	if gbDark0 != styles {
-		t.Errorf("expected gbDark0 to be %v, got %v", styles, gbDark0)
+	if gbDark0 != c {
+		t.Errorf("expected gbDark0 to be %v, got %v", c, gbDark0)
 	}
-	if gbDark1 != styles {
-		t.Errorf("expected gbDark1 to be %v, got %v", styles, gbDark1)
+	if gbDark1 != c {
+		t.Errorf("expected gbDark1 to be %v, got %v", c, gbDark1)
 	}
-	if gbDark2 != styles {
-		t.Errorf("expected gbDark2 to be %v, got %v", styles, gbDark2)
+	if gbDark2 != c {
+		t.Errorf("expected gbDark2 to be %v, got %v", c, gbDark2)
 	}
-	if gbDark3 != styles {
-		t.Errorf("expected gbDark3 to be %v, got %v", styles, gbDark3)
+	if gbDark3 != c {
+		t.Errorf("expected gbDark3 to be %v, got %v", c, gbDark3)
 	}
-	if gbDark4 != styles {
-		t.Errorf("expected gbDark4 to be %v, got %v", styles, gbDark4)
+	if gbDark4 != c {
+		t.Errorf("expected gbDark4 to be %v, got %v", c, gbDark4)
 	}
-	if gbGray != styles {
-		t.Errorf("expected gbGray to be %v, got %v", styles, gbGray)
+	if gbGray != c {
+		t.Errorf("expected gbGray to be %v, got %v", c, gbGray)
 	}
-	if gbLight1 != styles {
-		t.Errorf("expected gbLight1 to be %v, got %v", styles, gbLight1)
+	if gbLight1 != c {
+		t.Errorf("expected gbLight1 to be %v, got %v", c, gbLight1)
 	}
-	if gbRed != styles {
-		t.Errorf("expected gbRed to be %v, got %v", styles, gbRed)
+	if gbRed != c {
+		t.Errorf("expected gbRed to be %v, got %v", c, gbRed)
 	}
-	if gbGreen != styles {
-		t.Errorf("expected gbGreen to be %v, got %v", styles, gbGreen)
+	if gbGreen != c {
+		t.Errorf("expected gbGreen to be %v, got %v", c, gbGreen)
 	}
-	if gbYellow != styles {
-		t.Errorf("expected gbYellow to be %v, got %v", styles, gbYellow)
+	if gbYellow != c {
+		t.Errorf("expected gbYellow to be %v, got %v", c, gbYellow)
 	}
-	if gbBlue != styles {
-		t.Errorf("expected gbBlue to be %v, got %v", styles, gbBlue)
-	}
-
-	if tabBarBg != styles {
-		t.Errorf("expected tabBarBg to be %v, got %v", styles, tabBarBg)
-	}
-	if activeTabBg != styles {
-		t.Errorf("expected activeTabBg to be %v, got %v", styles, activeTabBg)
-	}
-	if inactiveTabFg != styles {
-		t.Errorf("expected inactiveTabFg to be %v, got %v", styles, inactiveTabFg)
-	}
-	if newTabFg != styles {
-		t.Errorf("expected newTabFg to be %v, got %v", styles, newTabFg)
-	}
-	if closeTabFg != styles {
-		t.Errorf("expected closeTabFg to be %v, got %v", styles, closeTabFg)
+	if gbBlue != c {
+		t.Errorf("expected gbBlue to be %v, got %v", c, gbBlue)
 	}
 
-	if borderStyle.GetForeground() != styles {
-		t.Errorf("expected borderStyle fg %v, got %v", styles, borderStyle.GetForeground())
+	if tabBarBg != c {
+		t.Errorf("expected tabBarBg to be %v, got %v", c, tabBarBg)
 	}
-	if borderHoverStyle.GetForeground() != styles {
-		t.Errorf("expected borderHoverStyle fg %v, got %v", styles, borderHoverStyle.GetForeground())
+	if activeTabBg != c {
+		t.Errorf("expected activeTabBg to be %v, got %v", c, activeTabBg)
 	}
-	if borderDragStyle.GetForeground() != styles {
-		t.Errorf("expected borderDragStyle fg %v, got %v", styles, borderDragStyle.GetForeground())
+	if inactiveTabFg != c {
+		t.Errorf("expected inactiveTabFg to be %v, got %v", c, inactiveTabFg)
 	}
-	if floatTitleStyle.GetForeground() != styles || floatTitleStyle.GetBackground() != styles {
+	if newTabFg != c {
+		t.Errorf("expected newTabFg to be %v, got %v", c, newTabFg)
+	}
+	if closeTabFg != c {
+		t.Errorf("expected closeTabFg to be %v, got %v", c, closeTabFg)
+	}
+
+	if borderStyle.GetForeground() != c {
+		t.Errorf("borderStyle fg mismatch: got %v", borderStyle.GetForeground())
+	}
+	if borderHoverStyle.GetForeground() != c {
+		t.Errorf("borderHoverStyle fg mismatch: got %v", borderHoverStyle.GetForeground())
+	}
+	if borderDragStyle.GetForeground() != c {
+		t.Errorf("borderDragStyle fg mismatch: got %v", borderDragStyle.GetForeground())
+	}
+	if collapsibleStyle.GetForeground() != c {
+		t.Errorf("collapsibleStyle fg mismatch: got %v", collapsibleStyle.GetForeground())
+	}
+	if floatBorderStyle.GetForeground() != c {
+		t.Errorf("floatBorderStyle fg mismatch: got %v", floatBorderStyle.GetForeground())
+	}
+	if floatTitleStyle.GetForeground() != c || floatTitleStyle.GetBackground() != c {
 		t.Errorf("floatTitleStyle mismatch: got bg %v, fg %v", floatTitleStyle.GetBackground(), floatTitleStyle.GetForeground())
 	}
-	if dimStyle.GetForeground() != styles || dimStyle.GetBackground() != styles {
-		t.Errorf("dimStyle mismatch: got bg %v, fg %v", dimStyle.GetBackground(), dimStyle.GetForeground())
+	if floatCloseStyle.GetForeground() != c {
+		t.Errorf("floatCloseStyle fg mismatch: got %v", floatCloseStyle.GetForeground())
 	}
-	if popoverBaseStyle.GetForeground() != styles || popoverBaseStyle.GetBackground() != styles {
+	if floatBgStyle.GetBackground() != c {
+		t.Errorf("floatBgStyle bg mismatch: got %v", floatBgStyle.GetBackground())
+	}
+	if dropdownButtonStyle.GetBackground() != c || dropdownButtonStyle.GetForeground() != c {
+		t.Errorf("dropdownButtonStyle mismatch: got bg %v, fg %v", dropdownButtonStyle.GetBackground(), dropdownButtonStyle.GetForeground())
+	}
+	if dropdownItemStyle.GetBackground() != c || dropdownItemStyle.GetForeground() != c {
+		t.Errorf("dropdownItemStyle mismatch: got bg %v, fg %v", dropdownItemStyle.GetBackground(), dropdownItemStyle.GetForeground())
+	}
+	if popoverBaseStyle.GetBackground() != c || popoverBaseStyle.GetForeground() != c {
 		t.Errorf("popoverBaseStyle mismatch: got bg %v, fg %v", popoverBaseStyle.GetBackground(), popoverBaseStyle.GetForeground())
 	}
-	b, _, _, _, _ := modalBorderStyle.GetBorder()
-	if b == lipgloss.NormalBorder() {
-		t.Errorf("expected modalBorderStyle border")
+	if popoverSelectedStyle.GetBackground() != c || popoverSelectedStyle.GetForeground() != c {
+		t.Errorf("popoverSelectedStyle mismatch: got bg %v, fg %v", popoverSelectedStyle.GetBackground(), popoverSelectedStyle.GetForeground())
+	}
+	if dimStyle.GetBackground() != c || dimStyle.GetForeground() != c {
+		t.Errorf("dimStyle mismatch: got bg %v, fg %v", dimStyle.GetBackground(), dimStyle.GetForeground())
+	}
+	if inputStyle.GetForeground() != c {
+		t.Errorf("inputStyle fg mismatch: got %v", inputStyle.GetForeground())
+	}
+	if inputBorderStyle.GetForeground() != c {
+		t.Errorf("inputBorderStyle fg mismatch: got %v", inputBorderStyle.GetForeground())
+	}
+	if inputFocusBorderStyle.GetForeground() != c {
+		t.Errorf("inputFocusBorderStyle fg mismatch: got %v", inputFocusBorderStyle.GetForeground())
 	}
 }

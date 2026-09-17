@@ -1,11 +1,9 @@
 ---
 title: Panel
-description: Базовый интерфейс панели Warp.
+description: Интерфейс, который реализует каждая панель в компоновке Warp.
 ---
 
 # Panel
-
-`Panel` — базовый интерфейс для всех визуальных компонентов Warp.
 
 ```go
 type Panel interface {
@@ -14,4 +12,15 @@ type Panel interface {
 }
 ```
 
-`View` рендерит панель в заданных размерах. `Update` обрабатывает сообщения Bubble Tea и возвращает команду.
+`View` получает размер панели в терминальных ячейках. `Update` обрабатывает сообщения Bubble Tea и может вернуть команду.
+
+## BasePanel
+
+```go
+type BasePanel struct{}
+
+func (BasePanel) View(width, height int) string
+func (BasePanel) Update(msg tea.Msg) tea.Cmd
+```
+
+Встраивайте `BasePanel`, если панели достаточно пустого представления и no-op обновления. Фокус и семантическое дерево добавляются отдельными интерфейсами `Focusable` и `ElementProvider`.

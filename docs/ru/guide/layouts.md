@@ -5,79 +5,71 @@ description: Split, Flex, Float, вложенные TabGroup, Collapsible и Scr
 
 # Компоновка
 
-Warp поддерживает несколько способов построения интерфейса: split, flex, float и вложенные панели.
+Начните с `Tab` и используйте его методы, чтобы заменять панели в дереве компоновки.
 
 ## Split
 
-Split делит родительскую область на две части.
+Split делит область на две части с перетаскиваемой границей:
 
 ```go
-warp.SplitVertical(parent, fraction, panel)
-warp.SplitHorizontal(parent, fraction, panel)
+tab.SplitVertical(parent, 0.5, rightPanel)
+tab.SplitHorizontal(parent, 0.5, bottomPanel)
 ```
 
-- `SplitVertical` делит область по вертикали;
-- `SplitHorizontal` делит область по горизонтали;
-- `fraction` задаёт долю пространства для одной из частей;
-- границы split-компоновки можно перетаскивать мышью.
+`fraction` задаёт долю первого дочернего узла. Warp ограничивает её диапазоном `0.1..0.9`.
 
 ## Flex
 
-Flex распределяет несколько элементов в строке или колонке.
+Flex распределяет несколько дочерних панелей в строке или колонке:
 
 ```go
-warp.FlexRow(parent, items)
-warp.FlexColumn(parent, items)
+tab.FlexRow(parent, []warp.FlexItemSpec{
+    {Panel: leftPanel, Grow: 1},
+    {Panel: rightPanel, Grow: 2},
+})
+tab.FlexColumn(parent, items)
 ```
 
-Элементы используют веса `Grow`. Чем больше вес, тем больше пространства получает элемент относительно остальных.
+Значения `Grow` делят доступное пространство между элементами. Отрицательное значение превращается в ноль.
 
 ## Float
 
-Float создаёт плавающее окно поверх контента.
+Панель можно разместить поверх основной компоновки:
 
 ```go
-warp.Float(panel, x, y, w, h)
+tab.Float(panel, 10, 4, 30, 8)
 ```
 
-Float-панели поддерживают:
+Float поддерживает перетаскивание, изменение размера за границы, кнопку закрытия и изменение z-order при клике.
 
-- перетаскивание;
-- изменение размера;
-- закрытие;
-- изменение Z-order при клике.
+## Вложенные компоновки
 
-При клике окно поднимается выше остальных float-окон.
+`TabGroup` уже реализует `Panel`, поэтому его можно вставить прямо в split или flex:
 
-## Вложенность
+```go
+tg := warp.NewTabGroup(warp.TabLeft)
+tg.NewTab("inspector")
+tab.FlexRow(tab.RootPanel(), []warp.FlexItemSpec{
+    {Panel: tg, Grow: 1},
+    {Panel: content, Grow: 2},
+})
+```
 
-`TabGroup` можно использовать как обычную `Panel` через `AsPanel()`.
-
-Это позволяет вкладывать вкладки внутрь других компоновок и даже запускать Warp внутри Warp.
+Для полного вложенного Warp используйте `inner.AsPanel()`.
 
 ## Collapsible
 
-Collapsible-панель можно свернуть и развернуть.
-
 ```go
-panel := warp.NewCollapsible(title, panel)
-warp.ToggleCollapsible(panel)
+collapsed := warp.NewCollapsible("Details", panel)
+tab.SetRootPanel(collapsed)
+tab.ToggleCollapsible(collapsed)
 ```
-
-`NewCollapsible(title, panel)` создаёт сворачиваемую панель.
-
-`ToggleCollapsible(panel)` переключает её состояние.
 
 ## Scrollable
 
-Scrollable добавляет прокрутку для панели.
-
 ```go
-panel := warp.NewScrollable(panel)
+scroll := warp.NewScrollable(panel)
+tab.SetRootPanel(scroll)
 ```
 
-Поддерживаются:
-
-- колесо мыши;
-- `PgUp`;
-- `PgDn`.
+Поддерживаются колесо мыши, `PgUp`, `PgDn` и построчная навигация.

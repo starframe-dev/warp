@@ -1,70 +1,75 @@
 ---
 title: Layouts
-description: Build Warp layouts with splits, flex containers, floats, nested tab groups, collapsible panels, and scrollable panels.
+description: Build Warp layouts with splits, flex containers, floats, nested tab groups, collapsible panels, and scrolling.
 ---
 
 # Layouts
 
-Warp layouts start from a panel and grow into a tree.
+Start with a `Tab` and use its methods to replace panels in the layout tree.
 
 ## Splits
 
-Use splits when you want two regions separated by a border:
+Use a split for two regions separated by a draggable border:
 
 ```go
-warp.SplitVertical(parent, fraction, panel)
-warp.SplitHorizontal(parent, fraction, panel)
+tab.SplitVertical(parent, 0.5, rightPanel)
+tab.SplitHorizontal(parent, 0.5, bottomPanel)
 ```
 
-The `fraction` controls how much space the first side receives. Users can drag split borders with the mouse.
+The fraction controls the share of the first child. Warp clamps it to `0.1..0.9`.
 
 ## Flex
 
-Use flex layouts when several children share one row or column:
+Use flex when several children share a row or column:
 
 ```go
-warp.FlexRow(parent, items)
-warp.FlexColumn(parent, items)
+tab.FlexRow(parent, []warp.FlexItemSpec{
+    {Panel: leftPanel, Grow: 1},
+    {Panel: rightPanel, Grow: 2},
+})
+tab.FlexColumn(parent, items)
 ```
 
-Each item uses a `Grow` weight. Larger weights receive more space.
+The `Grow` values divide the available space among flex items. A negative value becomes zero.
 
 ## Floats
 
-Use floats for panels that should overlay the main layout:
+Place a panel above the normal layout:
 
 ```go
-warp.Float(panel, x, y, w, h)
+tab.Float(panel, 10, 4, 30, 8)
 ```
 
-Floating panels can be dragged, resized, and closed. Clicking a float brings it to the front.
+Float panes support dragging, edge resizing, a close button, and z-order changes when clicked.
 
 ## Nested layouts
 
-`TabGroup` can act as a `Panel` through `AsPanel()`. This lets you place tab groups inside splits, flex regions, floats, or another Warp instance.
+`TabGroup` already implements `Panel`, so insert it directly into a split or flex layout:
 
-You can also nest Warp inside Warp when an embedded area needs its own layout engine.
+```go
+tg := warp.NewTabGroup(warp.TabLeft)
+tg.NewTab("inspector")
+tab.FlexRow(tab.RootPanel(), []warp.FlexItemSpec{
+    {Panel: tg, Grow: 1},
+    {Panel: content, Grow: 2},
+})
+```
+
+For a complete nested Warp, use `inner.AsPanel()`.
 
 ## Collapsible panels
 
-Create a collapsible region with:
-
 ```go
-warp.NewCollapsible(title, panel)
-```
-
-Toggle it with:
-
-```go
-warp.ToggleCollapsible(panel)
+collapsed := warp.NewCollapsible("Details", panel)
+tab.SetRootPanel(collapsed)
+tab.ToggleCollapsible(collapsed)
 ```
 
 ## Scrollable panels
 
-Wrap content in a scrollable panel with:
-
 ```go
-warp.NewScrollable(panel)
+scroll := warp.NewScrollable(panel)
+tab.SetRootPanel(scroll)
 ```
 
-Scrollable panels support mouse wheel input plus `PgUp` and `PgDn`.
+Scrolling supports the mouse wheel, `PgUp`, `PgDn`, and line navigation keys.

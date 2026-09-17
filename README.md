@@ -50,9 +50,16 @@ go run ./cmd/demo/
 
 ## Documentation
 
-- [docs](https://starframe-dev.github.io/warp/docs/) — full documentation (English + Russian)
+- [docs](https://starframe-dev.github.io/warp/docs/) — curated VitePress documentation (English + Russian)
+- [Generated reference](https://starframe-dev.github.io/warp/docs/guide/generated-reference) — per-file HTML output from code-check
 - [specs](specs/) — project specifications
 - [Plans](https://github.com/starframe-dev/warp/issues) — roadmap and plans
+
+### Documentation layout
+
+- `docs/guide/` and `docs/api/` — English VitePress pages
+- `docs/ru/guide/` and `docs/ru/api/` — Russian VitePress pages
+- `docs/en/` and `docs/ru/` — generated HTML kept at the paths required by code-check
 
 ## License
 

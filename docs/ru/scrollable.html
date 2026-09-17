@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>scrollable</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Scrollable</h1>
+        <p>
+            <code>Scrollable</code> — компонент Bubble Tea UI, который оборачивает любой
+            <code>Panel</code> и добавляет поддержку прокрутки. Когда рендеруемый контент
+            превышает выделенную высоту, видимая часть ограничивается <code>h</code>
+            строками, а пользователь может прокручивать остальное содержимое колесом
+            мыши или клавиатурой.
+        </p>
+
+        <h2>Публичный API</h2>
+
+        <div class="signature">
+            <pre><code class="language-go">type Scrollable struct {
+    Content Panel
+    Offset  int
+}</code></pre>
+        </div>
+
+        <table>
+            <tr>
+                <th>Поле</th>
+                <th>Тип</th>
+                <th>Описание</th>
+            </tr>
+            <tr>
+                <td><code>Content</code></td>
+                <td><code>Panel</code></td>
+                <td>Вложенная панель, содержимое которой рендерится и прокручивается.</td>
+            </tr>
+            <tr>
+                <td><code>Offset</code></td>
+                <td><code>int</code></td>
+                <td>Текущее смещение прокрутки в строках. Отрицательные значения ограничиваются 0, значения выше максимального ограничиваются <code>len(lines) - h</code>.</td>
+            </tr>
+        </table>
+
+        <h3>NewScrollable</h3>
+
+<div class="signature">
+    <pre><code class="language-go">func NewScrollable(content Panel) *Scrollable</code></pre>
+</div>
+
+<p>Создаёт новый <code>Scrollable</code>, оборачивающий заданный <code>Panel</code>. Начальное значение <code>Offset</code> равно нулю.</p>
+
+<h3>View</h3>
+
+<div class="signature">
+    <pre><code class="language-go">func (s *Scrollable) View(w, h int) string</code></pre>
+</div>
+
+<p>Рендерит видимую область просмотра (viewport). Полное содержимое рендерится один раз
+с запрошенным шириной и фактически неограниченной высотой, разбивается на строки, а затем
+нарезается так, что отображаются только <code>h</code> строк, начиная с позиции
+<code>s.Offset</code>. Строки за пределами содержимого дополняются пробелами
+для заполнения области просмотра.</p>
+
+<h3>Update</h3>
+
+<div class="signature">
+    <pre><code class="language-go">func (s *Scrollable) Update(msg tea.Msg) tea.Cmd</code></pre>
+</div>
+
+<p>Обрабатывает входящие сообщения Bubble Tea. Настройка <code>s.Offset</code> по
+сообщениям прокрутки колесом мыши и клавиатуры, после чего сообщение
+переправляется в <code>s.Content</code>, если он не nil.</p>
+
+<h2>Поведение прокрутки</h2>
+
+<p>Метод <code>Update</code> обрабатывает два типа сообщений:</p>
+<ul>
+    <li>
+        <code>tea.MouseMsg</code>:
+        <ul>
+            <li><code>MouseButtonWheelUp</code> — уменьшает смещение на 3 (с ограничением до 0)</li>
+            <li><code>MouseButtonWheelDown</code> — увеличивает смещение на 3</li>
+        </ul>
+    </li>
+    <li>
+        <code>tea.KeyMsg</code>:
+        <ul>
+            <li><code>"up"</code> — уменьшает смещение на 1 (с ограничением до 0)</li>
+            <li><code>"down"</code> — увеличивает смещение на 1</li>
+            <li><code>"pgup"</code> — уменьшает смещение на 10 (с ограничением до 0)</li>
+            <li><code>"pgdown"</code> — увеличивает смещение на 10</li>
+        </ul>
+    </li>
+</ul>
+
+<p>После обработки сообщения прокрутки смещение ограничивается в <code>View</code>:</p>
+
+<div class="signature">
+<pre><code class="language-go">maxOffset := len(lines) - h
+if maxOffset < 0 { maxOffset = 0 }
+if s.Offset < 0 { s.Offset = 0 }
+if s.Offset > maxOffset { s.Offset = maxOffset }</code></pre>
+</div>
+
+<p>Это гарантирует, что область просмотра никогда не прокручивается за пределы содержимого.</p>
+
+<h2>Детали реализации</h2>
+
+<ul>
+    <li>
+        <strong>Стратегия рендеринга:</strong> вложенный <code>Panel</code> рендерится
+        с <code>View(w, 9999)</code>, то есть с очень большой высотой, так что всё его содержимое
+        производится за один проход. Результат разбивается по <code>"\n"</code> на строки.
+    </li>
+    <li>
+        <strong>Дополнение/обрезка строк:</strong> каждая видимая строка проходит через
+        хелпер уровня пакета <code>padLine</code>, который использует
+        <code>lipgloss.Width</code> для определения отображаемой ширины. Строки короче
+        <code>w</code> дополняются пробелами справа; строки длиннее <code>w</code>
+        обрезаются по границе байта так, чтобы видимая ширина укладывалась
+        в выделенный бюджет колонок.
+    </li>
+    <li>
+        <strong>Пересылка сообщений:</strong> любое сообщение, не влияющее на
+        прокрутку (то есть не-мышечное, не-клавиатурное или клавиши, отличные
+        от up/down/pgup/pgdown), пересылается
+        в <code>s.Content.Update(msg)</code>. Если <code>s.Content</code> равен nil,
+        команда не возвращается.
+    </li>
+</ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

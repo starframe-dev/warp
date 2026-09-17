@@ -1,5 +1,8 @@
 # Warp — Handoff
 
+[2026-09-17] Problem: code-check generated TabGroup tests assumed a tab-bar width for every position and used row zero for a vertical active tab → Solution: align the tests with the current vertical-only width calculation, active-tab row, and visual padding behavior.
+[2026-09-17] Problem: VitePress treated links to code-check HTML artifacts as dead Markdown routes → Solution: keep those artifacts on the code-check paths and link to them with raw HTML anchors from a curated VitePress reference page.
+
 ## Что это
 
 Warp — Go-библиотека (Bubbletea layout engine) для создания TUI с гибким управлением
@@ -8,7 +11,7 @@ Warp — Go-библиотека (Bubbletea layout engine) для создани
 
 ## Состояние проекта
 
-**v0.7** — Input component, explicit focus API, Modal, Popover, Element tree, 35 тестов.
+**Текущее состояние** — Input, explicit focus API, Modal, Popover, Element tree и runtime-тема через `SetTheme`. Тестовый набор расширен code-check.
 
 ## Новое в v0.7
 
@@ -20,7 +23,8 @@ Warp — Go-библиотека (Bubbletea layout engine) для создани
 - **Popover** — контекстное меню с Overlay, HandleMouse, HandleKey
 - **Element tree** — `ElementProvider` интерфейс для семантического UI-дерева (HTTP endpoint)
 - **ContextMenu удалён** — заменён на Popover
-- **35 тестов** (было 27)
+- **Тесты** расширены проверками edge cases и Theme API
+- **Theme API** — `ThemeColors` и `SetTheme` для runtime-переопределения палитры и стилей
 
 ## Демо (`cmd/demo/main.go`)
 
@@ -64,6 +68,7 @@ split.go        — Node, SplitConfig, FlexConfig, Direction, MinPanelSize=3
 render.go       — renderNode (рекурсивный), findBorders, padContent, computeFlexSizes
 float.go        — FloatPane: рамка, drag, resize, overlayFloat, StripANSI, CloseOnOutsideClick
 styles.go       — lipgloss-стили (Gruvbox Dark)
+theme.go        — ThemeColors и SetTheme для runtime-переопределения темы
 collapsible.go  — Collapsible Panel с заголовком и toggle
 scrollable.go   — Scrollable Panel с viewport и mouse wheel
 dropdown.go     — DropdownMenu Panel с кнопкой и раскрывающимся списком
@@ -199,7 +204,7 @@ w.Run()
 
 ## Что не доделано / Ideas
 
-- **Стилизация** — цвета захардкожены в styles.go, нет публичного API для кастомизации
+- **Стилизация** — `SetTheme` меняет семантическую палитру; отдельного API для настройки каждого внутреннего style нет
 - **Анимации** — нет (drag без анимации, переключение табов мгновенное)
 - **Nested float** — float внутри float не поддерживается
 - **List / Table** — нет компонентов для списков и таблиц
@@ -207,7 +212,7 @@ w.Run()
 - **Subscriptions** — нет таймеров, Spinner, Progress
 - **Layout constraints** — нет padding, gap, align, justify как в CSS
 - **Help overlay** — нет встроенного help с key bindings
-- **HTTP element tree** — ElementProvider есть, но HTTP сервер не реализован в warp
+- **HTTP element tree** — `/elements` отдаёт дерево `ElementProvider`; события через HTTP не передаются
 
 ## Changelog
 

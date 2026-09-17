@@ -1,4 +1,49 @@
+import { readdir, readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import type { Plugin } from 'vite'
 import { defineConfig } from 'vitepress'
+
+const docsRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+
+async function generatedFiles(root: string): Promise<string[]> {
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
+  const files: string[] = []
+
+  for (const entry of entries) {
+    const absolutePath = path.join(root, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...await generatedFiles(absolutePath))
+      continue
+    }
+    if (entry.isFile() && entry.name.endsWith('.html')) {
+      files.push(absolutePath)
+    }
+  }
+
+  return files
+}
+
+function codeCheckDocsPlugin(): Plugin {
+  return {
+    name: 'copy-code-check-docs',
+    async generateBundle() {
+      for (const language of ['en', 'ru']) {
+        const languageRoot = path.join(docsRoot, language)
+        const files = await generatedFiles(languageRoot)
+
+        for (const absolutePath of files) {
+          const relativePath = path.relative(languageRoot, absolutePath).split(path.sep).join('/')
+          this.emitFile({
+            type: 'asset',
+            fileName: path.posix.join(language, relativePath),
+            source: await readFile(absolutePath),
+          })
+        }
+      }
+    },
+  }
+}
 
 export default defineConfig({
   title: 'Warp',
@@ -27,6 +72,7 @@ export default defineConfig({
                 { text: 'Layouts', link: '/guide/layouts' },
                 { text: 'Components', link: '/guide/components' },
                 { text: 'Focus & Input', link: '/guide/focus-input' },
+                { text: 'Generated source reference', link: '/guide/generated-reference' },
               ],
             },
           ],
@@ -49,8 +95,10 @@ export default defineConfig({
                 { text: 'Modal', link: '/api/modal' },
                 { text: 'Popover', link: '/api/popover' },
                 { text: 'Focus', link: '/api/focus' },
+                { text: 'Element tree', link: '/api/element' },
                 { text: 'Word Wrap', link: '/api/wrap' },
                 { text: 'Styles', link: '/api/styles' },
+                { text: 'Theme', link: '/api/theme' },
               ],
             },
           ],
@@ -77,6 +125,7 @@ export default defineConfig({
                 { text: 'Компоновка', link: '/ru/guide/layouts' },
                 { text: 'Компоненты', link: '/ru/guide/components' },
                 { text: 'Фокус и ввод', link: '/ru/guide/focus-input' },
+                { text: 'Сгенерированный справочник', link: '/ru/guide/generated-reference' },
               ],
             },
           ],
@@ -99,14 +148,20 @@ export default defineConfig({
                 { text: 'Modal', link: '/ru/api/modal' },
                 { text: 'Popover', link: '/ru/api/popover' },
                 { text: 'Focus', link: '/ru/api/focus' },
+                { text: 'Дерево элементов', link: '/ru/api/element' },
                 { text: 'Word Wrap', link: '/ru/api/wrap' },
                 { text: 'Стили', link: '/ru/api/styles' },
+                { text: 'Тема', link: '/ru/api/theme' },
               ],
             },
           ],
         },
       },
     },
+  },
+
+  vite: {
+    plugins: [codeCheckDocsPlugin()],
   },
 
   themeConfig: {

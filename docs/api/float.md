@@ -1,39 +1,42 @@
 ---
 title: Float
-description: Floating panel overlay
+description: Floating panel state and rendering behavior.
 ---
 
 # Float
 
-Floating panels rendered on top of existing content.
+A `FloatPane` describes a panel rendered above a tab's normal layout. Use `Tab.Float` to create one and `Tab.CloseFloat` to remove it.
 
 ## FloatPane
 
 ```go
 type FloatPane struct {
-    Panel              Panel
-    X, Y, W, H        int
+    Panel  Panel
+    X, Y   int
+    Width  int
+    Height int
+    Title  string
+    CloseRequested    bool
     CloseOnOutsideClick bool
 }
 ```
 
-## Constructor
+`CloseRequested` becomes true after the close button is pressed. The owning `Tab` removes the pane. `CloseOnOutsideClick` enables closing when the user presses outside the pane.
+
+There is no public `NewFloatPane` constructor or public overlay method. Rendering and mouse dispatch are managed by `Tab`.
+
+## Creating a float
 
 ```go
-func NewFloatPane(panel Panel, x, y, w, h int) *FloatPane
+tab.Float(panel, 10, 4, 30, 8)
 ```
 
-## Methods
+Floats support dragging, edge resizing, a title bar, and a close button. A click inside a float brings it to the front and does not propagate to panels below it.
 
-```go
-func (fp *FloatPane) Overlay(lines []string, totalW, totalH int) []string
-func (fp *FloatPane) HandleMouse(msg tea.MouseMsg) bool
-```
-
-## Utility
+## ANSI helper
 
 ```go
 func StripANSI(s string) string
 ```
 
-Removes ANSI escape codes from a string.
+Removes ANSI escape sequences. Warp uses visual cell widths when composing overlays.

@@ -1,43 +1,49 @@
 ---
 title: Input
-description: Текстовый ввод Warp с фокусом и редактированием строки.
+description: Однострочный текстовый ввод с курсором и фокусом.
 ---
 
 # Input
 
-`Input` — однострочный текстовый ввод.
+`Input` — однострочная панель с prompt, редактируемым значением и курсором по рунам.
 
-## Создание
-
-```go
-NewInput(prompt string) *Input
-```
-
-Создаёт поле ввода с приглашением.
-
-## Значение
+## Конструктор
 
 ```go
-SetValue(v string)
-Value() string
+func NewInput(prompt string) *Input
 ```
 
-`SetValue` задаёт текст. `Value` возвращает текущий текст.
-
-## Фокус
+## Публичные поля
 
 ```go
-Focus()
-Blur()
-Focused() bool
+type Input struct {
+    Value  string
+    Cursor int
+    Prompt string
+    Width  int
+}
 ```
 
-`Focus` включает фокус. `Blur` снимает фокус. `Focused` возвращает состояние фокуса.
+`Cursor` хранит индекс руны. При `Width == 0` `View` использует доступную ширину.
 
-## Интерфейсы
+## Методы
 
-`Input` реализует `Focusable` и `Panel`.
+```go
+func (in *Input) SetValue(value string)
+func (in *Input) SetCursor(position int)
+func (in *Input) Focus()
+func (in *Input) Blur()
+func (in *Input) Focused() bool
+func (in *Input) View(width, height int) string
+func (in *Input) Update(msg tea.Msg) tea.Cmd
+```
 
-## Управление
+`Input` реализует `Panel` и `Focusable`.
 
-Поддерживаются курсор, `backspace`, `delete`, стрелки, `home` и `end`.
+## Клавиши редактирования
+
+- Текст вставляется на позиции курсора.
+- `Backspace` удаляет руну перед курсором.
+- `Delete` удаляет руну после курсора.
+- Стрелки перемещают курсор.
+- `Home` и `End` переходят в начало и конец строки.

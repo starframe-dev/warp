@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>float</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>warp — <code>float.go</code> (float pane)</h1>
+
+        <p>
+            Файл пакета <code>float</code> реализует <em>всплывающую панель</em> (floating panel),
+            которая отображается поверх основного макета warp. Он владеет собственным
+            прямоугольником (<code>X</code>, <code>Y</code>, <code>Width</code>, <code>Height</code>),
+            отрисовывает заголовок и закрываемую рамку, обрабатывает взаимодействие с мышью
+            (перетаскивание, изменение размера, закрытие, фокусирование) и, наконец,
+            накладывается своё содержимое на уже отрендеренные строки экрана — всё это
+            с учётом ANSI-последовательностей, чтобы стилизованный текст и рамки
+            не порождали друг друга.
+        </p>
+
+        <h2>Публичный API</h2>
+
+        <h3><code>FloatPane</code></h3>
+<div class="signature"><code class="language-go">type FloatPane struct {
+    Panel  Panel
+    X, Y, Width, Height int
+    Title string
+    // exported state used by the owner
+    CloseRequested bool
+    CloseOnOutsideClick bool
+    // unexported interaction state (drag / resize bookkeeping)
+    ...
+}</code></div>
+
+        <p>
+            Всплывающая панель, которая состоит из обычной <code>Panel</code> плюс
+            прямоугольник экрана. Экспортируемые поля:
+        </p>
+        <ul>
+            <li><code>Panel</code> — провайдер содержимого. Вызывается с
+                <em>внутренним</em> размером (<code>Width-2</code>, <code>Height-2</code>),
+                чтобы 1-ячейная рамка не учитывалась.</li>
+            <li><code>X</code>, <code>Y</code>, <code>Width</code>, <code>Height</code> —
+                прямоугольник экрана.</li>
+            <li><code>Title</code> — текст, отображаемый в строке заголовка.</li>
+            <li><code>CloseRequested</code> — устанавливается в <code>true</code>,
+                когда пользователь нажимает кнопку <code>×</code>. Таб, владеющий
+                панелью, отвечает за чтение этого флага после <code>handleMouse</code>
+                и последующий вызов своей рутины <code>CloseFloat</code>.</li>
+            <li><code>CloseOnOutsideClick</code> — если <code>true</code>, владелец может
+                закрыть float, если пользователь кликнул вне его прямоугольника.</li>
+        </ul>
+
+        <h2>Поведение</h2>
+
+        <h3>Рендеринг — <code>render(w, h)</code></h3>
+        <p>
+            Формирует фиксированный срез строк длиной <code>Height</code>. Первая строка —
+            строка заголовка, последняя — нижняя рамка, а промежуточные строки — выход
+            <code>Panel.View</code>, дополненный <code>padContent</code>.
+        </p>
+        <ul>
+            <li>
+                Верхняя рамка строится из
+                <code>╭</code> + заголовок + дефисы + <code> ×</code> + <code>╮</code>.
+                Кнопка закрытия всегда занимает 4 визуальных столбца
+                (<code>╭</code> + <code>" ×"</code> + <code>╮</code>). Если заголовок
+                слишком широкий, он усечается многоточием (<code>...</code>), чтобы
+                кнопка закрытия оставалась доступной.
+            </li>
+            <li>
+                Область содержимого — это
+                <code>padContent(fp.Panel.View(fp.Width-2, fp.Height-2), fp.Width-2, fp.Height-2)</code>.
+                Каждая строка содержимого заворачивается в вертикальные символы рамки
+                (<code>│ ... │</code>).
+            </li>
+            <li>
+                Нижняя рамка — <code>╰ ─ ... ─ ╯</code>.
+            </li>
+        </ul>
+
+        <h3>Обработка мыши — <code>handleMouse(msg, mx, my)</code></h3>
+        <p>
+            Обрабатывает одно событие <code>tea.MouseMsg</code> с экранными координатами
+            (<code>mx</code>, <code>my</code>) и возвращает <code>tea.Cmd</code>
+            только когда событие было переслано во внутреннюю <code>Panel</code>.
+        </p>
+        <p>
+            Правила попадания (hit-testing):
+        </p>
+        <ul>
+            <li>
+                Кнопка закрытия — ровно та ячейка, где
+                <code>relY == 0</code> и <code>relX == fp.Width-2</code>. Устанавливает
+                <code>CloseRequested</code> и <em>не</em> пересылает событие в панель.
+            </li>
+            <li>
+                Перетаскивание заголовка — <code>relY == 0</code> и
+                <code>0 &lt; relX &lt; fp.Width-1</code>. Переходит в состояние
+                <code>dragging</code> и сохраняет точку начала.
+            </li>
+            <li>
+                Рёбра изменения размера — <code>hitEdge</code> мапит любое из восьми
+                ячеек рамки в <code>"n"</code>, <code>"s"</code>, <code>"e"</code>,
+                <code>"w"</code> и четыре угла <code>"nw"</code>, <code>"ne"</code>,
+                <code>"sw"</code>, <code>"se"</code>. Непустое ребро запускает
+                жест <code>resizing</code>.
+            </li>
+            <li>
+                Внутренний клик — пересылается в <code>fp.Panel.Update</code> с
+                координатами, сдвинутыми на одну ячейку, чтобы панель видела
+                содержимое с нулевой основой.</li>
+        </ul>
+        <p>
+            Во время активного drag/resize проверка границ намеренно пропускается,
+            чтобы указатель мог выйти за пределы прямоугольника float. В ином случае
+            обработчик выходит, когда указатель вне
+            <code>[X, X+Width) × [Y, Y+Height)</code>.
+        </p>
+
+        <h3>Инварианты геометрии</h3>
+        <table>
+            <tr><th>Константа</th><th>Значение</th></tr>
+            <tr><td><code>floatMinWidth = 10</code></td><td>Минимальная полезная ширина.</td></tr>
+            <tr><td><code>floatMinHeight = 3</code></td><td>Минимальная полезная высота.</td></tr>
+            <tr><td><code>floatTitleH = 1</code></td><td>Количество строк заголовка.</td></tr>
+        </table>
+        <p>
+            <code>applyResize</code> ограничивает (clamp)
+            <code>Width ≥ 10</code>,
+            <code>Height ≥ 3</code>,
+            <code>X ≥ 0</code>,
+            <code>Y ≥ 0</code>. <code>applyResize</code> обрабатывает все восемь строк
+            рёбер в одном месте, чтобы одна и та же арифметика работала для каждого ребра.
+        </p>
+
+        <h2>ANSI-безопасность</h2>
+        <p>
+            Warp отображает стилизованный текст через lipgloss и Bubble Tea, поэтому
+            сырые байтовые смещения не отображаются на визуальные столбцы. Два
+            вспомогательных способа делают float безопасным для наложения:
+        </p>
+        <h3><code>StripANSI(s string) string</code></h3>
+        <p>
+            Удаляет из строки все <code>\x1b[</code> (CSI) последовательности,
+            пропуская байты параметров и последний байт. Результат — обычный текст,
+            который можно безопасно измерить с помощью <code>lipgloss.Width</code>
+            или <code>ansi.StringWidth</code>.
+        </p>
+
+        <h3><code>overlayFloat(lines []string, fp *FloatPane, totalW, totalH int)</code></h3>
+        <p>
+            Отрисовывает <code>fp.render(totalW, totalH)</code> поверх существующих
+            <code>lines</code>, не трогая остальной экран. Для каждой строки он:
+        </p>
+        <ol>
+            <li>
+                Находит визуальный столбец <code>fp.X</code>, просканировав исходную строку
+                побайтово, копируя полные ANSI-последовательности как непрозрачные
+                единицы и считая визуальные ячейки одну за другой.
+            </li>
+            <li>
+                Усекает стилизованную строку float так, чтобы она никогда не выходила
+                за пределы <code>totalW</code>. Если усечение нужно, добавляется
+                сброс <code>\x1b[0m</code>, чтобы усечённая строка не «пролила»
+                цвет в суффикс.
+            </li>
+            <li>
+                Пропускает исходные байты, которые float визуально покрывает.
+            </li>
+            <li>
+                Добавляет оставшийся исходный суффикс как есть.
+            </li>
+        </ol>
+        <p>
+            Функция идемпотентна: float, начинающийся в <code>(0,0)</code>
+            при полном размере терминала, просто заменяет весь срез
+            <code>lines</code>, оставляя каждый байт суффикса нетронутым.
+        </p>
+
+        <h2>Стилевые токены, используемые float</h2>
+        <p>
+            Float рендерится через четыре стили <code>lipgloss</code>, определённые
+            в <code>styles.go</code>. Они намеренно собраны ровно из двух цветов
+            из темы, чтобы рамка, заголовок, закрытие и фон легко перекрашивались
+            через
+            <a href="#theme">theme.go</a>.
+        </p>
+        <ul>
+            <li><code>floatBorderStyle</code> — символы рамки
+                (<code>╭│─╮╰╯</code>).</li>
+            <li><code>floatTitleStyle</code> — текст заголовка; жирный,
+                фон и первый план из темы.</li>
+            <li><code>floatCloseStyle</code> — глиф
+                <code>×</code>; жирный первый план.</li>
+            <li><code>floatBgStyle</code> — непрозрачный фон для ячейки закрытия
+                и угловых ячеек.</li>
+        </ul>
+
+        <h2>Пример</h2>
+<pre><code class="language-go">type FloatPane struct {
+    Panel  Panel
+    X, Y, Width, Height int
+    Title string
+
+    CloseRequested      bool
+    CloseOnOutsideClick bool
+}
+
+// Typical owner loop:
+func (t *Tab) handleMouse(msg tea.MouseMsg) tea.Cmd {
+    fp := t.Float
+    if fp == nil {
+        return nil
+    }
+    cmd := fp.handleMouse(msg, msg.X, msg.Y)
+    if fp.CloseRequested {
+        t.CloseFloat()
+    } else if fp.CloseOnOutsideClick && !fp.contains(msg.X, msg.Y) {
+        t.CloseFloat()
+    }
+    return cmd
+}</code></pre>
+
+        <h2>Заметки &amp; ограничения</h2>
+        <ul>
+            <li>
+                Float <em>не</em> является <code>Panel</code>. Это прямоугольник экрана,
+                который <em>содержит</em> панель; сам float не владеет никакими
+                клавишами, кроме тех, что потребляет <code>handleMouse</code>.
+            </li>
+            <li>
+                Кнопка закрытия занимает ровно одну ячейку
+                (<code>fp.Width-2</code>, <code>0</code>). Всё, что справа от неё,
+                — часть угла <code>╮</code> и не является целью попадания.
+            </li>
+            <li>
+                Учёт drag/resize использует <em>изначальный</em> снимок
+                (<code>origX, origY, origW, origH</code>), поэтому долгое
+                перетаскивание никогда не накапливает ошибку округления.
+            </li>
+            <li>
+                <code>render</code> — единственная функция, которая создаёт
+                стилизованные байты; <code>overlayFloat</code> и путь мыши
+                только их потребляют.
+            </li>
+        </ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

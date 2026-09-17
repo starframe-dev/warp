@@ -1,71 +1,78 @@
 ---
 title: Tab
-description: API вкладки Warp для компоновки панелей, фокуса, float-панелей и контекстного меню.
+description: API вкладки для компоновки, float-панелей, фокуса, размеров split и сворачивания.
 ---
 
 # Tab
 
-`Tab` хранит дерево панелей вкладки и управляет раскладкой, фокусом и всплывающими элементами.
+`Tab` владеет одним деревом панелей, его float-панелями и текущим фокусом.
 
-## Корневая панель
-
-```go
-RootPanel() Panel
-SetRootPanel(panel Panel)
-```
-
-`RootPanel` возвращает корневую панель вкладки. `SetRootPanel` задаёт её.
-
-## Split
+## Создание и корень
 
 ```go
-SplitVertical(parent Panel, fraction float64, panel Panel)
-SplitHorizontal(parent Panel, fraction float64, panel Panel)
+func NewTab(name string) *Tab
+func (t *Tab) RootPanel() Panel
+func (t *Tab) SetRootPanel(panel Panel)
 ```
 
-Делят родительскую панель по вертикали или горизонтали. `fraction` задаёт долю первой области.
+`NewTab` создаёт самостоятельную вкладку. `TabGroup.NewTab` создаёт вкладку, связанную с группой.
 
-## Flex
+## Компоновка
 
 ```go
-FlexRow(parent Panel, items []FlexItemSpec)
-FlexColumn(parent Panel, items []FlexItemSpec)
+func (t *Tab) SplitVertical(parent Panel, fraction float64, newPanel Panel)
+func (t *Tab) SplitHorizontal(parent Panel, fraction float64, newPanel Panel)
+func (t *Tab) FlexRow(parent Panel, items []FlexItemSpec)
+func (t *Tab) FlexColumn(parent Panel, items []FlexItemSpec)
 ```
 
-Создают flex-раскладку в строку или колонку.
+Split заменяет `parent` узлом с двумя дочерними узлами. Доля ограничивается диапазоном `0.1..0.9`. Flex-методы игнорируют пустой список.
 
-## Float
+## Размер и сворачивание split
 
 ```go
-Float(panel Panel, x, y, w, h int)
-CloseFloat(fp *FloatPane)
+func (t *Tab) SetSplitFraction(panel Panel, fraction float64) bool
+func (t *Tab) GetSplitFraction(panel Panel) (float64, bool)
+func (t *Tab) Collapse(panel Panel, size int) bool
+func (t *Tab) Expand(panel Panel) bool
+func (t *Tab) SetSplitCollapse(parent Panel, collapseRow int, onCollapse func() tea.Cmd)
+func (t *Tab) ToggleSplitCollapse(parent Panel)
 ```
 
-`Float` открывает плавающую панель. `CloseFloat` закрывает её.
+Методы возвращают `false`, если соответствующий узел не найден. `SetSplitCollapse` задаёт callback для маркера сворачивания.
+
+## Float-панели
+
+```go
+func (t *Tab) Float(panel Panel, x, y, width, height int)
+func (t *Tab) CloseFloat(fp *FloatPane)
+```
+
+`Float` создаёт панель поверх основной компоновки. Float можно перемещать, изменять его размер и закрывать мышью.
 
 ## Фокус
 
 ```go
-FocusNext()
-FocusPrev()
-FocusFirst()
-FocusPanel(panel Panel)
+func (t *Tab) Focus() Panel
+func (t *Tab) SetFocus(panel Panel) tea.Cmd
+func (t *Tab) FocusNext()
+func (t *Tab) FocusPrev()
+func (t *Tab) FocusFirst()
+func (t *Tab) FocusPanel(panel Panel)
 ```
 
-Управляют фокусом между фокусируемыми панелями.
+Warp не назначает `Tab` и `Shift+Tab` автоматически. Биндинги задаёт приложение.
 
-## Collapsible
+## Жизненный цикл Panel
 
 ```go
-ToggleCollapsible(panel Panel)
+func (t *Tab) Update(msg tea.Msg) tea.Cmd
+func (t *Tab) View(width, height int) string
+func (t *Tab) HandleMouse(msg tea.MouseMsg) tea.Cmd
+func (t *Tab) Elements(width, height int) []Element
+func (t *Tab) BroadcastResize() tea.Msg
 ```
 
-Переключает свёрнутое состояние панели, если она поддерживает `Collapsible`.
+`Elements` отдаёт семантическое дерево UI вкладки. `BroadcastResize` создаёт сообщение о размере текущей компоновки.
 
-## Контекстное меню
-
-```go
-ShowContextMenu(items []PopoverItem, x, y int)
-```
-
-Показывает контекстное меню в позиции `x`, `y`. Использует `Popover`.
+Контекстное меню создаётся отдельно через `Popover`; у `Tab` нет фабрики контекстного меню.

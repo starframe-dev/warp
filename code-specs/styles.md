@@ -22,7 +22,7 @@
 | gbRed | `#fb4934` | Красный (ошибки, закрытие) |
 | gbGreen | `#b8bb26` | Зелёный (успех, новые элементы) |
 | gbYellow | `#fabd2f` | Жёлтый (внимание, hover) |
-| gbBlue | `#83a598` | Синий (информация) |
+| gbBlue | `#83a598` | Синий (информация)
 
 ## Публичный API
 
@@ -34,54 +34,23 @@
 | `BorderDragStyle()` | `lipgloss.Style` | Стиль при перетаскивании border |
 | `BorderHoverStyle()` | `lipgloss.Style` | Стиль при наведении мыши на border |
 
-### Типы и стили
+Все публичные функции возвращают соответствующий `lipgloss.Style`, собранный из неэкспортируемых стилей (см. ниже).
 
-#### Tab bar styles
+## Внутренние стили и переменные
 
-| Стиль | Описание | Цвета |
-|-------|----------|-------|
-| `tabBarStyle` | Фон таб-барa | Background: gbDark0 |
-| `activeTabStyle` | Активная вкладка | Background: gbDark2, Foreground: gbLight1, Bold |
-| `inactiveTabStyle` | Неактивная вкладка | Background: gbDark0, Foreground: gbGray |
-| `newTabStyle` | Новая вкладка (индикатор) | Foreground: gbGreen |
-| `closeTabStyle` | Кнопка закрытия | Foreground: gbRed |
+Все стили неэкспортируемые (camelCase) и создаются через `lipgloss.NewStyle()`. Ниже перечислены стили и переменные, которые действительно присутствуют в файле.
 
-#### Border styles
+### Tab bar styles
 
-| Стиль | Описание | Цвета |
-|-------|----------|-------|
-| `borderStyle` | Обычная граница | Foreground: gbDark1 |
-| `borderHoverStyle` | Hover граница | Foreground: gbDark3 |
-| `borderDragStyle` | Drag граница | Foreground: gbYellow |
+| Стиль | Цвета |
+|-------|-------|
+| `tabBarStyle` | Background: gbDark0 |
+| `activeTabStyle` | Background: gbDark2, Foreground: gbLight1, Bold |
+| `inactiveTabStyle` | Background: gbDark0, Foreground: gbGray |
+| `newTabStyle` | Foreground: gbGreen |
+| `closeTabStyle` | Foreground: gbRed |
 
-#### Float pane styles
-
-| Стиль | Описание | Цвета |
-|-------|----------|-------|
-| `floatBorderStyle` | Граница плавающего окна | Foreground: gbGray |
-| `floatTitleStyle` | Заголовок плавающего окна | Background: gbDark1, Foreground: gbLight1, Bold |
-| `floatCloseStyle` | Кнопка закрытия плавающего окна | Foreground: gbRed, Bold |
-| `floatBgStyle` | Фон плавающего окна | Background: gbDark0 |
-
-#### Collapsible styles
-
-| Стиль | Описание | Цвета |
-|-------|----------|-------|
-| `collapsibleStyle` | Сворачиваемый элемент | Foreground: gbLight1, Background: gbDark1 |
-| `collapsibleBorderStyle` | Граница сворачиваемого | Foreground: gbDark4 |
-
-#### Dropdown styles
-
-| Стиль | Описание | Цвета |
-|-------|----------|-------|
-| `dropdownButtonStyle` | Кнопка dropdown | Background: gbDark2, Foreground: gbLight1 |
-| `dropdownItemStyle` | Элемент списка dropdown | Background: gbDark0, Foreground: gbLight1 |
-| `dropdownItemHoverStyle` | Hover элемент dropdown | Background: gbDark2, Foreground: gbYellow |
-| `dropdownItemSelectedStyle` | Выбранный элемент dropdown | Background: gbDark2, Foreground: gbGreen, Bold |
-
-## Внутренние переменные
-
-### Tab bar colors
+Переменные цвета для таб-бара:
 
 | Переменная | Значение | Описание |
 |------------|----------|----------|
@@ -92,7 +61,16 @@
 | `newTabFg` | gbGreen | Цвет индикатора новой вкладки |
 | `closeTabFg` | gbRed | Цвет кнопки закрытия |
 
-### Split border colors
+### Border styles
+
+| Стиль | Цвета |
+|-------|-------|
+| `borderStyle` | Foreground: gbDark1 |
+| `borderHoverStyle` | Foreground: gbDark3 |
+| `borderDragStyle` | Foreground: gbYellow |
+| `collapseStyle` | Foreground: gbDark1 |
+
+Переменные цвета split-границ:
 
 | Переменная | Значение | Описание |
 |------------|----------|----------|
@@ -100,7 +78,16 @@
 | `borderDragColor` | gbYellow | Цвет при drag |
 | `borderHoverColor` | gbDark3 | Цвет при hover |
 
-### Float pane colors
+### Float pane styles
+
+| Стиль | Цвета |
+|-------|-------|
+| `floatBorderStyle` | Foreground: gbGray |
+| `floatTitleStyle` | Background: gbDark1, Foreground: gbLight1, Bold |
+| `floatCloseStyle` | Foreground: gbRed, Bold |
+| `floatBgStyle` | Background: gbDark0 |
+
+Переменные цвета плавающих окон:
 
 | Переменная | Значение | Описание |
 |------------|----------|----------|
@@ -110,25 +97,25 @@
 | `floatBg` | gbDark0 | Фон плавающего окна |
 | `floatCloseFg` | gbRed | Кнопка закрытия |
 
-### Collapsible colors
+### Collapsible styles
 
-| Переменная | Значение | Описание |
-|------------|----------|----------|
-| `collapsibleStyle` | gbLight1 / gbDark1 | Стиль сворачиваемого |
-| `collapsibleBorderStyle` | gbDark4 | Граница |
+| Стиль | Цвета |
+|-------|-------|
+| `collapsibleStyle` | Foreground: gbLight1, Background: gbDark1 |
+| `collapsibleBorderStyle` | Foreground: gbDark4 |
 
-### Dropdown colors
+### Dropdown styles
 
-| Переменная | Значение | Описание |
-|------------|----------|----------|
-| `dropdownButtonStyle` | gbDark2 / gbLight1 | Кнопка |
-| `dropdownItemStyle` | gbDark0 / gbLight1 | Элемент списка |
-| `dropdownItemHoverStyle` | gbDark2 / gbYellow | Hover |
-| `dropdownItemSelectedStyle` | gbDark2 / gbGreen, Bold | Выбрано |
+| Стиль | Цвета |
+|-------|-------|
+| `dropdownButtonStyle` | Background: gbDark2, Foreground: gbLight1 |
+| `dropdownItemStyle` | Background: gbDark0, Foreground: gbLight1 |
+| `dropdownItemHoverStyle` | Background: gbDark2, Foreground: gbYellow |
+| `dropdownItemSelectedStyle` | Background: gbDark2, Foreground: gbGreen, Bold |
 
 ## Паттерны реализации
 
-### Стилизация через липгloss
+### Стилизация через lipgloss
 
 Все стили создаются через `lipgloss.NewStyle()` с последующим вызовом методов `Background()`, `Foreground()`, `Bold()`.
 
@@ -153,11 +140,13 @@ activeTabStyle = lipgloss.NewStyle().
 ## Использование
 
 ```go
-import "github.com/charmbracelet/warp/styles"
+import "warp"
 
-// Использование стилей
-style := styles.BorderStyle()
-text := lipgloss.NewStyle().Foreground(styles.gbLight1).Render("text")
+// Стиль для границы
+style := warp.BorderStyle()
+
+// Применение к тексту
+text := lipgloss.NewStyle().Render("text")
 ```
 
 ## Ключевые Правила
@@ -167,10 +156,9 @@ text := lipgloss.NewStyle().Foreground(styles.gbLight1).Render("text")
 3. **Соблюдать семантику** — каждый стиль соответствует определённой части UI
 4. **Генерировать стили через конструкторы** — использовать `lipgloss.NewStyle()` с методами
 
-## Ключевые Правила (Human Horizon)
+### Ключевые Правила (Human Horizon)
 
 - **Всегда проверяй ошибки** при работе с `lipgloss`
 - **Маленькие интерфейсы** — каждый стиль отвечает за одну задачу
 - **Явное важнее неявного** — цветовые палитры явно определены в начале файла
-- **Английские комментарии** — все публичные функции должны иметь English doc comments
 - **camelCase для неэкспортируемых** — все переменные стилизованы в camelCase

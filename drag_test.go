@@ -1,9 +1,7 @@
 package warp
 
-// Drag-and-drop interactions for split borders are not implemented in this
-// file. They are handled in tab.go and rendered in render.go:
-//
-//   - tab.go implements the input handling and state management for dragging a
-//     border between split panes. The relevant functions are handleMouse,
-//     updateDrag, and hitBorder.
-//   - render.go computes the screen positions of borders via findBorders.
+// Drag-and-drop interactions for split borders are not implemented in
+// drag.go. That file contains only a documentation comment pointing to
+// tab.go and render.go for the actual drag-and-drop implementation. There
+// is no public API in drag.go to test directly; the behaviour it refers
+// to is already covered by tab_test.go and render_test.go.

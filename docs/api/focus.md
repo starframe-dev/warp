@@ -1,11 +1,11 @@
 ---
 title: Focus
-description: Focus API
+description: Explicit focus management and raw-key preferences.
 ---
 
 # Focus
 
-Warp provides explicit focus management. The developer decides which keys trigger focus switching.
+Warp exposes focus operations but does not choose focus key bindings. The application decides whether `Tab`, `Shift+Tab`, or another key should move focus.
 
 ## Focusable
 
@@ -22,34 +22,34 @@ type Focusable interface {
 
 ```go
 type RawKeyReceiver interface {
-    HandleRawKey(msg tea.KeyMsg) tea.Cmd
+    Panel
+    WantsRawKeys() bool
 }
 ```
 
-For PTY/terminals that need all key events without interception.
+`WantsRawKeys` identifies terminal-style panels, such as PTY-backed panels, that need raw keyboard input.
 
-## Tab Focus Methods
+## Tab methods
 
 ```go
+func (t *Tab) Focus() Panel
+func (t *Tab) SetFocus(panel Panel) tea.Cmd
 func (t *Tab) FocusNext()
 func (t *Tab) FocusPrev()
 func (t *Tab) FocusFirst()
 func (t *Tab) FocusPanel(panel Panel)
 ```
 
+Focus traversal follows the visual order of focusable leaves in the panel tree. `FocusNext` and `FocusPrev` wrap around.
+
 ## Example
 
 ```go
-func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-    switch msg := msg.(type) {
-    case tea.KeyMsg:
-        switch msg.String() {
-        case "tab":
-            m.tab.FocusNext()
-        case "shift+tab":
-            m.tab.FocusPrev()
-        }
+case tea.KeyMsg:
+    switch msg.String() {
+    case "tab":
+        tab.FocusNext()
+    case "shift+tab":
+        tab.FocusPrev()
     }
-    return m, nil
-}
 ```

@@ -1,28 +1,16 @@
 ---
-title: Word Wrap
-description: Функции переноса текста WordWrap и SpaceWrap.
+title: Перенос текста
+description: Утилиты переноса текста с учётом ANSI и ширины терминала.
 ---
 
-# Word Wrap
-
-Warp предоставляет функции переноса текста по визуальной ширине.
-
-## WordWrap
+# Перенос текста
 
 ```go
-WordWrap(text string, width int) []string
+func WordWrap(text string, width int) []string
+func SpaceWrap(text string, width int) []string
+func WrapToString(text string, width int, useSpaceWrap bool) string
 ```
 
-Переносит текст по словам и возвращает строки, укладывающиеся в заданную ширину.
+`WordWrap` переносит по границам слов и разбивает слово, если оно не помещается. `SpaceWrap` переносит только по пробелам. Обе функции используют отображаемую ширину терминала, а не длину в байтах.
 
-## SpaceWrap
-
-```go
-SpaceWrap(text string, width int) []string
-```
-
-Переносит текст с учётом пробельных символов.
-
-## Визуальная ширина
-
-`WordWrap` и `SpaceWrap` используют `lipgloss.Width` для подсчёта визуальных колонок, поэтому корректнее работают с ANSI-стилями и широкими символами.
+`WrapToString` выбирает `SpaceWrap`, если `useSpaceWrap == true`, и соединяет полученные строки переводами строк.

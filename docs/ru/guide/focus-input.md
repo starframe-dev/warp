@@ -1,33 +1,26 @@
 ---
 title: Фокус и ввод
-description: Focusable, переключение фокуса, RawKeyReceiver и пример обработки Tab в Warp.
+description: Focusable, переключение фокуса, RawKeyReceiver и обработка ввода в Warp.
 ---
 
 # Фокус и ввод
 
-Warp не навязывает правила фокуса и клавиатурных биндингов. Приложение само решает, какие клавиши и сценарии управляют вводом.
+Warp не навязывает правила фокуса и биндинги клавиш. Приложение само решает, какие клавиши переключают фокус.
 
 ## Focusable
 
-Панель может поддерживать фокус через интерфейс `Focusable`:
+Фокусируемая панель реализует:
 
 ```go
 type Focusable interface {
-	Focus()
-	Blur()
-	Focused() bool
+    Panel
+    Focus()
+    Blur()
+    Focused() bool
 }
 ```
 
-Методы отвечают за состояние фокуса:
-
-- `Focus()` активирует панель;
-- `Blur()` снимает фокус;
-- `Focused() bool` возвращает текущее состояние.
-
-## Управление фокусом во вкладке
-
-`Tab` предоставляет явные методы переключения фокуса:
+## Методы фокуса Tab
 
 ```go
 tab.FocusNext()
@@ -36,41 +29,40 @@ tab.FocusFirst()
 tab.FocusPanel(panel)
 ```
 
-- `FocusNext()` переводит фокус на следующую доступную панель;
-- `FocusPrev()` переводит фокус на предыдущую доступную панель;
-- `FocusFirst()` фокусирует первую доступную панель;
-- `FocusPanel(panel)` фокусирует конкретную панель.
+Обход идёт в визуальном порядке фокусируемых листьев и циклически переходит через границы.
 
 ## Биндинги клавиш
 
-Warp не биндит `Tab` и `Shift+Tab` автоматически.
-
-Это сделано намеренно: разработчик сам решает, какие клавиши переключают фокус и как они конфликтуют с вводом в конкретных компонентах.
+Warp не назначает `Tab` и `Shift+Tab` автоматически. Приложение может связать эти клавиши с нужными действиями.
 
 ## RawKeyReceiver
 
-`RawKeyReceiver` предназначен для PTY и терминальных панелей.
-
-Такая панель получает все клавиши напрямую, без обычной обработки фокуса и компонентных биндингов. Это полезно для встроенных терминалов, shell-сессий и других интерактивных TUI внутри Warp.
-
-## Пример переключения фокуса по Tab
-
 ```go
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "tab":
-			m.Tab.FocusNext()
-			return m, nil
-		case "shift+tab":
-			m.Tab.FocusPrev()
-			return m, nil
-		}
-	}
-
-	return m, nil
+type RawKeyReceiver interface {
+    Panel
+    WantsRawKeys() bool
 }
 ```
 
-В этом примере приложение само связывает `Tab` с `FocusNext()`, а `Shift+Tab` — с `FocusPrev()`.
+`RawKeyReceiver` подходит для PTY и терминальных панелей, которым нужно объявить предпочтение необработанного ввода. Интерфейс не заменяет `Panel.Update`, а добавляет признак `WantsRawKeys`.
+
+## Пример
+
+```go
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    switch msg := msg.(type) {
+    case tea.KeyMsg:
+        switch msg.String() {
+        case "tab":
+            m.Tab.FocusNext()
+            return m, nil
+        case "shift+tab":
+            m.Tab.FocusPrev()
+            return m, nil
+        }
+    }
+
+    _, cmd := m.Warp.Update(msg)
+    return m, cmd
+}
+```

@@ -1,63 +1,137 @@
-# Архитектура проекта warp
+# Архитектура проекта Warp
 
-## Обзор
+Warp — Go-библиотека (TUI layout engine) на базе `charmbracelet/bubbletea` и `lipgloss`.
+Она не рисует UI сама, а управляет **расположением** пользовательских панелей:
+собирует их в дерево `Node` (split / flex / leaf), рисует границы и рамки,
+распределяет размеры и маршрутизирует события Bubbletea к панелям.
 
-Warp — Go TUI layout engine на базе Bubbletea. Управляет расположением панелей через дерево Node (split/flex/leaf). Каждый компонент — Panel с View/Update.
+## Ключевые решения
 
-## Структура модулей
+### Warp — тонкий корневой model, а не контейнер
 
-### Ядро
-- `warp.go` — tea.Model, обёртка вокруг root Panel
-- `tabgroup.go` — TabGroup: Panel с таб-баром
-- `tab.go` — Tab: дерево splits/flex, float-панели, фокус, mouse
-- `panel.go` — интерфейс Panel
-- `split.go` — Node, SplitConfig, FlexConfig
-- `render.go` — renderNode, findBorders, padContent
-- `float.go` — FloatPane, overlayFloat, StripANSI
-- `styles.go` — Gruvbox Dark стили
-- `focus.go` — Focusable, RawKeyReceiver
+`Warp` реализует `tea.Model`, но **не перехватывает** ни клавиши, ни мышь:
+все сообщения уходят в `root Panel` без обработки. Это позволяет
+использовать Warp как поддерево внутри чужого Bubbletea-приложения.
 
-### Компоненты
-- `collapsible.go` — сворачиваемые панели
-- `scrollable.go` — скроллинг
-- `dropdown.go` — выпадающие списки
-- `selectable.go` — выделение текста
-- `input.go` — поля ввода
-- `modal.go` — модальные окна
-- `popover.go` — контекстные меню
-- `element.go` — ElementProvider для тестирования
-- `wrap.go` — WordWrap/SpaceWrap
-
-## Дерево панелей
-
-```go
-Node { Panel Panel | Split *SplitConfig | Flex *FlexConfig }
-SplitConfig { Direction, Fraction, First *Node, Second *Node, Dragging bool }
-FlexConfig  { Direction, Items []FlexItem }
+```
+Warp (Model)
+  └── root Panel (по умолчанию *TabGroup)
+        └── Tab
+              ├── root *Node (дерево split/flex/leaf)
+              ├── floats []*FloatPane
+              └── focused Panel
 ```
 
-Leaf → `panel.View(w, h)`. Split → рекурсивный рендеринг детей с границей `│`/`─`.
-Flex → распределение Grow-весов. Float → overlay поверх.
+### Композиция вместо наследования
 
-## Рендеринг
+Панели не имеют общего предка. Любая структура (`*Collapsible`,
+`TabGroup`, чужой `Panel`) вставляется в дерево как `Panel` —
+Warp лишь знает `View(w, h) string` и `Update(msg) tea.Cmd`.
 
-1. `renderNode(node, w, h)` — рекурсивно рендерит дерево
-2. `overlayFloat(lines, fp, w, h)` — ANSI-aware наложение float поверх
-3. `padContent(content, w, h)` — обрезка/дополнение до точных размеров
+### `TabGroup` — Panel, а не корневой тип
 
-## Событийная модель
+`TabGroup` сам по себе Panel и может быть вложен в split/flex
+рядом с любым другим компонентом. `Warp.New()` лишь создаёт
+`TabGroup` как корень — это не ограничение, а конвенция:
+`SetRoot(customPanel)` заменяет корень полностью.
 
-- `Tab.handleMouse` — проверка float'ов (z-order), потом border drag, потом клик по панели
-- `Tab.handleKeys` — форвард в focused panel
-- `TabGroup.handleKeyMsg` — Ctrl+Tab, Ctrl+W, Ctrl+T, потом делегат в Tab
-- Warp **не перехватывает** клавиши — все сообщения идут в root Panel
+### `Node` — единый узел дерева
 
-## Фокус
+Внутри `Tab` живёт дерево `Node`:
 
-- `Focusable` — Panel с Focus/Blur/Focused
-- `Tab.FocusNext()/FocusPrev()` — явное переключение (разработчик сам биндит клавиши)
-- `RawKeyReceiver` — для PTY/терминалов, получает все клавиши без перехвата
+```go
+Node { Panel Panel; Split *SplitConfig; Flex *FlexConfig; Collapse *NodeCollapse }
+```
 
-## Стили
+- `Panel != nil` → лист.
+- `Split != nil` → бинарное деление с `Fraction` и границей `│`/`─`.
+- `Flex != nil` → ряд/столбец с `Grow`-весами.
+- `Collapse != nil` → узел временно в режиме фиксированного размера.
 
-Gruvbox Dark палитра. Все цвета в `styles.go`. Нет публичного API кастомизации.
+Дерево мутатируется методами `Tab`: `SplitVertical`, `SplitHorizontal`,
+`FlexRow`, `FlexColumn` — каждый берёт `parent Panel`, находит узел
+`findNode` и превращает его в `Split`/`Flex`.
+
+### Float'ы — overlay, а не часть дерева
+
+Плавающие панели **не** участвуют в `Node`. `Tab` хранит их
+в порядке добавления; рендеринг `overlayFloat` накладывает их
+поверх строк основного дерева с учётом ANSI-последовательностей
+(`StripANSI`). Клик по float'у поднимает его z-order.
+
+### Событийная модель — «спуск» по дереву
+
+Порядок обработки в `Tab`:
+
+1. `FloatPane` по z-order (drag / resize / click / close).
+2. Border drag — `findBorders` собирает `BorderHit`, клик по `BorderHit`
+   начинает drag; движение границы пересчитывает `Fraction`.
+3. Клик по leaf-панели — `Update` получает `tea.Msg`.
+
+`TabGroup` перехватывает только `Ctrl+T / Ctrl+W / Ctrl+Tab / Ctrl+Shift+Tab`,
+остальное делегируется активному `Tab`.
+
+### Рендеринг — рекурсия + padContent
+
+`renderNode(node, w, h)` строит `[]string` строк:
+
+- leaf → `padContent(panel.View(w, h), w, h)` — обрезка/дополнение
+  до точных размеров с `ansi.Truncate` и `ansi.ResetStyle` в конце
+  каждой строки (стили не утекают в соседние панели).
+- split → `renderVerticalSplit`/`renderHorizontalSplit`:
+  `computeSplitSizes` считает размеры детей с учётом `MinPanelSize`
+  и collapsed-состояния, между ними строка-граница.
+- flex → `renderFlex`: `computeFlexSizes` сначала выделяет `Basis`
+  (или 1 для collapsed), затем остаток распределяется по `Grow`.
+
+Границы рисуются в `borderStyle`, в режиме drag — в `borderDragStyle`
+(yellow). Когда одно из делений collapsed, граница опускается —
+collapsed-панель стоит вплотную к раскрытой.
+
+### Фокус — явное API, а не биндинг клавиш
+
+Warp **не биндит** `Tab`/`Shift+Tab` сам. `Tab.FocusNext/Prev/First/Panel`
+вызывает разработчик из своего `Update`. `Focusable` — интерфейс
+`{Panel; Focus(); Blur(); Focused() bool}`, `RawKeyReceiver` — для PTY,
+получащих все клавиши без перехвата.
+
+### Element tree — для E2E, а не рендера
+
+`ElementProvider.Elements(w, h)` возвращает `[]Element`
+(`Role`, `Name`, `Action`, `Bounds`, `Children`). Warp экспортирует его
+через HTTP `/elements` — это контракт для E2E-тестов, а не часть
+отрисовки. Компоненты реализуют `ElementProvider` сами
+(табы, floats, modal, popover, input, dropdown и др.).
+
+### Состояние — локальное у каждого компонента
+
+Ни у Warp, ни у `Tab`, ни у `TabGroup` нет глобальных подписок
+или эмиттеров. Состояние живёт внутри конкретного экземпляра
+`Input.Value`, `Scrollable.Offset`, `Selectable.Selection`,
+`Modal.open` и т.п. Коммуникация — только через `tea.Msg`.
+
+## Файловая карта
+
+| Файл | Ответственность |
+|-------|------------------|
+| `warp.go` | Корневая `Warp`, HTTP `/elements`, `AsPanel` |
+| `panel.go` | Интерфейс `Panel` |
+| `split.go` | `Node`, `SplitConfig`, `FlexConfig`, `Direction`, collapse |
+| `tab.go` | `Tab` (дерево, floats, focus, drag, mouse/keys) |
+| `tabgroup.go` | `TabGroup` (tab bar, Ctrl+T/W/Tab) |
+| `render.go` | `renderNode`, `findBorders`, `padContent` |
+| `float.go` | `FloatPane`, `overlayFloat`, `StripANSI` |
+| `focus.go` | `Focusable`, `collectFocusables`, `RawKeyReceiver` |
+| `styles.go` + `theme.go` | Палитра, `lipgloss.Style`, `SetTheme` |
+| `collapsible.go` … `popover.go` | Компоненты-обёртки |
+| `wrap.go` | `WordWrap` / `SpaceWrap` |
+| `drag.go` | Плейсхолдер (логика — в `tab.go`/`render.go`) |
+
+## Ограничения по дизайну
+
+- Nested float не поддерживается (float внутри float).
+- Разрешён только один `SplitConfig`/`FlexConfig` на узел — вложенные
+  layouts строятся за счёт новых узлов, а не вложенных структур.
+- `MinPanelSize = 3` и `clampFraction(0.1–0.9)` — жёсткие границы
+  деления; `Fraction` вне диапазона не допустим.
+- Границы всегда 1 символ; padding/gap/align отсутствуют.

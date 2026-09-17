@@ -29,7 +29,7 @@ type SplitConfig struct {
     Fraction  float64 // Доля первого дочернего узла (0.0–1.0)
     First     *Node
     Second    *Node
-    Dragging  bool
+    Dragging  bool // true во время drag-and-drop
 }
 ```
 
@@ -121,6 +121,24 @@ type FlexItem struct {
 | Basis | int | Flex-basis, 0 = auto |
 | Collapsed | bool | true — элемент занимает 1 линию/символ |
 
+#### FlexConfig
+
+```go
+type FlexConfig struct {
+    Direction Direction
+    Items     []*FlexItem
+    Dragging  bool
+}
+```
+
+**Поля:**
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| Direction | Direction | Направление верстки (строка/столбец) |
+| Items | []*FlexItem | Элементы верстки |
+| Dragging | bool | true во время drag-and-drop |
+
 ## Поведение
 
 ### findNode
@@ -129,10 +147,28 @@ type FlexItem struct {
 func (n *Node) findNode(panel Panel) *Node
 ```
 
-Локализирует узел, содержащий указанный Panel в дереве.
+Локализует узел, содержащий указанный Panel в дереве.
 
 **Возвращает:**
 - `*Node` — найденный узел, если Panel найден
+- `nil` — если Panel не найден
+
+**Алгоритм:**
+1. Проверяет текущий узел на равенство Panel
+2. Если это Split — рекурсивно ищет в First и Second
+3. Если это Flex — ищет во всех Items
+4. Возвращает первый найденный узел или nil
+
+### findSplitParent
+
+```go
+func (n *Node) findSplitParent(panel Panel) *Node
+```
+
+Находит узел, чей Split содержит указанный Panel (в отличие от findNode возвращает родительский Split-узел, а не лист).
+
+**Возвращает:**
+- `*Node` — родительский Split-узел, если Panel найден
 - `nil` — если Panel не найден
 
 **Алгоритм:**
@@ -246,3 +282,4 @@ Node (root)
 - `Dragging` в SplitConfig используется только во время drag-and-drop операций
 - `Fraction` не может выходить за границы 0.0–1.0
 - `Node` может содержать только один тип внутреннего узла (Split, Flex, Collapse, Panel — не более одного одновременно)
+- `CollapseRow` и `OnCollapse` в SplitConfig управляют интерактивным сворачиванием: при клике по «<» на строке `CollapseRow` вызывается `OnCollapse`, который возвращает `tea.Cmd` для перерисовки

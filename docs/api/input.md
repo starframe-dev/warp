@@ -1,11 +1,11 @@
 ---
 title: Input
-description: Text input field
+description: Single-line text input with cursor and focus.
 ---
 
 # Input
 
-Single-line text input with cursor and navigation.
+`Input` is a single-line panel with a prompt, editable value, and rune cursor.
 
 ## Constructor
 
@@ -13,25 +13,37 @@ Single-line text input with cursor and navigation.
 func NewInput(prompt string) *Input
 ```
 
+## Public fields
+
+```go
+type Input struct {
+    Value  string
+    Cursor int
+    Prompt string
+    Width  int
+}
+```
+
+`Cursor` is a rune index. `Width == 0` lets `View` use the available width.
+
 ## Methods
 
 ```go
-func (in *Input) SetValue(v string)
-func (in *Input) Value() string
+func (in *Input) SetValue(value string)
+func (in *Input) SetCursor(position int)
 func (in *Input) Focus()
 func (in *Input) Blur()
 func (in *Input) Focused() bool
+func (in *Input) View(width, height int) string
+func (in *Input) Update(msg tea.Msg) tea.Cmd
 ```
 
-## Controls
+`Input` implements both `Panel` and `Focusable`.
 
-- Type — insert characters
-- `Backspace` — delete before cursor
-- `Delete` — delete after cursor
-- `Left`/`Right` — move cursor
-- `Home` — start of line
-- `End` — end of line
+## Editing keys
 
-## Interfaces
-
-Implements both `Focusable` and `Panel`.
+- Text inserts at the cursor.
+- `Backspace` removes the rune before the cursor.
+- `Delete` removes the rune after the cursor.
+- Arrow keys move the cursor.
+- `Home` and `End` move to the beginning and end.

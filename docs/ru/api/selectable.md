@@ -1,37 +1,41 @@
 ---
 title: Selectable
-description: Панель с выделением текста и копированием через OSC 52.
+description: Выделение текста, получение выделенного текста и копирование через OSC 52.
 ---
 
 # Selectable
 
-`Selectable` добавляет выделение текста к любой панели.
+`Selectable` оборачивает панель и хранит выделение в координатах терминальных ячеек.
 
-## Создание
+## Конструктор и поля
 
 ```go
-NewSelectable(panel Panel) *Selectable
+func NewSelectable(content Panel) *Selectable
 ```
 
-Создаёт выделяемую обёртку над `Panel`.
+Публичные поля выделения: `AnchorX`, `AnchorY`, `CursorX`, `CursorY`, `HasSelection` и `Selecting`.
+
+## Методы выделения
+
+```go
+func (s *Selectable) SelectAll(width, height int)
+func (s *Selectable) ClearSelection()
+func (s *Selectable) SelectedText() string
+func (s *Selectable) Copy() tea.Cmd
+```
+
+`Copy` возвращает команду, которая отправляет выделенный текст через OSC 52. Операционная система не вызывается напрямую.
+
+## Управление
+
+- выделение мышью перетаскиванием;
+- `Shift` + стрелки расширяют выделение;
+- `Ctrl+A` выделяет весь видимый контент;
+- `Esc` очищает выделение.
 
 ## Panel
 
-`Selectable` реализует интерфейс `Panel`.
-
-## Выделение
-
-Поддерживаются:
-
-- выделение мышью;
-- `Shift` + стрелки;
-- `Ctrl+A`;
-- `Esc` для сброса выделения.
-
-## Копирование
-
 ```go
-Copy()
+func (s *Selectable) View(w, h int) string
+func (s *Selectable) Update(msg tea.Msg) tea.Cmd
 ```
-
-Копирует выделенный текст через OSC 52 буфер обмена.

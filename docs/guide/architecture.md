@@ -1,57 +1,46 @@
 ---
 title: Architecture
-description: Core concepts behind Warp's panel tree, layout nodes, floats, focus, styles, and test element tree.
+description: Warp's panel tree, layout nodes, floats, focus, themes, and semantic elements.
 ---
 
 # Architecture
 
-Warp is a Bubbletea-based TUI layout engine. It wraps one root `Panel`. By default, that root panel is a `TabGroup`.
+Warp is a Bubbletea-based TUI layout engine. It owns a root `Panel`; `warp.New()` starts with a `TabGroup` containing one tab.
 
-## Panel
+## Panel tree
 
-A `Panel` renders itself and reacts to Bubbletea messages:
+Every value inserted into a layout implements:
 
 ```go
 type Panel interface {
-	View(w, h int) string
-	Update(msg tea.Msg)
+    View(width, height int) string
+    Update(msg tea.Msg) tea.Cmd
 }
 ```
 
-Warp builds layouts from a node tree. The tree can contain:
+A `Tab` stores panels in a `Node` tree:
 
-- Leaf panels.
-- `SplitConfig` nodes for vertical and horizontal splits with a fraction.
-- `FlexConfig` nodes for rows or columns with grow weights.
+- a leaf holds a `Panel`;
+- `SplitConfig` divides an area between two children;
+- `FlexConfig` distributes an area among several children;
+- `NodeCollapse` stores collapsed state.
 
-## Floats
+The `Tab` methods mutate this tree. `TabGroup` is itself a `Panel`, so a complete tab group can appear inside another tree.
 
-Floats render on top of the normal layout output. A tab owns its floating panels and draws them over the split or flex tree.
+## Rendering and events
 
-## Tabs
+Warp renders the tree recursively, pads each child to its allocated cell rectangle, and draws float panes above the result. Mouse events visit the topmost float first, then split borders, then the active panel. A click inside a float does not reach panels below it.
 
-`TabGroup` is a `Panel`. It renders a tab bar and a content area.
-
-Each `Tab` manages its own tree of splits, flex nodes, and floats.
+`WindowSizeMsg` and other Bubbletea messages are forwarded to the appropriate panels. Warp does not install application-level `Tab` or `Shift+Tab` bindings.
 
 ## Focus
 
-Panels that accept focus implement `Focusable`:
+A focusable panel implements `Focusable`. `Tab.FocusNext`, `FocusPrev`, `FocusFirst`, and `FocusPanel` provide explicit traversal. The application chooses the key bindings.
 
-```go
-type Focusable interface {
-	Focus()
-	Blur()
-	Focused() bool
-}
-```
+## Theme
 
-Warp exposes explicit focus operations such as `FocusNext` and `FocusPrev`. Your app decides which keys trigger them.
-
-## Styles
-
-Warp uses the Gruvbox Dark palette from `styles.go`.
+The default palette is Gruvbox Dark. `SetTheme` rebuilds the package styles at runtime from semantic colors. See [Theme](../api/theme).
 
 ## Element tree
 
-Panels can expose structured test data through `ElementProvider`. End-to-end tests can inspect this element tree without parsing terminal output.
+A panel may implement `ElementProvider` to expose semantic controls with `Role`, `Name`, `Action`, and `Bounds`. Warp serves this tree through its optional `/elements` HTTP endpoint, which keeps E2E tests independent from terminal text layout.

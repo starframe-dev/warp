@@ -59,4 +59,5 @@ func main() {
 
 - [Руководство](/ru/guide/getting-started)
 - [API](/ru/api/)
+- [Сгенерированный справочник](/ru/guide/generated-reference)
 - [English docs](/guide/getting-started)

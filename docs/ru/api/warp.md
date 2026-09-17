@@ -1,72 +1,74 @@
 ---
 title: Warp
-description: Корневой объект приложения Warp и управление вкладками, панелями, HTTP и размером экрана.
+description: Корневая Bubble Tea-модель, вкладки, вложенность и HTTP-инспекция.
 ---
 
 # Warp
 
-`Warp` — основной объект приложения. Он хранит корневую панель, управляет вкладками и запускает TUI.
+`Warp` — корневая Bubble Tea-модель. Она владеет корневой `Panel` и передаёт ей сообщения.
 
-## Создание
-
-```go
-New() *Warp
-```
-
-Создаёт новый экземпляр `Warp`.
-
-## Корневая панель
+## Конструктор
 
 ```go
-SetRoot(panel Panel)
-Root() Panel
+func New() *Warp
 ```
 
-`SetRoot` задаёт корневую панель. `Root` возвращает текущую корневую панель.
+Создаёт `Warp` с корнем `TabGroup` и одной вкладкой `main`.
 
-## Вкладки
+## Корень и делегирование вкладок
 
 ```go
-NewTab(name string) *Tab
-ActiveTab() *Tab
-SetTabPosition(pos TabPosition)
-NextTab()
-PrevTab()
+func (w *Warp) SetRoot(panel Panel)
+func (w *Warp) Root() Panel
+
+func (w *Warp) NewTab(name string) *Tab
+func (w *Warp) ActiveTab() *Tab
+func (w *Warp) SetTabPosition(pos TabPosition)
+func (w *Warp) NextTab()
+func (w *Warp) PrevTab()
 ```
 
-`NewTab` создаёт вкладку. `ActiveTab` возвращает активную вкладку. `SetTabPosition` меняет расположение вкладок. `NextTab` и `PrevTab` переключают активную вкладку.
+Методы вкладок работают только если корень — `*TabGroup`. После замены корня через `SetRoot` они ничего не делают, а `ActiveTab` и `NewTab` возвращают `nil`.
 
-## Panel-совместимость
+## Модель Bubble Tea
 
 ```go
-AsPanel() Panel
+func (w *Warp) Init() tea.Cmd
+func (w *Warp) Update(msg tea.Msg) (tea.Model, tea.Cmd)
+func (w *Warp) View() string
 ```
 
-Возвращает `Warp` как `Panel` для вложенного использования.
+До первого ненулевого `WindowSizeMsg` метод `View` возвращает `Loading...`.
 
-## Запуск
+## Вложенность
 
 ```go
-Run() error
+func (w *Warp) AsPanel() Panel
 ```
 
-Запускает Bubble Tea приложение.
+Возвращает адаптер, который передаёт вложенному Warp выделенный размер и сообщения.
 
-## HTTP
+## HTTP API дерева элементов
 
 ```go
-ServeHTTP(addr string) error
-CloseHTTP() error
-HTTPAddr() string
+func (w *Warp) ServeHTTP(addr string) error
+func (w *Warp) CloseHTTP() error
+func (w *Warp) HTTPAddr() string
 ```
 
-`ServeHTTP` запускает HTTP-сервер. `CloseHTTP` останавливает его. `HTTPAddr` возвращает текущий адрес HTTP-сервера.
+`ServeHTTP` предоставляет:
 
-## Размер
+- `GET /elements` — JSON-дерево элементов; до первого resize используются размеры `80 × 24`;
+- `GET /healthz` — текстовый ответ `ok`.
+
+Пустой адрес использует `WARP_HTTP_PORT`; если переменная не задана, ОС выбирает свободный порт. Повторный вызов `ServeHTTP` во время работы ничего не меняет.
+
+## Размеры и запуск
 
 ```go
-Width() int
-Height() int
+func (w *Warp) Width() int
+func (w *Warp) Height() int
+func (w *Warp) Run() error
 ```
 
-Возвращают текущую ширину и высоту терминала.
+`Width` и `Height` возвращают последние полученные размеры. `Run` запускает Bubble Tea с alternate screen и отслеживанием движения мыши по ячейкам.

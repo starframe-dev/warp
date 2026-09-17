@@ -1,41 +1,55 @@
 ---
-title: Focus
-description: Интерфейсы фокуса, raw key handling и методы управления фокусом во вкладке.
+title: Фокус
+description: Явное управление фокусом и запрос необработанных клавиш.
 ---
 
-# Focus
+# Фокус
 
-Warp поддерживает фокусируемые панели и прямую обработку клавиш.
+Warp предоставляет операции фокуса, но не выбирает клавиши для их вызова. Приложение само решает, должны ли `Tab`, `Shift+Tab` или другие клавиши переключать фокус.
 
 ## Focusable
 
 ```go
 type Focusable interface {
+    Panel
     Focus()
     Blur()
     Focused() bool
 }
 ```
 
-`Focusable` описывает компонент, который может получать и терять фокус.
-
 ## RawKeyReceiver
 
 ```go
 type RawKeyReceiver interface {
-    HandleRawKey(msg tea.KeyMsg) tea.Cmd
+    Panel
+    WantsRawKeys() bool
 }
 ```
 
-`RawKeyReceiver` получает необработанные клавиатурные события.
+`WantsRawKeys` показывает, что панели терминального типа, например PTY-панели, нужен необработанный ввод с клавиатуры.
 
-## Фокус вкладки
+## Методы Tab
 
 ```go
-Tab.FocusNext()
-Tab.FocusPrev()
-Tab.FocusFirst()
-Tab.FocusPanel(panel Panel)
+func (t *Tab) Focus() Panel
+func (t *Tab) SetFocus(panel Panel) tea.Cmd
+func (t *Tab) FocusNext()
+func (t *Tab) FocusPrev()
+func (t *Tab) FocusFirst()
+func (t *Tab) FocusPanel(panel Panel)
 ```
 
-Методы `Tab` переключают фокус между панелями, выбирают первую фокусируемую панель или фокусируют конкретную панель.
+Обход идёт в визуальном порядке листовых фокусируемых панелей. `FocusNext` и `FocusPrev` циклические.
+
+## Пример
+
+```go
+case tea.KeyMsg:
+    switch msg.String() {
+    case "tab":
+        tab.FocusNext()
+    case "shift+tab":
+        tab.FocusPrev()
+    }
+```

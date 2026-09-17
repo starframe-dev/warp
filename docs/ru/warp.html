@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>warp</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>Warp</h1>
+
+        <p>
+            <code>Warp</code> — корневая модель TUI-приложения Bubbletea. Она оборачивает произвольную
+            корневую <code>Panel</code> (по умолчанию — <code>TabGroup</code> с одной вкладкой) и
+            передаёт каждое входящее сообщение напрямую этой панели без перехвата.
+        </p>
+
+        <p>
+            Помимо того что является моделью Bubbletea (<code>Init</code>, <code>Update</code>,
+            <code>View</code>), <code>Warp</code> предоставляет:
+        </p>
+
+        <ul>
+            <li>Удобные методы для вкладок, делегирующие в корневую <code>TabGroup</code>, когда она таковой.</li>
+            <li>Необязательный HTTP-сервер для просмотра живого дерева элементов извне.</li>
+            <li>Адаптер <code>Panel</code> (<code>AsPanel</code>), позволяющий встроить <code>Warp</code>
+                в другую панель или другой <code>Warp</code>.</li>
+        </ul>
+
+        <h2>Публичный API</h2>
+
+        <h3>Создание</h3>
+        <div class="signature"><code class="language-go">
+w := warp.New()
+</code></div>
+        <p>
+            <code>New</code> возвращает <code>*Warp</code>, чей корень — свежий <code>TabGroup</code>
+            с положением <code>TabTop</code> и одной владкой по умолчанию. Модель безопасна
+            для использования сразу после создания.
+        </p>
+
+        <h3>Доступ к корневой панели</h3>
+        <div class="signature"><code class="language-go">
+func (w *Warp) SetRoot(panel Panel)
+func (w *Warp) Root() Panel
+</code></div>
+        <p>
+            <code>SetRoot</code> заменяет корневую панель — установите сплиты, flex-контейнеры,
+            вложенные группировки вкладок или любую другую реализацию <code>Panel</code>.
+            <code>Root</code> возвращает текущую установленную панель.
+        </p>
+
+        <h3>Доступ к размерам</h3>
+        <div class="signature"><code class="language-go">
+func (w *Warp) Width() int
+func (w *Warp) Height() int
+</code></div>
+        <p>
+            Возвращают последний известный размер терминала. Эти значения обновляются из
+            <code>tea.WindowSizeMsg</code> во время <code>Update</code> и используются
+            <code>View</code> и HTTP-эндпоинтом при рендеринге.
+        </p>
+
+        <h3>Делегирование вкладок</h3>
+        <div class="signature"><code class="language-go">
+func (w *Warp) NewTab(name string) *Tab
+func (w *Warp) ActiveTab() *Tab
+func (w *Warp) SetTabPosition(pos TabPosition)
+func (w *Warp) NextTab()
+func (w *Warp) PrevTab()
+</code></div>
+        <p>
+            Это чисто удобные делегаты: если корневая панель — <code>*TabGroup</code>,
+            они передают в неё; в противном случае они no-op (возвращают <code>nil</code> там,
+            где ожидается значение). Они существуют, чтобы вызывающие не нуждались в downcast
+            корня.
+        </p>
+
+        <h3>Встраивание как панель</h3>
+        <div class="signature"><code class="language-go">
+func (w *Warp) AsPanel() Panel
+</code></div>
+        <p>
+            Возвращает адаптер <code>warpPanel</code>, реализующий интерфейс <code>Panel</code>
+            (т.е. <code>View(width, height)</code> и <code>Update(msg)</code>). Именно так
+            <code>Warp</code> может быть вложен в другую панель или другой <code>Warp</code>.
+        </p>
+
+        <h3>Жизненный цикл</h3>
+        <div class="signature"><code class="language-go">
+func (w *Warp) Run() error
+</code></div>
+        <p>
+            Запускает программу Bubbletea (alt-screen + клеточное движение мыши) и блокируется
+            до выхода программы. Возвращаемая ошибка — ошибка выхода программы.
+        </p>
+
+        <h3>HTTP-сервер</h3>
+        <div class="signature"><code class="language-go">
+func (w *Warp) ServeHTTP(addr string) error
+func (w *Warp) CloseHTTP() error
+func (w *Warp) HTTPAddr() string
+</code></div>
+        <p>
+            <code>ServeHTTP</code> запускает одно-подключаемый HTTP-сервер на <code>addr</code>
+            (или переменную окружения <code>WARP_HTTP_PORT</code>, или <code>:0</code> для
+            случайного порта если пусто), открывая два эндпоинта:
+        </p>
+        <table>
+            <tr><th>Путь</th><th>Описание</th></tr>
+            <tr><td><code>/elements</code></td><td>JSON-массив отрендеренного в данный момент дерева элементов при текущем (или резервном 80x24) размере</td></tr>
+            <tr><td><code>/healthz</code></td><td>Plain-text <code>ok</code> health-зонд</td></tr>
+        </table>
+        <p>
+            Сервер идемпотентен при запуске (второй вызов во время работы — no-op) и
+            идеемпотентен при закрытии. <code>HTTPAddr</code> возвращает привязанный адрес
+            или пустую строку, когда сервер не работает.
+        </p>
+
+        <h2>Модель Bubbletea</h2>
+
+        <div class="signature"><code class="language-go">
+func (w *Warp) Init() tea.Cmd
+func (w *Warp) Update(msg tea.Msg) (tea.Model, tea.Cmd)
+func (w *Warp) View() string
+</code></div>
+
+        <p>
+            <code>Init</code> возвращает <code>nil</code>. <code>Update</code> перехватывает только
+            <code>tea.WindowSizeMsg</code>, чтобы записать размеры окна, затем передаёт каждое
+            сообщение (включая сообщение о размере) в <code>w.root.Update</code>. Если
+            корневая панель — <code>nil</code>, <code>Update</code> возвращает пустую команду.
+        </p>
+        <p>
+            <code>View</code> рендерит <code>w.root.View(width, height)</code>. Если размер
+            ещё не известен (0x0), отображается строка-заглушка <code>Loading...</code>; если
+            корень — <code>nil</code>, отображается пустая строка.
+        </p>
+
+        <h2>Вложенность</h2>
+
+        <p>
+            Поскольку <code>AsPanel</code> предоставляет интерфейс <code>Panel</code>,
+            <code>Warp</code> можно поместить в другую панель (или другой <code>Warp</code>).
+            Адаптерный <code>View</code> записывает размеры, предоставленные родительным,
+            обратно во вложенный <code>Warp</code> и затем рендерит его корень, тогда как
+            <code>Update</code> просто передаёт сообщение и возвращает полученную команду.
+        </p>
+<pre><code class="language-go">parent := warp.New()
+inner  := warp.New()
+parent.SetRoot(inner.AsPanel()) // inner Warp embedded in parent</code></pre>
+
+        <h2>Заметки о реализации</h2>
+
+        <ul>
+            <li>
+                <code>httpMu</code> сериализует доступ к полям HTTP-сервера и также
+                реентернентно удерживается, пока <code>handleElements</code> снимает
+                снимок <code>width</code>, <code>height</code> и <code>root</code>.
+                Обработчик <code>/elements</code> поэтому рендерит дерево вне блокировки,
+                удерживая её только для публикации JSON.
+            </li>
+            <li>
+                HTTP-сервер намеренно минималистский: он привязывает один
+                <code>net.Listener</code>, подаёт два обработчика mux и никогда не
+                пере-привязывает. Двойной вызов <code>ServeHTTP</code> (до закрытия первого)
+                возвращает <code>nil</code> и сохраняет исходный listener.
+            </li>
+            <li>
+                Ответ дерева элементов всегда сериализуется как JSON-массив; если корень —
+                <code>nil</code>, это пустой массив (не <code>null</code>).
+            </li>
+            <li>
+                <code>parsePort</code> — внутренний помощник для извлечения привязанного
+                порта; он намеренно не экспортируется.
+            </li>
+        </ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>styles</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>styles.go</h1>
+
+        <p>
+            The <code>styles.go</code> file is the central palette and lipgloss style source of truth
+            for the <code>warp</code> TUI. It defines the Gruvbox Dark color set once and derives every
+            UI style from it: tab bar, split border, floating pane, collapsible, dropdown and other
+            elements. There is no runtime behavior in this file; it only holds <em>constants</em>
+            (colors) and <em>pre-built styles</em> that other files consume.
+        </p>
+
+        <h2>Module behavior</h2>
+        <p>
+            The module has no functions that mutate state. All exported values are immutable
+            <code>lipgloss.Style</code> values and unexported color variables. This keeps the
+            file trivially local: any UI component can render without knowing how other elements
+            are styled.
+        </p>
+        <p>
+            The color palette follows the
+            <a href="https://github.com/morhetz/gruvbox">Gruvbox Dark</a> scheme:
+        </p>
+        <ul>
+            <li>Background scale <code>gbDark0..gbDark4</code> and neutral <code>gbGray</code></li>
+            <li>Light text <code>gbLight1</code></li>
+            <li>Accent set: <code>gbRed</code>, <code>gbGreen</code>, <code>gbYellow</code>, <code>gbBlue</code></li>
+        </ul>
+
+        <h2>Public API</h2>
+        <p>
+            All public exports are read-only style values. They are safe to share across goroutines
+            because <code>lipgloss.Style</code> is an immutable struct.
+        </p>
+
+        <div class="signature"><pre class="language-go"><code>func BorderStyle() lipgloss.Style
+func BorderDragStyle() lipgloss.Style
+func BorderHoverStyle() lipgloss.Style
+</code></pre></div>
+
+        <table>
+            <tr>
+                <th>Function</th>
+                <th>Returns</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td><code>BorderStyle</code></td>
+                <td><code>lipgloss.Style</code></td>
+                <td>Foreground of the regular split border between panes.</td>
+            </tr>
+            <tr>
+                <td><code>BorderDragStyle</code></td>
+                <td><code>lipgloss.Style</code></td>
+                <td>Foreground used while a split border is being dragged.</td>
+            </tr>
+            <tr>
+                <td><code>BorderHoverStyle</code></td>
+                <td><code>lipgloss.Style</code></td>
+                <td>Foreground shown when the mouse hovers over a split border.</td>
+            </tr>
+        </table>
+
+        <p>
+            The three functions are tiny wrappers rather than values because
+            <code>lipgloss.Style</code> is a value type and the package wants to avoid exporting
+            the unexported <code>borderStyle</code>, <code>borderDragStyle</code> and
+            <code>borderHoverStyle</code> identifiers directly. Callers should treat the return
+            value as a constant and never mutate it.
+        </p>
+
+        <h2>Internal palette</h2>
+        <p>
+            The unexported color variables group into three conceptual buckets:
+        </p>
+        <ol>
+            <li><strong>Base palette</strong> — <code>gbDark0</code> through <code>gbLight1</code>, <code>gbGray</code> plus accent colors.</li>
+            <li><strong>Split border palette</strong> — <code>borderColor</code>, <code>borderDragColor</code>, <code>borderHoverColor</code> and <code>collapseStyle</code>.</li>
+            <li><strong>Element palettes</strong> — tab bar, floating pane, dropdown and collapsible colors, each paired with the lipgloss style that consumes them.</li>
+        </ol>
+
+        <h2>Style groups</h2>
+        <h3>Tab bar</h3>
+        <p>
+            The tab bar reuses the darkest background (<code>tabBarBg = gbDark0</code>) and
+            uses a bold, light foreground for the active tab. Inactive tabs use a muted gray
+            foreground. New-tab affordance is green, close-tab affordance is red.
+        </p>
+        <h3>Split border</h3>
+        <p>
+            <code>borderStyle</code> and <code>collapseStyle</code> both render with
+            <code>gbDark1</code> foreground. Dragging switches to
+            <code>gbYellow</code>, hovering to <code>gbDark3</code>.
+        </p>
+        <h3>Float pane</h3>
+        <p>
+            Floating panes have their own chrome: border in <code>gbGray</code>, title bar with
+            <code>gbDark1</code> background and <code>gbLight1</code> bold text, close button in
+            red, body background <code>gbDark0</code>.
+        </p>
+        <h3>Collapse</h3>
+        <p>
+            Collapsed panes use <code>gbLight1</code> on <code>gbDark1</code>, and the
+            border around a collapsed pane uses <code>gbDark4</code>.
+        </p>
+        <h3>Dropdown</h3>
+        <p>
+            Dropdown buttons use <code>gbDark2</code> background with <code>gbLight1</code>
+            text. Items sit on <code>gbDark0</code> background, hover to <code>gbDark2</code>
+            background with yellow text, and selected state turns green with bold text.
+        </p>
+
+        <h2>Usage example</h2>
+        <div class="signature"><pre class="language-go"><code>// Render a split border in its normal state.
+lipgloss.NewRenderer().Render(wrapText("pane", warp.BorderStyle()))
+
+// While the user drags the border.
+lipgloss.NewRenderer().Render(wrapText("pane", warp.BorderDragStyle()))</code></pre></div>
+
+        <h2>Implementation details</h2>
+        <ul>
+            <li>All styles are constructed once at package init time; they are not rebuilt on use.</li>
+            <li>Colors are hard-coded hex values rather than a runtime theme system; switching themes requires editing this file.</li>
+            <li>There is no theme interface or DI; the file is a single source of truth that other files in the package import implicitly via package-level names.</li>
+            <li>Styles are values, not pointers; lipgloss treats them as immutable, so returning them by value is safe.</li>
+            <li>The file has no dependencies on the rest of the package except the <code>lipgloss</code> library itself; it can be reasoned about locally.</li>
+        </ul>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

@@ -729,3 +729,55 @@ func TestTabElementsWithFlexColumn(t *testing.T) {
 		t.Fatalf("expected 2 elements, got %d", len(elems))
 	}
 }
+
+func TestTabSetSplitCollapse(t *testing.T) {
+	tab := NewTab("test")
+	p1 := tabMockPanel{id: 1}
+	p2 := tabMockPanel{id: 2}
+	tab.SetRootPanel(p1)
+	tab.SplitVertical(p1, 0.5, p2)
+
+	var called bool
+	tab.SetSplitCollapse(p1, 2, func() tea.Cmd {
+		called = true
+		return nil
+	})
+	if tab.root.Split == nil {
+		t.Fatal("expected split to be set")
+	}
+	if tab.root.Split.CollapseRow != 2 {
+		t.Fatalf("expected CollapseRow=2, got %d", tab.root.Split.CollapseRow)
+	}
+	if tab.root.Split.OnCollapse == nil {
+		t.Fatal("expected OnCollapse to be set")
+	}
+
+	// Call the collapse callback and verify it toggles collapse
+	tab.root.Split.OnCollapse()
+	if !called {
+		t.Fatal("expected onCollapse callback to be called")
+	}
+	if first := tab.root.Split.First; first.Collapse == nil || !first.Collapse.Active {
+		t.Fatal("expected first child to be collapsed")
+	}
+}
+
+func TestTabToggleSplitCollapse(t *testing.T) {
+	tab := NewTab("test")
+	p1 := tabMockPanel{id: 1}
+	p2 := tabMockPanel{id: 2}
+	tab.SetRootPanel(p1)
+	tab.SplitVertical(p1, 0.5, p2)
+
+	// Toggle should set collapse on first child
+	tab.ToggleSplitCollapse(p1)
+	if first := tab.root.Split.First; first.Collapse == nil || !first.Collapse.Active {
+		t.Fatal("expected first child to be collapsed after toggle")
+	}
+
+	// Toggle again should un-collapse
+	tab.ToggleSplitCollapse(p1)
+	if first := tab.root.Split.First; first.Collapse == nil || first.Collapse.Active {
+		t.Fatal("expected first child to be expanded after second toggle")
+	}
+}

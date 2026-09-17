@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>drag</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --code-bg: #161b22;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .doc-container {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            color: var(--accent);
+        }
+
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; }
+
+        p { margin: 0.75rem 0; }
+
+        a { color: var(--accent); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+
+        th { background: var(--bg); color: var(--accent); }
+
+        ul, ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+
+        li { margin: 0.25rem 0; }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.85em;
+        }
+
+        .signature {
+            background: var(--code-bg);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .signature pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .signature code {
+            background: transparent;
+            padding: 0;
+        }
+
+        footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <article class="doc-container">
+        <h1>drag.go</h1>
+
+        <p>Этот файл существует как маркер документации на уровне пакета для
+        пакета <code>warp</code>. Он намеренно не содержит кода,
+        экспортных идентификаторов и реализации. Единственная его цель —
+        хранить документационный комментарий пакета, описывающий, где
+        действительно находится поведение drag-and-drop для разделённых
+        границ.</p>
+
+        <h2>Назначение</h2>
+        <p>
+            В файле задокументировано, что взаимодействия drag-and-drop для
+            разделённых границ не реализованы в этом файле. Они обрабатываются
+            в <code>tab.go</code> и отображаются в <code>render.go</code>:
+        </p>
+
+        <ul>
+            <li>
+                <code>tab.go</code> реализует обработку ввода и управление
+                состоянием при перетаскивании границы между разделёнными
+                панелями. Соответствующие функции — <code>handleMouse</code>,
+                <code>updateDrag</code> и <code>hitBorder</code>.
+            </li>
+            <li>
+                <code>render.go</code> вычисляет экранные позиции границ
+                через <code>findBorders</code>.
+            </li>
+        </ul>
+
+        <h2>Публичный API</h2>
+        <p>
+            Файл не объявляет ни экспортируемых функций, ни типов,
+            ни переменных, ни констант. Единственным публичным символом,
+            присутствующим здесь, является имя пакета <code>warp</code>.
+        </p>
+
+        <h2>Детали реализации</h2>
+        <p>
+            Тело файла — единственный документационный комментарий,
+            начинающийся с пустой строки. В нём нет исполняемого кода,
+            импортов и побочных эффектов. Файл безопасно можно
+            рассматривать как чистую документацию.
+        </p>
+
+        <h2>Связанные файлы</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Файл</th>
+                    <th>Ответственность</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>tab.go</code></td>
+                    <td>
+                        Обработка ввода и управление состоянием при
+                        перетаскивании границы между разделёнными панелями.
+                    </td>
+                </tr>
+                <tr>
+                    <td><code>render.go</code></td>
+                    <td>Вычисляет экранные позиции границ.</td>
+                </tr>
+            </tbody>
+        </table>
+        <footer>Generated by code-check</footer>
+    </article>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script>
+document.querySelectorAll('.signature code').forEach(el => hljs.highlightElement(el));
+hljs.highlightAll();
+</script>
+</body>
+</html>

@@ -1,34 +1,39 @@
 ---
 title: Selectable
-description: Text selection component
+description: Text selection, selected text, and OSC 52 copy support.
 ---
 
 # Selectable
 
-A wrapper panel that adds text selection to any panel.
+`Selectable` wraps a panel and tracks a text selection in terminal cell coordinates.
 
-## Constructor
+## Constructor and fields
 
 ```go
-func NewSelectable(panel Panel) *Selectable
+func NewSelectable(content Panel) *Selectable
 ```
+
+The public selection fields are `AnchorX`, `AnchorY`, `CursorX`, `CursorY`, `HasSelection`, and `Selecting`.
+
+## Selection methods
+
+```go
+func (s *Selectable) SelectAll(width, height int)
+func (s *Selectable) ClearSelection()
+func (s *Selectable) SelectedText() string
+func (s *Selectable) Copy() tea.Cmd
+```
+
+`Copy` returns a command that emits the selected text through OSC 52. It does not write to the operating system clipboard directly.
 
 ## Controls
 
-- Mouse drag — select text
-- `Shift`+arrows — extend selection
-- `Ctrl+A` — select all
-- `Esc` — clear selection
+- Mouse drag selects a region.
+- `Shift` + arrows extends the selection.
+- `Ctrl+A` selects all visible content.
+- `Esc` clears the selection.
 
-## Clipboard
-
-```go
-func (s *Selectable) Copy()
-```
-
-Copies selected text to clipboard via OSC 52 escape sequence.
-
-## Panel Interface
+## Panel
 
 ```go
 func (s *Selectable) View(w, h int) string
