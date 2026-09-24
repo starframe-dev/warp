@@ -71,6 +71,75 @@ func TestFloatDragAndResizeStayWithinViewport(t *testing.T) {
 	}
 }
 
+func TestFloatReclampsAutomaticallyOnViewportResize(t *testing.T) {
+	tab := NewTab("resize")
+	tab.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	tab.Float(&geometryTestPanel{name: "float"}, 90, 30, 30, 10)
+	fp := tab.floats[0]
+	if fp.X != 90 || fp.Y != 30 {
+		t.Fatalf("large viewport position=(%d,%d), want (90,30)", fp.X, fp.Y)
+	}
+
+	tab.Update(ResizeMsg{Width: 60, Height: 20})
+	if fp.X != 30 || fp.Y != 10 || fp.Width != 30 || fp.Height != 10 {
+		t.Fatalf("float after resize = %+v, want (30,10) size 30x10", fp)
+	}
+	view := tab.View(60, 20)
+	assertFloatWithinViewport(t, fp, 60, 20)
+	if !strings.Contains(StripANSI(view), "╭") {
+		t.Fatal("resized float is not visible in the rendered viewport")
+	}
+}
+
+func TestFloatCreatedBeforeFirstWindowSizeIsReclamped(t *testing.T) {
+	tab := NewTab("before-size")
+	tab.Float(&geometryTestPanel{name: "float"}, 100, 30, 30, 10)
+	fp := tab.floats[0]
+	if fp.X != 100 || fp.Y != 30 {
+		t.Fatalf("pre-size position=(%d,%d), want (100,30)", fp.X, fp.Y)
+	}
+
+	tab.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
+	assertFloatWithinViewport(t, fp, 60, 20)
+	if fp.X != 30 || fp.Y != 10 {
+		t.Fatalf("float after first WindowSizeMsg position=(%d,%d), want (30,10)", fp.X, fp.Y)
+	}
+}
+
+func TestFloatFitsTinyViewports(t *testing.T) {
+	for _, size := range [][2]int{{1, 1}, {2, 2}, {5, 2}} {
+		tab := NewTab("tiny")
+		tab.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		tab.Float(&geometryTestPanel{name: "float"}, 100, 100, 20, 10)
+		fp := tab.floats[0]
+		view := tab.View(size[0], size[1])
+
+		assertFloatWithinViewport(t, fp, size[0], size[1])
+		lines := strings.Split(view, "\n")
+		if len(lines) != size[1] {
+			t.Fatalf("viewport %v rendered %d lines, want %d", size, len(lines), size[1])
+		}
+		for y, line := range lines {
+			if got := ansi.StringWidth(line); got != size[0] {
+				t.Errorf("viewport %v line %d width=%d, want %d", size, y, got, size[0])
+			}
+		}
+		if !strings.Contains(StripANSI(view), "╭") {
+			t.Errorf("float is unreachable in viewport %v: %q", size, StripANSI(view))
+		}
+	}
+}
+
+func assertFloatWithinViewport(t *testing.T, fp *FloatPane, width, height int) {
+	t.Helper()
+	if fp.X < 0 || fp.Y < 0 || fp.Width < 0 || fp.Height < 0 || fp.X+fp.Width > width || fp.Y+fp.Height > height {
+		t.Fatalf("float %+v exceeds viewport %dx%d", fp, width, height)
+	}
+	if fp.Width == 0 || fp.Height == 0 {
+		t.Fatalf("float %+v is not reachable in viewport %dx%d", fp, width, height)
+	}
+}
+
 func TestOverlayFloatHandlesNilAndUnicodeCellClipping(t *testing.T) {
 	base := padVisualLine("a界🙂bc", 12)
 	lines := []string{base}

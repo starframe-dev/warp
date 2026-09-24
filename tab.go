@@ -353,6 +353,7 @@ func (t *Tab) Update(msg tea.Msg) tea.Cmd {
 	case tea.WindowSizeMsg:
 		t.width = msg.Width
 		t.height = msg.Height
+		t.clampFloatsToViewport()
 		// Send the panel-specific ResizeMsg to all leaves and collect any
 		// commands they produce (e.g. starting side panels like ai-knowledge).
 		resizeCmds := t.broadcastResize(t.root, 0, 0, t.width, t.height)
@@ -364,6 +365,7 @@ func (t *Tab) Update(msg tea.Msg) tea.Cmd {
 		// their processes (e.g. ContextPanel starting ai-knowledge).
 		t.width = msg.Width
 		t.height = msg.Height
+		t.clampFloatsToViewport()
 		resizeCmds := t.broadcastResize(t.root, 0, 0, t.width, t.height)
 		return tea.Batch(resizeCmds...)
 	default:
@@ -375,6 +377,7 @@ func (t *Tab) Update(msg tea.Msg) tea.Cmd {
 
 // renderContent renders the panel tree at the given dimensions.
 func (t *Tab) renderContent(w, h int) string {
+	t.clampFloats(w, h)
 	layout := newLayout(t.root, layoutRect{w: max(0, w), h: max(0, h)})
 	t.lastBorders = collectLayoutBorders(layout)
 	lines := renderLayout(layout)
@@ -389,6 +392,16 @@ func (t *Tab) renderContent(w, h int) string {
 
 // Elements returns elements from the panel tree, recursively accounting for
 // splits/flex layouts so coordinates are relative to the tab content area.
+func (t *Tab) clampFloatsToViewport() {
+	t.clampFloats(t.width, t.height)
+}
+
+func (t *Tab) clampFloats(width, height int) {
+	for _, fp := range t.floats {
+		fp.clampPosition(width, height)
+	}
+}
+
 func (t *Tab) Elements(w, h int) []Element {
 	layout := newLayout(t.root, layoutRect{w: max(0, w), h: max(0, h)})
 	return elementsFromLayout(layout)

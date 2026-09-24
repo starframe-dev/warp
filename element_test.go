@@ -20,6 +20,18 @@ func (p testElementPanel) Elements(width, height int) []Element {
 	return p.elems
 }
 
+type dimensionElementsPanel struct {
+	width  int
+	height int
+}
+
+func (*dimensionElementsPanel) View(_, _ int) string   { return "" }
+func (*dimensionElementsPanel) Update(tea.Msg) tea.Cmd { return nil }
+func (p *dimensionElementsPanel) Elements(width, height int) []Element {
+	p.width, p.height = width, height
+	return nil
+}
+
 // testNonProviderPanel implements Panel but not ElementProvider.
 type testNonProviderPanel struct{}
 
@@ -198,6 +210,7 @@ func TestHTTPElementsEndpoint(t *testing.T) {
 	w.SetRoot(testElementPanel{elems: []Element{
 		{Role: "button", Name: "+Folder", Bounds: Bounds{X: 0, Y: 0, W: 8, H: 1}},
 	}})
+	w.View()
 
 	if err := w.ServeHTTP(":0"); err != nil {
 		t.Fatalf("ServeHTTP: %v", err)
@@ -230,7 +243,12 @@ func TestHTTPElementsEndpoint(t *testing.T) {
 
 func TestElementsDefaultsTo80x24(t *testing.T) {
 	w := New()
-	w.SetRoot(testElementPanel{})
+	panel := &dimensionElementsPanel{}
+	w.SetRoot(panel)
+	w.View()
+	if panel.width != 80 || panel.height != 24 {
+		t.Fatalf("snapshot size=%dx%d, want 80x24", panel.width, panel.height)
+	}
 	if err := w.ServeHTTP(":0"); err != nil {
 		t.Fatalf("ServeHTTP: %v", err)
 	}
@@ -251,6 +269,7 @@ func TestHTTPCORSEnabled(t *testing.T) {
 	w.width = 80
 	w.height = 24
 	w.SetRoot(testElementPanel{})
+	w.View()
 	if err := w.ServeHTTP(":0"); err != nil {
 		t.Fatalf("ServeHTTP: %v", err)
 	}

@@ -30,7 +30,7 @@ Built on [Bubbletea](https://github.com/charmbracelet/bubbletea) and [Lipgloss](
 
 `SetTheme` updates Warp's package-wide component styles. Configure the theme before starting the Bubble Tea program; changing it while rendering is not synchronized.
 
-`Warp.ServeHTTP("")` binds the inspector to `127.0.0.1` on `WARP_HTTP_PORT`, or an automatically assigned port when the variable is unset. `HTTPAddr()` returns the actual address. `/elements` exposes the semantic UI tree and allows cross-origin requests; the endpoint has no authentication. An explicitly supplied non-loopback address (for example, `:8080`) may expose UI data to the network, so secure it before use outside a trusted local environment.
+`Warp.ServeHTTP("")` binds the inspector to `127.0.0.1` on `WARP_HTTP_PORT`, or an automatically assigned port when the variable is unset. `HTTPAddr()` returns the actual address. `/elements` exposes the semantic UI tree and allows cross-origin requests; the endpoint has no authentication. The tree is snapshotted on the UI thread after `Update`/`View`, so HTTP returns the latest completed snapshot rather than traversing live panels. An explicitly supplied non-loopback address (for example, `:8080`) may expose UI data to the network, so secure it before use outside a trusted local environment.
 
 ## Quick start
 

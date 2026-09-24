@@ -32,6 +32,80 @@ func TestInputAcceptsMultiRuneKeyEvents(t *testing.T) {
 	}
 }
 
+func TestInputEditingUsesGraphemeBoundaries(t *testing.T) {
+	clusters := []string{"e\u0301", "👩‍💻", "👨‍👩‍👧‍👦", "🇫🇮"}
+	for _, cluster := range clusters {
+		runeCount := len([]rune(cluster))
+		input := NewInput("")
+		input.Focus()
+		input.SetValue("A" + cluster + "B")
+
+		input.Update(tea.KeyMsg{Type: tea.KeyLeft})
+		if input.Cursor != 1+runeCount {
+			t.Fatalf("left before B for %q: cursor=%d, want %d", cluster, input.Cursor, 1+runeCount)
+		}
+		input.Update(tea.KeyMsg{Type: tea.KeyLeft})
+		if input.Cursor != 1 {
+			t.Fatalf("left before %q: cursor=%d, want 1", cluster, input.Cursor)
+		}
+		input.Update(tea.KeyMsg{Type: tea.KeyLeft})
+		if input.Cursor != 0 {
+			t.Fatalf("left before start for %q: cursor=%d, want 0", cluster, input.Cursor)
+		}
+		input.Update(tea.KeyMsg{Type: tea.KeyRight})
+		if input.Cursor != 1 {
+			t.Fatalf("right before %q: cursor=%d, want 1", cluster, input.Cursor)
+		}
+		input.Update(tea.KeyMsg{Type: tea.KeyRight})
+		if input.Cursor != 1+runeCount {
+			t.Fatalf("right after %q: cursor=%d, want %d", cluster, input.Cursor, 1+runeCount)
+		}
+
+		input.Update(tea.KeyMsg{Type: tea.KeyHome})
+		if input.Cursor != 0 {
+			t.Fatalf("home for %q: cursor=%d, want 0", cluster, input.Cursor)
+		}
+		input.Update(tea.KeyMsg{Type: tea.KeyEnd})
+		if input.Cursor != 2+runeCount {
+			t.Fatalf("end for %q: cursor=%d, want %d", cluster, input.Cursor, 2+runeCount)
+		}
+
+		input.SetCursor(2)
+		if input.Cursor != 1+runeCount {
+			t.Fatalf("SetCursor inside %q: cursor=%d, want %d", cluster, input.Cursor, 1+runeCount)
+		}
+		input.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+		if input.Value != "AB" || input.Cursor != 1 {
+			t.Fatalf("backspace after %q: value=%q cursor=%d", cluster, input.Value, input.Cursor)
+		}
+
+		input.SetValue("A" + cluster + "B")
+		input.SetCursor(1)
+		input.Update(tea.KeyMsg{Type: tea.KeyDelete})
+		if input.Value != "AB" || input.Cursor != 1 {
+			t.Fatalf("delete before %q: value=%q cursor=%d", cluster, input.Value, input.Cursor)
+		}
+
+		input.SetValue(cluster)
+		input.SetCursor(0)
+		input.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+		if input.Value != "X"+cluster || input.Cursor != 1 {
+			t.Fatalf("insert before %q: value=%q cursor=%d", cluster, input.Value, input.Cursor)
+		}
+		input.SetCursor(1 + runeCount)
+		input.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'Y'}})
+		if input.Value != "X"+cluster+"Y" || input.Cursor != 2+runeCount {
+			t.Fatalf("insert after %q: value=%q cursor=%d", cluster, input.Value, input.Cursor)
+		}
+
+		for width := 0; width <= 6; width++ {
+			if got := ansi.StringWidth(input.View(width, 1)); got != width {
+				t.Errorf("narrow view after editing %q at width %d has %d cells", cluster, width, got)
+			}
+		}
+	}
+}
+
 func TestInputNarrowPromptAndBoxStayWithinCellBounds(t *testing.T) {
 	input := NewInput("界🙂 ")
 	for width := 0; width <= 8; width++ {

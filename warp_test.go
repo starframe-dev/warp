@@ -886,7 +886,7 @@ func TestFloatResize(t *testing.T) {
 	}
 }
 
-func TestFloatOffScreen(t *testing.T) {
+func TestFloatAtRightEdgeIsReclampedDuringRender(t *testing.T) {
 	w := New()
 	w.width = 40
 	w.height = 10
@@ -903,8 +903,8 @@ func TestFloatOffScreen(t *testing.T) {
 		t.Fatalf("line 2 too short: %d chars, expected at least 40", len(line2))
 	}
 
-	if line2[35] != "╭"[0] {
-		t.Errorf("expected ╭ at position 35, got %q", string(line2[35]))
+	if line2[30] != "╭"[0] {
+		t.Errorf("expected ╭ at position 30 after clamping, got %q", string(line2[30]))
 	}
 
 	if lipgloss.Width(lines[0]) != 40 {

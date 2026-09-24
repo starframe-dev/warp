@@ -54,14 +54,14 @@ func (in *Input) SetValue(v string)
 func (in *Input) SetCursor(pos int)
 ```
 
-Устанавливает позицию курсора в символах.
+Устанавливает позицию курсора в рунах.
 
 **Параметры:**
-- `pos` — позиция курсора в символах
+- `pos` — позиция курсора в рунах
 
 **Поведение:**
-- Устанавливает `Cursor` на переданный параметр
-- Вызывает `clampCursor()` для валидации диапазона
+- Ограничивает позицию диапазоном значения
+- Если позиция попадает внутрь grapheme cluster, сдвигает курсор к его правой границе
 
 ### State Queries
 
@@ -211,6 +211,10 @@ func (in *Input) insertAtCursor(s string)
 3. Конвертирует обратно в строку
 4. Сдвигает курсор на длину вставленного текста
 
+### Grapheme-aware Editing
+
+`Cursor` сохраняет публичную семантику позиции в рунах, но его валидные позиции ограничены границами grapheme clusters. Стрелки влево/вправо перемещают курсор к соседней границе. Backspace/Delete удаляют целый grapheme cluster. `SetCursor` и прямые невалидные позиции нормализуются к правой границе кластера.
+
 ### Delete Operations
 
 #### Delete Before Cursor
@@ -222,9 +226,9 @@ func (in *Input) deleteBeforeCursor()
 Удаляет символ перед курсором.
 
 **Поведение:**
-1. Преобразует `Value` в slice `rune`
-2. Удаляет символ на позиции `Cursor-1`
-3. Сдвигает `Cursor` на `-1`
+1. Находит предыдущую границу grapheme cluster
+2. Удаляет все руны между ней и `Cursor`
+3. Перемещает `Cursor` к предыдущей границе
 
 #### Delete At Cursor
 
@@ -235,8 +239,8 @@ func (in *Input) deleteAtCursor()
 Удаляет символ под курсором.
 
 **Поведение:**
-1. Преобразует `Value` в slice `rune`
-2. Удаляет символ на позиции `Cursor`
+1. Находит следующую границу grapheme cluster
+2. Удаляет все руны между `Cursor` и этой границей
 
 ## Cursor Clamping
 
@@ -249,6 +253,7 @@ func (in *Input) clampCursor()
 **Поведение:**
 - `Cursor < 0` → `Cursor = 0`
 - `Cursor > len(runes(Value))` → `Cursor = len(runes(Value))`
+- Позиция внутри grapheme cluster → правая граница этого кластера
 
 ## Type Definition
 

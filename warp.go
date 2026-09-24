@@ -15,21 +15,23 @@ import (
 // Warp is the root Bubbletea model. It holds a root Panel and forwards
 // all messages to it without interception.
 type Warp struct {
-	root   Panel
-	width  int
-	height int
+	root         Panel
+	rootRevision uint64
+	width        int
+	height       int
 
-	httpServer  *http.Server
-	httpAddr    string
-	httpClosing bool
-	elementsMu  sync.Mutex
-	mu          sync.RWMutex
+	httpServer         *http.Server
+	httpAddr           string
+	httpClosing        bool
+	elementsSnapshot   []Element
+	elementsSnapshotMu sync.RWMutex
+	mu                 sync.RWMutex
 }
 
 // New creates a new Warp with a TabGroup root (one default tab).
 func New() *Warp {
 	tg := NewTabGroup(TabTop)
-	return &Warp{root: tg}
+	return &Warp{root: tg, elementsSnapshot: []Element{}}
 }
 
 // SetRoot replaces the root panel. Use this to install custom layouts
@@ -37,6 +39,7 @@ func New() *Warp {
 func (w *Warp) SetRoot(panel Panel) {
 	w.mu.Lock()
 	w.root = panel
+	w.rootRevision++
 	w.mu.Unlock()
 }
 
@@ -117,27 +120,34 @@ func (w *Warp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		w.width = size.Width
 		w.height = size.Height
 	}
-	root := w.root
+	root, width, height, rootRevision := w.root, w.width, w.height, w.rootRevision
 	w.mu.Unlock()
 
+	var cmd tea.Cmd
 	if !isNilPanel(root) {
-		return w, root.Update(msg)
+		cmd = root.Update(msg)
 	}
-	return w, nil
+	w.refreshElementsSnapshot(root, width, height, rootRevision)
+	return w, cmd
 }
 
 // View renders the root panel.
 func (w *Warp) View() string {
 	w.mu.RLock()
-	root, width, height := w.root, w.width, w.height
+	root, width, height, rootRevision := w.root, w.width, w.height, w.rootRevision
 	w.mu.RUnlock()
 	if isNilPanel(root) {
+		w.refreshElementsSnapshot(nil, width, height, rootRevision)
 		return ""
 	}
 	if width == 0 || height == 0 {
+		w.refreshElementsSnapshot(root, width, height, rootRevision)
 		return "Loading..."
 	}
-	return root.View(width, height)
+
+	view := root.View(width, height)
+	w.refreshElementsSnapshot(root, width, height, rootRevision)
+	return view
 }
 
 // AsPanel returns a Panel adapter for this Warp, enabling nested warps.
@@ -240,22 +250,9 @@ func (w *Warp) HTTPAddr() string {
 }
 
 func (w *Warp) handleElements(wr http.ResponseWriter, _ *http.Request) {
-	w.mu.RLock()
-	width, height := w.width, w.height
-	root := w.root
-	w.mu.RUnlock()
-
-	if width == 0 {
-		width = 80
-	}
-	if height == 0 {
-		height = 24
-	}
-
-	var elems []Element
-	if !isNilPanel(root) {
-		elems = w.inspectElements(root, width, height)
-	}
+	w.elementsSnapshotMu.RLock()
+	elems := w.elementsSnapshot
+	w.elementsSnapshotMu.RUnlock()
 	if elems == nil {
 		elems = []Element{}
 	}
@@ -266,10 +263,43 @@ func (w *Warp) handleElements(wr http.ResponseWriter, _ *http.Request) {
 	_ = json.NewEncoder(wr).Encode(elems)
 }
 
-func (w *Warp) inspectElements(root Panel, width, height int) []Element {
-	w.elementsMu.Lock()
-	defer w.elementsMu.Unlock()
-	return collectElements(root, width, height)
+func (w *Warp) refreshElementsSnapshot(root Panel, width, height int, rootRevision uint64) {
+	if width <= 0 {
+		width = 80
+	}
+	if height <= 0 {
+		height = 24
+	}
+
+	var elems []Element
+	if !isNilPanel(root) {
+		elems = cloneElements(collectElements(root, width, height))
+	}
+	if elems == nil {
+		elems = []Element{}
+	}
+
+	w.mu.RLock()
+	if rootRevision != w.rootRevision {
+		w.mu.RUnlock()
+		return
+	}
+	w.elementsSnapshotMu.Lock()
+	w.elementsSnapshot = elems
+	w.elementsSnapshotMu.Unlock()
+	w.mu.RUnlock()
+}
+
+func cloneElements(elems []Element) []Element {
+	if elems == nil {
+		return nil
+	}
+	cloned := make([]Element, len(elems))
+	for i, elem := range elems {
+		cloned[i] = elem
+		cloned[i].Children = cloneElements(elem.Children)
+	}
+	return cloned
 }
 
 func parsePort(addr string) string {

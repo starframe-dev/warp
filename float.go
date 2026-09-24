@@ -153,16 +153,25 @@ func (fp *FloatPane) handleMouseWithin(msg tea.MouseMsg, mx, my, totalW, totalH 
 }
 
 func (fp *FloatPane) clampPosition(totalW, totalH int) {
-	if fp.X < 0 {
-		fp.X = 0
+	if fp == nil {
+		return
 	}
-	if fp.Y < 0 {
-		fp.Y = 0
-	}
+	fp.X = max(0, fp.X)
+	fp.Y = max(0, fp.Y)
+	fp.Width = max(0, fp.Width)
+	fp.Height = max(0, fp.Height)
 	if totalW > 0 {
+		if fp.Width == 0 {
+			fp.Width = min(floatMinWidth, totalW)
+		}
+		fp.Width = min(fp.Width, totalW)
 		fp.X = min(fp.X, max(0, totalW-fp.Width))
 	}
 	if totalH > 0 {
+		if fp.Height == 0 {
+			fp.Height = min(floatMinHeight, totalH)
+		}
+		fp.Height = min(fp.Height, totalH)
 		fp.Y = min(fp.Y, max(0, totalH-fp.Height))
 	}
 }

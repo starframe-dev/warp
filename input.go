@@ -31,11 +31,12 @@ func NewInput(prompt string) *Input {
 // SetValue replaces the input value and places the cursor at the end.
 func (in *Input) SetValue(v string) {
 	in.Value = v
-	in.Cursor = len([]rune(v))
+	in.Cursor = utf8.RuneCountInString(v)
 	in.clampCursor()
 }
 
-// SetCursor sets the cursor position in runes.
+// SetCursor sets the cursor position in runes. Positions inside a grapheme cluster
+// are normalized to that cluster's end.
 func (in *Input) SetCursor(pos int) {
 	in.Cursor = pos
 	in.clampCursor()
@@ -107,6 +108,7 @@ func (in *Input) viewInline(w, h int) string {
 // renderLine builds the prompt and value, keeping the cursor visible in terminal cells.
 func (in *Input) renderLine(maxW int) string {
 	maxW = max(0, maxW)
+	in.clampCursor()
 	if maxW == 0 {
 		return ""
 	}
@@ -227,12 +229,7 @@ func (in *Input) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
-	if in.Cursor < 0 {
-		in.Cursor = 0
-	}
-	if in.Cursor > len([]rune(in.Value)) {
-		in.Cursor = len([]rune(in.Value))
-	}
+	in.clampCursor()
 
 	switch key.String() {
 	case "backspace":
@@ -240,13 +237,9 @@ func (in *Input) Update(msg tea.Msg) tea.Cmd {
 	case "delete":
 		in.deleteAtCursor()
 	case "left":
-		if in.Cursor > 0 {
-			in.Cursor--
-		}
+		in.Cursor = previousGraphemeBoundary(in.Value, in.Cursor)
 	case "right":
-		if in.Cursor < len([]rune(in.Value)) {
-			in.Cursor++
-		}
+		in.Cursor = nextGraphemeBoundary(in.Value, in.Cursor)
 	case "home":
 		in.Cursor = 0
 	case "end":
@@ -268,42 +261,88 @@ func (in *Input) insertAtCursor(s string) {
 	if s == "" {
 		return
 	}
+	in.clampCursor()
 	runes := []rune(in.Value)
-	if in.Cursor > len(runes) {
-		in.Cursor = len(runes)
-	}
 	runes = append(runes[:in.Cursor], append([]rune(s), runes[in.Cursor:]...)...)
 	in.Value = string(runes)
-	in.Cursor += len([]rune(s))
+	in.Cursor += utf8.RuneCountInString(s)
+	in.clampCursor()
 }
 
 func (in *Input) deleteBeforeCursor() {
-	runes := []rune(in.Value)
-	if in.Cursor <= 0 || len(runes) == 0 {
+	in.clampCursor()
+	start := previousGraphemeBoundary(in.Value, in.Cursor)
+	if start == in.Cursor {
 		return
 	}
-	runes = append(runes[:in.Cursor-1], runes[in.Cursor:]...)
+	runes := []rune(in.Value)
+	runes = append(runes[:start], runes[in.Cursor:]...)
 	in.Value = string(runes)
-	in.Cursor--
+	in.Cursor = start
+	in.clampCursor()
 }
 
 func (in *Input) deleteAtCursor() {
-	runes := []rune(in.Value)
-	if in.Cursor < 0 || in.Cursor >= len(runes) {
+	in.clampCursor()
+	end := nextGraphemeBoundary(in.Value, in.Cursor)
+	if end == in.Cursor {
 		return
 	}
-	runes = append(runes[:in.Cursor], runes[in.Cursor+1:]...)
+	runes := []rune(in.Value)
+	runes = append(runes[:in.Cursor], runes[end:]...)
 	in.Value = string(runes)
+	in.clampCursor()
 }
 
 func (in *Input) clampCursor() {
-	n := len([]rune(in.Value))
-	if in.Cursor < 0 {
-		in.Cursor = 0
+	in.Cursor = normalizeGraphemeCursor(in.Value, in.Cursor)
+}
+
+func normalizeGraphemeCursor(value string, runePos int) int {
+	runePos = max(0, min(runePos, utf8.RuneCountInString(value)))
+	if runePos == 0 {
+		return 0
 	}
-	if in.Cursor > n {
-		in.Cursor = n
+
+	boundary := 0
+	graphemes := uniseg.NewGraphemes(value)
+	for graphemes.Next() {
+		boundary += utf8.RuneCountInString(graphemes.Str())
+		if runePos <= boundary {
+			return boundary
+		}
 	}
+	return boundary
+}
+
+func previousGraphemeBoundary(value string, runePos int) int {
+	runePos = max(0, min(runePos, utf8.RuneCountInString(value)))
+	boundary := 0
+	graphemes := uniseg.NewGraphemes(value)
+	for graphemes.Next() {
+		if runePos <= boundary {
+			return boundary
+		}
+		end := boundary + utf8.RuneCountInString(graphemes.Str())
+		if runePos <= end {
+			return boundary
+		}
+		boundary = end
+	}
+	return boundary
+}
+
+func nextGraphemeBoundary(value string, runePos int) int {
+	runePos = max(0, min(runePos, utf8.RuneCountInString(value)))
+	boundary := 0
+	graphemes := uniseg.NewGraphemes(value)
+	for graphemes.Next() {
+		boundary += utf8.RuneCountInString(graphemes.Str())
+		if runePos < boundary {
+			return boundary
+		}
+	}
+	return boundary
 }
 
 var (
