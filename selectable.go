@@ -4,10 +4,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/rivo/uniseg"
 )
 
 // Selectable wraps a Panel with text selection support.
@@ -37,7 +37,7 @@ func NewSelectable(content Panel) *Selectable {
 
 // SelectedText returns the currently selected text.
 func (s *Selectable) SelectedText() string {
-	if !s.HasSelection || s.Content == nil {
+	if !s.HasSelection || isNilPanel(s.Content) {
 		return ""
 	}
 
@@ -48,12 +48,12 @@ func (s *Selectable) SelectedText() string {
 		// large render so that selection bounds still map to content lines.
 		w, h := s.lastW, s.lastH
 		if w <= 0 {
-			w = 9999
+			w = 80
 		}
 		if h <= 0 {
-			h = 9999
+			h = 24
 		}
-		content := s.Content.View(w, h)
+		content := s.Content.View(max(0, w), max(0, h))
 		lines = strings.Split(content, "\n")
 	}
 
@@ -61,9 +61,9 @@ func (s *Selectable) SelectedText() string {
 	var parts []string
 	for y := sy; y <= ey && y < len(lines); y++ {
 		line := lines[y]
-		lineVis := StripANSI(line)
+		lineVis := ansi.Strip(line)
 		startX := 0
-		endX := len(lineVis)
+		endX := ansi.StringWidth(lineVis)
 		if y == sy {
 			startX = sx
 		}
@@ -73,8 +73,8 @@ func (s *Selectable) SelectedText() string {
 		if startX < 0 {
 			startX = 0
 		}
-		if endX > len(lineVis) {
-			endX = len(lineVis)
+		if endX > ansi.StringWidth(lineVis) {
+			endX = ansi.StringWidth(lineVis)
 		}
 		if startX < endX {
 			parts = append(parts, extractVisRange(line, startX, endX))
@@ -107,6 +107,10 @@ func (s *Selectable) Copy() tea.Cmd {
 
 // SelectAll selects all visible content.
 func (s *Selectable) SelectAll(w, h int) {
+	if w <= 0 || h <= 0 {
+		s.ClearSelection()
+		return
+	}
 	s.AnchorX, s.AnchorY = 0, 0
 	s.CursorX, s.CursorY = w-1, h-1
 	s.HasSelection = true
@@ -114,7 +118,9 @@ func (s *Selectable) SelectAll(w, h int) {
 
 // View renders the content with selection highlight.
 func (s *Selectable) View(w, h int) string {
-	if s.Content == nil {
+	w = max(0, w)
+	h = max(0, h)
+	if isNilPanel(s.Content) {
 		return strings.Repeat("\n", h)
 	}
 
@@ -160,7 +166,7 @@ func (s *Selectable) View(w, h int) string {
 		}
 	}
 
-	if !s.HasSelection {
+	if !s.HasSelection || w == 0 || h == 0 {
 		return content
 	}
 
@@ -174,7 +180,7 @@ func (s *Selectable) View(w, h int) string {
 			continue
 		}
 		startX := 0
-		endX := lipgloss.Width(StripANSI(line))
+		endX := ansi.StringWidth(line)
 		if y == sy {
 			startX = sx
 		}
@@ -190,7 +196,7 @@ func (s *Selectable) View(w, h int) string {
 func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case ResizeMsg:
-		if s.Content != nil {
+		if !isNilPanel(s.Content) {
 			return s.Content.Update(msg)
 		}
 		return nil
@@ -279,7 +285,7 @@ func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 		}
 	}
 
-	if s.Content != nil {
+	if !isNilPanel(s.Content) {
 		return s.Content.Update(msg)
 	}
 	return nil
@@ -296,103 +302,98 @@ func (s *Selectable) sortedBounds() (sx, sy, ex, ey int) {
 	return
 }
 
-// highlightRange applies selection highlight to the visual range [startX, endX).
+// highlightRange applies selection highlight to the terminal-cell range [startX, endX).
 func highlightRange(line string, startX, endX int) string {
 	if startX >= endX {
 		return line
 	}
-
-	// Walk through the line tracking visual rune position so that Unicode and
-	// ANSI sequences are handled correctly. The fast byte-index path is skipped
-	// because terminal lines may contain multi-byte UTF-8 runes.
+	startX = max(0, startX)
 	var result strings.Builder
 	result.Grow(len(line) + 20)
-
-	visPos := 0
-	i := 0
+	cellPos := 0
 	inSelection := false
 
-	for i < len(line) {
+	for i := 0; i < len(line); {
 		if line[i] == '\x1b' {
-			// Copy ANSI sequence
-			start := i
-			if i+1 < len(line) && line[i+1] == '[' {
-				i += 2
-				for i < len(line) && line[i] < 0x40 {
-					i++
-				}
-				if i < len(line) {
-					i++
-				}
-			} else {
-				i++
-			}
-			esc := line[start:i]
-			// If we're inside selection, close it before the escape,
-			// then reopen after
+			end := ansiSequenceEnd(line, i)
+			sequence := line[i:end]
 			if inSelection {
 				result.WriteString(resetStyle)
-				result.WriteString(esc)
+				result.WriteString(sequence)
 				result.WriteString(selectionStyleANSI)
 			} else {
-				result.WriteString(esc)
+				result.WriteString(sequence)
 			}
+			i = end
 			continue
 		}
 
-		r, size := utf8.DecodeRuneInString(line[i:])
-		wasInSelection := inSelection
-		inSelection = visPos >= startX && visPos < endX
-
-		if !wasInSelection && inSelection {
-			result.WriteString(selectionStyleANSI)
+		cluster, _, width, _ := uniseg.FirstGraphemeCluster([]byte(line[i:]), -1)
+		if len(cluster) == 0 {
+			break
 		}
-		if wasInSelection && !inSelection {
+		selected := cellPos < endX && cellPos+width > startX
+		if selected && !inSelection {
+			result.WriteString(selectionStyleANSI)
+		} else if !selected && inSelection {
 			result.WriteString(resetStyle)
 		}
-
-		result.WriteRune(r)
-		i += size
-		visPos++
+		result.Write(cluster)
+		i += len(cluster)
+		cellPos += width
+		inSelection = selected
 	}
-
 	if inSelection {
 		result.WriteString(resetStyle)
 	}
-
 	return result.String()
 }
 
-// extractVisRange extracts text from visual range [startX, endX).
-func extractVisRange(line string, startX, endX int) string {
-	var result strings.Builder
-	visPos := 0
-	for i := 0; i < len(line); {
-		if line[i] == '\x1b' {
-			if i+1 < len(line) && line[i+1] == '[' {
-				i += 2
-				for i < len(line) && line[i] < 0x40 {
-					i++
-				}
-				if i < len(line) {
-					i++
-				}
-			} else {
-				i++
+func ansiSequenceEnd(text string, start int) int {
+	if start+1 >= len(text) {
+		return len(text)
+	}
+	switch text[start+1] {
+	case '[':
+		end := start + 2
+		for end < len(text) && text[end] < 0x40 {
+			end++
+		}
+		if end < len(text) {
+			return end + 1
+		}
+		return end
+	case ']':
+		for end := start + 2; end < len(text); end++ {
+			if text[end] == '\a' {
+				return end + 1
 			}
-			continue
+			if text[end] == '\x1b' && end+1 < len(text) && text[end+1] == '\\' {
+				return end + 2
+			}
 		}
-		if visPos >= startX && visPos < endX {
-			r, size := utf8.DecodeRuneInString(line[i:])
-			result.WriteRune(r)
-			i += size
-		} else if visPos >= endX {
-			break
-		} else {
-			_, size := utf8.DecodeRuneInString(line[i:])
-			i += size
+		return len(text)
+	default:
+		return min(len(text), start+2)
+	}
+}
+
+// extractVisRange extracts complete graphemes overlapping terminal-cell range [startX, endX).
+func extractVisRange(line string, startX, endX int) string {
+	if startX >= endX {
+		return ""
+	}
+	plain := ansi.Strip(line)
+	var result strings.Builder
+	cellPos := 0
+	graphemes := uniseg.NewGraphemes(plain)
+	for graphemes.Next() {
+		cluster := graphemes.Str()
+		width := ansi.StringWidth(cluster)
+		if cellPos < endX && cellPos+width > startX {
+			result.WriteString(cluster)
 		}
-		visPos++
+		cellPos += width
 	}
 	return result.String()
 }

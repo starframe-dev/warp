@@ -18,9 +18,9 @@ type PopoverItem struct {
 // It overlays on top of existing content lines, preserving content left/right.
 type Popover struct {
 	Items   []PopoverItem
-	X, Y    int       // Position in screen coordinates (0 = header row)
-	Width   int       // Content width (0 = auto: 20)
-	OnClose func()    // Called when popover is closed
+	X, Y    int    // Position in screen coordinates (0 = header row)
+	Width   int    // Content width (0 = auto: 20)
+	OnClose func() // Called when popover is closed
 
 	// rendered dimensions (set by Overlay)
 	boxW, boxH int

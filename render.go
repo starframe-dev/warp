@@ -1,474 +1,410 @@
 package warp
 
 import (
-    "strings"
+	"math"
+	"strings"
 
-    "github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/ansi"
 )
 
-// renderNode renders a node tree into lines of the given dimensions.
 func renderNode(node *Node, w, h int) []string {
-    if node == nil {
-        return makeEmptyLines(w, h)
-    }
-    if node.IsLeaf() {
-        content := node.Panel.View(w, h)
-        return padContent(content, w, h)
-    }
+	return renderLayout(newLayout(node, layoutRect{w: max(0, w), h: max(0, h)}))
+}
 
-    if node.Split != nil {
-        switch node.Split.Direction {
-        case Vertical:
-            return renderVerticalSplit(node.Split, w, h)
-        case Horizontal:
-            return renderHorizontalSplit(node.Split, w, h)
-        }
-    }
+func renderLayout(layout *layoutNode) []string {
+	if layout == nil {
+		return nil
+	}
+	bounds := layout.bounds
+	if bounds.h <= 0 {
+		return nil
+	}
+	if layout.node == nil {
+		return renderBlankLines(bounds.w, bounds.h)
+	}
+	if layout.node.IsLeaf() {
+		if bounds.w <= 0 || layout.node.Panel == nil {
+			return renderBlankLines(bounds.w, bounds.h)
+		}
+		return padContent(layout.node.Panel.View(bounds.w, bounds.h), bounds.w, bounds.h)
+	}
+	if layout.node.Split != nil {
+		return renderSplitLayout(layout)
+	}
+	if layout.node.Flex != nil {
+		return renderFlexLayout(layout)
+	}
+	return renderBlankLines(bounds.w, bounds.h)
+}
 
-    if node.Flex != nil {
-        return renderFlex(node.Flex, w, h)
-    }
+func renderSplitLayout(layout *layoutNode) []string {
+	if len(layout.children) < 2 {
+		return renderBlankLines(layout.bounds.w, layout.bounds.h)
+	}
+	split := layout.node.Split
+	first := renderLayout(layout.children[0])
+	second := renderLayout(layout.children[1])
+	borderVisible := len(layout.borders) > 0
+	bounds := layout.bounds
 
-    return makeEmptyLines(w, h)
+	switch split.Direction {
+	case Vertical:
+		border := renderVerticalBorder(split.Dragging)
+		collapseBorder := ""
+		if split.OnCollapse != nil && split.CollapseRow >= 0 {
+			collapseBorder = ansi.ResetStyle + collapseStyle.Render("<") + ansi.ResetStyle
+		}
+		lines := make([]string, bounds.h)
+		for y := range lines {
+			var row strings.Builder
+			row.WriteString(lineAt(first, y))
+			if borderVisible {
+				if collapseBorder != "" && y == split.CollapseRow {
+					row.WriteString(collapseBorder)
+				} else {
+					row.WriteString(border)
+				}
+			}
+			row.WriteString(lineAt(second, y))
+			lines[y] = padVisualLine(row.String(), bounds.w)
+		}
+		return lines
+	case Horizontal:
+		lines := make([]string, 0, bounds.h)
+		lines = append(lines, first...)
+		if borderVisible {
+			lines = append(lines, renderHorizontalBorder(bounds.w, split.Dragging))
+		}
+		lines = append(lines, second...)
+		return padLayoutLines(lines, bounds.w, bounds.h)
+	default:
+		return renderBlankLines(bounds.w, bounds.h)
+	}
+}
+
+func renderFlexLayout(layout *layoutNode) []string {
+	flex := layout.node.Flex
+	if flex == nil || len(layout.children) == 0 {
+		return renderBlankLines(layout.bounds.w, layout.bounds.h)
+	}
+
+	visible := make([]bool, max(0, len(layout.children)-1))
+	for _, border := range layout.borders {
+		if border.FlexIndex >= 0 && border.FlexIndex < len(visible) {
+			visible[border.FlexIndex] = true
+		}
+	}
+
+	switch flex.Direction {
+	case Horizontal:
+		children := make([][]string, len(layout.children))
+		for i, child := range layout.children {
+			children[i] = renderLayout(child)
+		}
+		lines := make([]string, layout.bounds.h)
+		border := renderVerticalBorder(flex.Dragging)
+		for y := range lines {
+			var row strings.Builder
+			for i, child := range children {
+				if i > 0 && visible[i-1] {
+					row.WriteString(border)
+				}
+				row.WriteString(lineAt(child, y))
+			}
+			lines[y] = padVisualLine(row.String(), layout.bounds.w)
+		}
+		return lines
+	case Vertical:
+		lines := make([]string, 0, layout.bounds.h)
+		for i, child := range layout.children {
+			if i > 0 && visible[i-1] {
+				lines = append(lines, renderHorizontalBorder(layout.bounds.w, flex.Dragging))
+			}
+			lines = append(lines, renderLayout(child)...)
+		}
+		return padLayoutLines(lines, layout.bounds.w, layout.bounds.h)
+	default:
+		return renderBlankLines(layout.bounds.w, layout.bounds.h)
+	}
+}
+
+func lineAt(lines []string, index int) string {
+	if index < 0 || index >= len(lines) {
+		return ""
+	}
+	return lines[index]
+}
+
+func renderBlankLines(w, h int) []string {
+	if h <= 0 {
+		return nil
+	}
+	lines := make([]string, h)
+	if w > 0 {
+		blank := strings.Repeat(" ", w)
+		for i := range lines {
+			lines[i] = blank
+		}
+	}
+	return lines
+}
+
+func padLayoutLines(lines []string, w, h int) []string {
+	if h <= 0 {
+		return nil
+	}
+	result := make([]string, h)
+	for i := 0; i < h; i++ {
+		if i < len(lines) {
+			result[i] = padVisualLine(lines[i], w)
+		} else if w > 0 {
+			result[i] = strings.Repeat(" ", w)
+		}
+	}
+	return result
+}
+
+func renderVerticalBorder(dragging bool) string {
+	style := borderStyle
+	if dragging {
+		style = borderDragStyle
+	}
+	return ansi.ResetStyle + style.Render("│") + ansi.ResetStyle
+}
+
+func renderHorizontalBorder(width int, dragging bool) string {
+	if width <= 0 {
+		return ""
+	}
+	style := borderStyle
+	if dragging {
+		style = borderDragStyle
+	}
+	line := strings.Repeat("─", width)
+	return ansi.ResetStyle + style.Render(line) + ansi.ResetStyle
 }
 
 func renderVerticalSplit(split *SplitConfig, w, h int) []string {
-    borderW := 1
-    availW := w - borderW
-    firstW, secondW := computeSplitSizes(availW, split.Fraction, split.First.IsCollapsed(), split.Second.IsCollapsed(), split.First.CollapsedSize(Vertical), split.Second.CollapsedSize(Vertical))
-
-    firstLines := renderNode(split.First, firstW, h)
-    secondLines := renderNode(split.Second, secondW, h)
-
-    // When one side is collapsed, omit the border so the collapsed panel
-    // sits flush against the expanded panel.
-    noBorder := split.First.IsCollapsed() || split.Second.IsCollapsed()
-
-    borderChar := borderStyle.Render("│")
-    if split.Dragging {
-        borderChar = borderDragStyle.Render("│")
-    }
-    // Isolate the border from panel styles on either side.
-    borderChar = ansi.ResetStyle + borderChar + ansi.ResetStyle
-
-    // Collapse symbol ("<") shown at CollapseRow instead of "│".
-    // Only shown when OnCollapse is set (explicitly configured).
-    collapseChar := ""
-    if split.OnCollapse != nil && split.CollapseRow >= 0 && !noBorder {
-        collapseChar = ansi.ResetStyle + collapseStyle.Render("<") + ansi.ResetStyle
-    }
-
-    result := make([]string, h)
-    for y := 0; y < h; y++ {
-        left := ""
-        right := ""
-        if y < len(firstLines) {
-            left = firstLines[y]
-        }
-        if y < len(secondLines) {
-            right = secondLines[y]
-        }
-        if noBorder {
-            result[y] = left + right
-        } else if collapseChar != "" && y == split.CollapseRow {
-            result[y] = left + collapseChar + right
-        } else {
-            result[y] = left + borderChar + right
-        }
-    }
-    return result
+	return renderNode(&Node{Split: split}, w, h)
 }
 
 func renderHorizontalSplit(split *SplitConfig, w, h int) []string {
-    borderH := 1
-    availH := h - borderH
-    firstH, secondH := computeSplitSizes(availH, split.Fraction, split.First.IsCollapsed(), split.Second.IsCollapsed(), split.First.CollapsedSize(Horizontal), split.Second.CollapsedSize(Horizontal))
-
-    firstLines := renderNode(split.First, w, firstH)
-    secondLines := renderNode(split.Second, w, secondH)
-
-    // When one side is collapsed, omit the border.
-    noBorder := split.First.IsCollapsed() || split.Second.IsCollapsed()
-
-    borderLine := borderStyle.Render(strings.Repeat("─", w))
-    if split.Dragging {
-        borderLine = borderDragStyle.Render(strings.Repeat("─", w))
-    }
-    // Isolate the border from panel styles above/below.
-    borderLine = ansi.ResetStyle + borderLine + ansi.ResetStyle
-
-    result := make([]string, 0, h)
-    result = append(result, firstLines...)
-    if !noBorder {
-        result = append(result, borderLine)
-    }
-    result = append(result, secondLines...)
-    return result
+	return renderNode(&Node{Split: split}, w, h)
 }
 
-// renderFlex renders a flex layout with weighted children.
 func renderFlex(flex *FlexConfig, w, h int) []string {
-    if len(flex.Items) == 0 {
-        return makeEmptyLines(w, h)
-    }
+	return renderNode(&Node{Flex: flex}, w, h)
+}
 
-    borderSize := 1
-    numBorders := len(flex.Items) - 1
+func renderFlexRow(flex *FlexConfig, w, h int, _ []int) []string {
+	return renderFlex(flex, w, h)
+}
 
-    switch flex.Direction {
-    case Horizontal: // Row
-        availW := w - numBorders*borderSize
-        sizes := computeFlexSizes(availW, flex.Items)
-        return renderFlexRow(flex, w, h, sizes)
-    case Vertical: // Column
-        availH := h - numBorders*borderSize
-        sizes := computeFlexSizes(availH, flex.Items)
-        return renderFlexColumn(flex, w, h, sizes)
-    }
-
-    return makeEmptyLines(w, h)
+func renderFlexColumn(flex *FlexConfig, w, h int, _ []int) []string {
+	return renderFlex(flex, w, h)
 }
 
 func computeFlexSizes(avail int, items []*FlexItem) []int {
-    n := len(items)
-    if n == 0 {
-        return nil
-    }
-    sizes := make([]int, n)
+	if len(items) == 0 {
+		return nil
+	}
+	avail = max(0, avail)
+	sizes := make([]int, len(items))
+	bases := make([]float64, len(items))
+	baseTotal := float64(0)
+	growTotal := float64(0)
+	eligible := make([]int, 0, len(items))
+	growWeights := make([]float64, len(items))
 
-    // Count collapsed items and non-collapsed grow
-    collapsedCount := 0
-    totalGrow := 0
-    for _, item := range items {
-        if item.Collapsed {
-            collapsedCount++
-        } else {
-            totalGrow += item.Grow
-        }
-    }
+	for i, item := range items {
+		if flexItemCollapsed(item) {
+			bases[i] = 1
+			baseTotal++
+			continue
+		}
+		basis := item.Basis
+		if basis <= 0 {
+			basis = MinPanelSize
+		}
+		bases[i] = float64(basis)
+		baseTotal += bases[i]
+		eligible = append(eligible, i)
+		if item.Grow > 0 {
+			growWeights[i] = float64(item.Grow)
+			growTotal += growWeights[i]
+		}
+	}
 
-    // First pass: allocate basis (collapsed = 1)
-    totalBasis := 0
-    for i, item := range items {
-        basis := 1
-        if !item.Collapsed {
-            basis = item.Basis
-            if basis <= 0 {
-                basis = MinPanelSize
-            }
-        }
-        sizes[i] = basis
-        totalBasis += basis
-    }
+	if avail == 0 {
+		return sizes
+	}
+	if baseTotal > float64(avail) {
+		weights := make([]float64, len(items))
+		copy(weights, bases)
+		distributeSizes(avail, sizes, weights, allIndices(len(items)))
+		return sizes
+	}
 
-    remaining := avail - totalBasis
-    if remaining <= 0 {
-        return sizes
-    }
+	used := 0
+	for i, basis := range bases {
+		sizes[i] = int(basis)
+		used += sizes[i]
+	}
+	remaining := avail - used
+	if remaining <= 0 || len(eligible) == 0 {
+		return sizes
+	}
 
-    // Second pass: distribute remaining space by Grow weights (collapsed get nothing)
-    if totalGrow == 0 {
-        // Equal distribution among non-collapsed
-        nonCollapsed := n - collapsedCount
-        if nonCollapsed > 0 {
-            perItem := remaining / nonCollapsed
-            for i, item := range items {
-                if !item.Collapsed {
-                    sizes[i] += perItem
-                }
-            }
-        }
-        return sizes
-    }
-
-    distributed := 0
-    for i, item := range items {
-        if item.Collapsed {
-            continue
-        }
-        extra := remaining * item.Grow / totalGrow
-        sizes[i] += extra
-        distributed += extra
-    }
-    // Distribute leftover pixels to the last non-collapsed item
-    leftover := remaining - distributed
-    if leftover > 0 {
-        for i := n - 1; i >= 0; i-- {
-            if !items[i].Collapsed {
-                sizes[i] += leftover
-                break
-            }
-        }
-    }
-
-    return sizes
+	weights := growWeights
+	if growTotal <= 0 {
+		weights = make([]float64, len(items))
+		for _, i := range eligible {
+			weights[i] = 1
+		}
+	}
+	distributeSizes(remaining, sizes, weights, eligible)
+	return sizes
 }
 
-func renderFlexRow(flex *FlexConfig, w, h int, sizes []int) []string {
-    if len(flex.Items) == 0 {
-        return makeEmptyLines(w, h)
-    }
-
-    borderChar := borderStyle.Render("│")
-    if flex.Dragging {
-        borderChar = borderDragStyle.Render("│")
-    }
-    // Isolate the border from panel styles on either side.
-    borderChar = ansi.ResetStyle + borderChar + ansi.ResetStyle
-
-    // Render each item
-    itemLines := make([][]string, len(flex.Items))
-    for i, item := range flex.Items {
-        itemLines[i] = renderNode(item.Node, sizes[i], h)
-    }
-
-    result := make([]string, h)
-    for y := 0; y < h; y++ {
-        var buf strings.Builder
-        for i := range flex.Items {
-            if i > 0 && !flex.Items[i-1].Collapsed && !flex.Items[i].Collapsed {
-                buf.WriteString(borderChar)
-            }
-            line := ""
-            if y < len(itemLines[i]) {
-                line = itemLines[i][y]
-            }
-            buf.WriteString(line)
-        }
-        result[y] = buf.String()
-    }
-    return result
+func allIndices(n int) []int {
+	indices := make([]int, n)
+	for i := range indices {
+		indices[i] = i
+	}
+	return indices
 }
 
-func renderFlexColumn(flex *FlexConfig, w, h int, sizes []int) []string {
-    if len(flex.Items) == 0 {
-        return makeEmptyLines(w, h)
-    }
+func distributeSizes(amount int, sizes []int, weights []float64, indices []int) {
+	if amount <= 0 || len(indices) == 0 {
+		return
+	}
+	totalWeight := float64(0)
+	for _, i := range indices {
+		totalWeight += weights[i]
+	}
+	if totalWeight <= 0 || math.IsInf(totalWeight, 0) || math.IsNaN(totalWeight) {
+		return
+	}
 
-    borderLine := borderStyle.Render(strings.Repeat("─", w))
-    if flex.Dragging {
-        borderLine = borderDragStyle.Render(strings.Repeat("─", w))
-    }
-    // Isolate the border from panel styles above/below.
-    borderLine = ansi.ResetStyle + borderLine + ansi.ResetStyle
-
-    // Render each item
-    itemLines := make([][]string, len(flex.Items))
-    for i, item := range flex.Items {
-        itemLines[i] = renderNode(item.Node, w, sizes[i])
-    }
-
-    result := make([]string, 0, h)
-    for i := range flex.Items {
-        if i > 0 && !flex.Items[i-1].Collapsed && !flex.Items[i].Collapsed {
-            result = append(result, borderLine)
-        }
-        result = append(result, itemLines[i]...)
-    }
-    return result
+	remaining := amount
+	for position, index := range indices {
+		share := remaining
+		if position < len(indices)-1 {
+			share = int(math.Floor(float64(amount) * weights[index] / totalWeight))
+			if share > remaining {
+				share = remaining
+			}
+			if share < 0 {
+				share = 0
+			}
+		}
+		sizes[index] += share
+		remaining -= share
+	}
 }
 
-// padContent ensures content has exactly w×h dimensions.
-// Truncates by visual width (not bytes) to avoid breaking UTF-8 or ANSI
-// sequences. The width is measured with ansi.StringWidth to match Bubble Tea's
-// renderer and avoid a mismatch with lipgloss.Width on true-color SGR.
-// Each returned line ends with an ANSI reset so styles from one panel do not
-// leak into adjacent panels or borders.
-func padContent(content string, w, h int) []string {
-    if w <= 0 || h <= 0 {
-        return makeEmptyLines(w, h)
-    }
-    lines := strings.Split(content, "\n")
-    result := make([]string, h)
-
-    for y := 0; y < h; y++ {
-        line := ""
-        if y < len(lines) {
-            line = lines[y]
-        }
-        line = ansi.Truncate(line, w, "")
-        lineW := ansi.StringWidth(line)
-        if lineW < w {
-            line += strings.Repeat(" ", w-lineW)
-        }
-        // Reset styles at end of line so they cannot leak into neighbors.
-        result[y] = line + ansi.ResetStyle
-    }
-    return result
-}
-
-// computeSplitSizes calculates first/second sizes for a split.
-// If a child is collapsed, it uses its fixed collapsed size.
 func computeSplitSizes(avail int, fraction float64, firstCollapsed, secondCollapsed bool, firstSize, secondSize int) (first, second int) {
-    if firstCollapsed {
-        first = firstSize
-        if first <= 0 {
-            first = 1
-        }
-        second = avail - first
-        if second < MinPanelSize {
-            second = MinPanelSize
-            first = avail - second
-        }
-        return first, second
-    }
-    if secondCollapsed {
-        second = secondSize
-        if second <= 0 {
-            second = 1
-        }
-        first = avail - second
-        if first < MinPanelSize {
-            first = MinPanelSize
-            second = avail - first
-        }
-        return first, second
-    }
-    first = int(float64(avail) * fraction)
-    if first < MinPanelSize {
-        first = MinPanelSize
-    }
-    second = avail - first
-    if second < MinPanelSize {
-        second = MinPanelSize
-        first = avail - second
-    }
-    return first, second
+	avail = max(0, avail)
+	collapsedSize := func(size int) int {
+		if size < 1 {
+			return 1
+		}
+		return size
+	}
+
+	if firstCollapsed {
+		first = min(collapsedSize(firstSize), avail)
+		if secondCollapsed {
+			return first, avail - first
+		}
+		if avail >= MinPanelSize+1 && first > avail-MinPanelSize {
+			first = avail - MinPanelSize
+		}
+		return first, avail - first
+	}
+	if secondCollapsed {
+		second = min(collapsedSize(secondSize), avail)
+		if avail >= MinPanelSize+1 && second > avail-MinPanelSize {
+			second = avail - MinPanelSize
+		}
+		return avail - second, second
+	}
+
+	if math.IsNaN(fraction) {
+		fraction = 0.5
+	}
+	if fraction < 0 {
+		fraction = 0
+	} else if fraction > 1 {
+		fraction = 1
+	}
+	first = int(float64(avail) * fraction)
+	if avail >= 2*MinPanelSize {
+		first = min(max(first, MinPanelSize), avail-MinPanelSize)
+	} else {
+		first = min(max(first, 0), avail)
+	}
+	second = avail - first
+	return first, second
+}
+
+func padVisualLine(line string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	line = ansi.Truncate(line, width, "")
+	lineWidth := ansi.StringWidth(line)
+	if lineWidth < width {
+		line += strings.Repeat(" ", width-lineWidth)
+	}
+	return line
+}
+
+func padContent(content string, w, h int) []string {
+	if w <= 0 || h <= 0 {
+		return makeEmptyLines(w, h)
+	}
+	lines := strings.Split(content, "\n")
+	result := make([]string, h)
+	for y := 0; y < h; y++ {
+		line := ""
+		if y < len(lines) {
+			line = lines[y]
+		}
+		result[y] = padVisualLine(line, w) + ansi.ResetStyle
+	}
+	return result
 }
 
 func makeEmptyLines(w, h int) []string {
-    if w <= 0 || h <= 0 {
-        return nil
-    }
-    lines := make([]string, h)
-    empty := strings.Repeat(" ", w)
-    for i := range lines {
-        lines[i] = empty
-    }
-    return lines
+	if w <= 0 || h <= 0 {
+		return nil
+	}
+	lines := make([]string, h)
+	empty := strings.Repeat(" ", w)
+	for i := range lines {
+		lines[i] = empty
+	}
+	return lines
 }
 
-// BorderHit describes a draggable border at a given position.
+// BorderHit describes a draggable border and the layout rectangle that owns it.
 type BorderHit struct {
-    Split     *SplitConfig
-    Flex      *FlexConfig
-    Direction Direction
-    X, Y      int // Start position of the border
-    Length    int // Length of the border in cells
+	Split     *SplitConfig
+	Flex      *FlexConfig
+	Direction Direction
+	X, Y      int
+	Length    int
+	Bounds    Bounds
+	FlexIndex int
 }
 
-// findBorders recursively collects all border positions from the node tree.
 func findBorders(node *Node, x, y, w, h int) []BorderHit {
-    if node == nil || node.IsLeaf() {
-        return nil
-    }
-
-    var borders []BorderHit
-
-    if node.Split != nil {
-        split := node.Split
-        switch split.Direction {
-        case Vertical:
-            borderW := 1
-            availW := w - borderW
-            firstW, secondW := computeSplitSizes(availW, split.Fraction, split.First.IsCollapsed(), split.Second.IsCollapsed(), split.First.CollapsedSize(Vertical), split.Second.CollapsedSize(Vertical))
-            borderX := x + firstW
-            // Omit the border when one side is collapsed.
-            if !split.First.IsCollapsed() && !split.Second.IsCollapsed() {
-                borders = append(borders, BorderHit{
-                    Split:     split,
-                    Direction: Vertical,
-                    X:         borderX,
-                    Y:         y,
-                    Length:    h,
-                })
-            }
-            borders = append(borders, findBorders(split.First, x, y, firstW, h)...)
-            borders = append(borders, findBorders(split.Second, borderX+borderW, y, secondW, h)...)
-
-        case Horizontal:
-            borderH := 1
-            availH := h - borderH
-            firstH, secondH := computeSplitSizes(availH, split.Fraction, split.First.IsCollapsed(), split.Second.IsCollapsed(), split.First.CollapsedSize(Horizontal), split.Second.CollapsedSize(Horizontal))
-            borderY := y + firstH
-            // Omit the border when one side is collapsed.
-            if !split.First.IsCollapsed() && !split.Second.IsCollapsed() {
-                borders = append(borders, BorderHit{
-                    Split:     split,
-                    Direction: Horizontal,
-                    X:         x,
-                    Y:         borderY,
-                    Length:    w,
-                })
-            }
-            borders = append(borders, findBorders(split.First, x, y, w, firstH)...)
-            borders = append(borders, findBorders(split.Second, x, borderY+borderH, w, secondH)...)
-        }
-    }
-
-    if node.Flex != nil {
-        borders = append(borders, findFlexBorders(node.Flex, x, y, w, h)...)
-    }
-
-    return borders
+	layout := newLayout(node, layoutRect{x: x, y: y, w: max(0, w), h: max(0, h)})
+	return collectLayoutBorders(layout)
 }
 
 func findFlexBorders(flex *FlexConfig, x, y, w, h int) []BorderHit {
-    if len(flex.Items) == 0 {
-        return nil
-    }
-
-    borderSize := 1
-    numBorders := len(flex.Items) - 1
-    var borders []BorderHit
-
-    switch flex.Direction {
-    case Horizontal: // Row
-        availW := w - numBorders*borderSize
-        sizes := computeFlexSizes(availW, flex.Items)
-        cx := x
-        for i := 0; i < len(flex.Items)-1; i++ {
-            cx += sizes[i]
-            // Omit border when either adjacent item is collapsed.
-            if !flex.Items[i].Collapsed && !flex.Items[i+1].Collapsed {
-                borders = append(borders, BorderHit{
-                    Flex:      flex,
-                    Direction: Vertical,
-                    X:         cx,
-                    Y:         y,
-                    Length:    h,
-                })
-            }
-            borders = append(borders, findBorders(flex.Items[i].Node, cx-sizes[i], y, sizes[i], h)...)
-            cx += borderSize
-        }
-        // Last item
-        lastIdx := len(flex.Items) - 1
-        borders = append(borders, findBorders(flex.Items[lastIdx].Node, cx-sizes[lastIdx], y, sizes[lastIdx], h)...)
-
-    case Vertical: // Column
-        availH := h - numBorders*borderSize
-        sizes := computeFlexSizes(availH, flex.Items)
-        cy := y
-        for i := 0; i < len(flex.Items)-1; i++ {
-            cy += sizes[i]
-            // Omit border when either adjacent item is collapsed.
-            if !flex.Items[i].Collapsed && !flex.Items[i+1].Collapsed {
-                borders = append(borders, BorderHit{
-                    Flex:      flex,
-                    Direction: Horizontal,
-                    X:         x,
-                    Y:         cy,
-                    Length:    w,
-                })
-            }
-            borders = append(borders, findBorders(flex.Items[i].Node, x, cy-sizes[i], w, sizes[i])...)
-            cy += borderSize
-        }
-        // Last item
-        lastIdx := len(flex.Items) - 1
-        borders = append(borders, findBorders(flex.Items[lastIdx].Node, x, cy-sizes[lastIdx], w, sizes[lastIdx])...)
-    }
-
-    return borders
+	layout := newLayout(&Node{Flex: flex}, layoutRect{x: x, y: y, w: max(0, w), h: max(0, h)})
+	return collectLayoutBorders(layout)
 }

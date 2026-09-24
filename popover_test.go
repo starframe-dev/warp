@@ -47,7 +47,7 @@ func TestPopoverOverlay(t *testing.T) {
 	t.Run("auto width default", func(t *testing.T) {
 		popover := &Popover{
 			Items: []PopoverItem{{Name: "A", Action: func() {}}},
-			X: 0, Y: 0, Width: 0,
+			X:     0, Y: 0, Width: 0,
 		}
 		lines := blankLines(80, 10)
 		popover.Overlay(lines, 80, 10)
@@ -59,7 +59,7 @@ func TestPopoverOverlay(t *testing.T) {
 	t.Run("width clamps to total width", func(t *testing.T) {
 		popover := &Popover{
 			Items: []PopoverItem{{Name: "Long item name", Action: func() {}}},
-			X: 0, Y: 0, Width: 100,
+			X:     0, Y: 0, Width: 100,
 		}
 		lines := blankLines(30, 10)
 		popover.Overlay(lines, 30, 10)
@@ -174,7 +174,7 @@ func TestVisualBytePos(t *testing.T) {
 func TestPopoverYClamp(t *testing.T) {
 	popover := &Popover{
 		Items: []PopoverItem{{Name: "A", Action: func() {}}},
-		X: 0, Y: 23,
+		X:     0, Y: 23,
 	}
 	lines := blankLines(80, 24)
 	result := popover.Overlay(lines, 80, 24)
@@ -295,7 +295,7 @@ func TestPopoverHandleMouse(t *testing.T) {
 	t.Run("not consumed before overlay", func(t *testing.T) {
 		fresh := &Popover{
 			Items: []PopoverItem{{Name: "A", Action: func() {}}},
-			X: 10, Y: 5,
+			X:     10, Y: 5,
 		}
 		consumed := fresh.HandleMouse(tea.MouseMsg{
 			X:      10,
@@ -410,7 +410,7 @@ func TestPopoverHandleKey(t *testing.T) {
 	t.Run("not consumed before overlay", func(t *testing.T) {
 		fresh := &Popover{
 			Items: []PopoverItem{{Name: "A", Action: func() {}}},
-			X: 10, Y: 5,
+			X:     10, Y: 5,
 		}
 		consumed := fresh.HandleKey(tea.KeyMsg{Type: tea.KeyEsc})
 		if consumed {

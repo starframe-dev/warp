@@ -38,7 +38,7 @@
 | Content | string | Рендеримый ANSI-контент |
 | Buttons | []ModalButton | Кнопки внизу |
 | OnClose | func() | Callback при закрытии |
-| Width | int | Ширина рамки |
+| Width | int | Ширина рамки; 0 включает автоширину 3/5 viewport, затем размер ограничивается 30–50 и доступной шириной |
 | startX | int | X-позиция рамки (после Overlay) |
 | startY | int | Y-позиция рамки (после Overlay) |
 | boxWidth | int | Ширина рамки |
@@ -48,7 +48,6 @@
 | dragY | int | Y-позиция при drag |
 | offsetX | int | Смещение X |
 | offsetY | int | Смещение Y |
-| dimsSet | bool | Дименшены вычислены |
 | totalW | int | Общая ширина экрана |
 | totalH | int | Общая высота экрана |
 
@@ -97,11 +96,10 @@ func (m *Modal) EnsureDimensions(totalW, totalH int)
 
 **Поведение:**
 
-- Вызывается перед HandleMouse, если Overlay ещё не был вызван
-- Вычисляет boxWidth: 3/5 от totalW, clamp 30-50
-- boxHeight фиксирован: 7 линий (RoundedBorder + Padding(1,2) + 3 content lines)
-- Центрирует модалку с учётом offsetX/offsetY
-- Устанавливает dimsSet = true после вычисления
+- Пересчитывает размеры для текущих `totalW` и `totalH`; это позволяет реагировать на resize
+- При автоширине берёт 3/5 от viewport, ограничивает ширину диапазоном 30–50 и затем доступной шириной
+- `boxHeight` фиксирован: 7 линий
+- Центрирует модалку с учётом пользовательских `offsetX`/`offsetY` и ограничивает позицию viewport
 
 #### Overlay
 
@@ -123,16 +121,17 @@ func (m *Modal) Overlay(lines []string, totalW, totalH int) []string
 
 **Поведение:**
 
-- Если totalW <= 0 или lines пуста — возвращает lines как есть
+- Если `totalW <= 0` или `lines` пуст — возвращает исходные строки без наложения
 - Вызывает EnsureDimensions перед рендерингом
 - Затемняет фон (lines[i] = dimStyle.Background(gbDark0).Render(stripANSI(lines[i])))
 - Рендерит рамку с RoundedBorder и Padding(1,2)
 - Внутренняя ширина = boxWidth - 6 (2 бордеры + 4 padding)
 - Строит три линии контента:
   - Заголовок + ✕ в конце
-  - Контент (с обрезкой если длиннее innerWidth)
+  - Контент (обрезается и дополняется ANSI-aware до ширины `innerWidth` в terminal cells)
   - Кнопки в формате [Label] [Label] ...
 - Накладывает рамку на затемнённые строки, сохраняя контент слева/справа
+- Обрезка и объединение строк учитывают ширину Unicode-графем и ANSI-последовательностей
 
 #### HandleMouse
 
@@ -344,9 +343,9 @@ box[6]: bottom border
 
 ## Ограничения
 
-- `Width <= 0` — автоширина: 3/5 экрана, clamp 30-50
-- `Width > totalW` — clamp до totalW
-- `totalW <= 0` — Overlay возвращает lines как есть
+- `Width <= 0` — автоширина: 3/5 viewport, ограниченная диапазоном 30–50 и доступной шириной
+- `Width > totalW` — ширина ограничивается `totalW`
+- `totalW <= 0` или нет строк — Overlay возвращает исходный фон без наложения
 - `boxHeight` фиксирован: 7 линий
 - Dragging clamp не позволяет выйти за границы экрана
 

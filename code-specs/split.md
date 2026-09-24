@@ -27,9 +27,11 @@ type Direction int
 type SplitConfig struct {
     Direction Direction
     Fraction  float64 // Доля первого дочернего узла (0.0–1.0)
-    First     *Node
-    Second    *Node
-    Dragging  bool // true во время drag-and-drop
+    First      *Node
+    Second     *Node
+    Dragging   bool // true во время drag-and-drop
+    CollapseRow int
+    OnCollapse func() tea.Cmd
 }
 ```
 
@@ -138,6 +140,13 @@ type FlexConfig struct {
 | Direction | Direction | Направление верстки (строка/столбец) |
 | Items | []*FlexItem | Элементы верстки |
 | Dragging | bool | true во время drag-and-drop |
+
+## Инварианты раскладки
+
+- Узел создаётся в одном из вариантов: лист `Panel`, контейнер `Split` или контейнер `Flex`; мутации дерева очищают заменяемый вариант.
+- `Node.IsLeaf()` возвращает true только для ненулевой панели без `Split` и `Flex`.
+- Геометрию split/flex задаёт общее layout-дерево; при тесном окне размеры неотрицательны и не выходят за доступную область, даже если `MinPanelSize` невозможно соблюсти.
+- Граница занимает одну ячейку только между двумя развёрнутыми элементами.
 
 ## Поведение
 

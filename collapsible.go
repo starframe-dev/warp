@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // Collapsible is a panel that can be collapsed to a single-line title bar.
@@ -57,25 +58,10 @@ func (c *Collapsible) renderCollapsed(w int) string {
 		indicator = "▼"
 	}
 
-	title := c.Title
-	reserve := 5 // indicator + spaces + corners
-	if len(title) > w-reserve {
-		maxLen := w - reserve - 3
-		if maxLen < 0 {
-			maxLen = 0
-		}
-		if maxLen == 0 {
-			title = ""
-		} else {
-			title = title[:maxLen] + "..."
-		}
-	}
-
-	padding := w - len(title) - reserve
-	if padding < 0 {
-		padding = 0
-	}
-
-	return collapsibleStyle.Render("┌"+indicator+" "+title) +
+	titleWidth := max(0, w-4) // indicator, spacing and corner glyphs
+	title := ansi.Truncate(c.Title, titleWidth, "...")
+	padding := max(0, w-4-ansi.StringWidth(title))
+	line := collapsibleStyle.Render("┌"+indicator+" "+title) +
 		collapsibleBorderStyle.Render(strings.Repeat("─", padding)+"┐")
+	return padVisualLine(line, w)
 }

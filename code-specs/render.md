@@ -16,8 +16,10 @@ type BorderHit struct {
     Split     *SplitConfig
     Flex      *FlexConfig
     Direction Direction
-    X, Y      int   // Стартовая позиция границы (в ячейках)
-    Length    int   // Длина границы в ячейках
+    X, Y      int
+    Length    int
+    Bounds    Bounds // Прямоугольник split/flex, содержащий границу
+    FlexIndex int    // Индекс разделителя flex; -1 для split
 }
 ```
 
@@ -285,6 +287,10 @@ func findFlexBorders(flex *FlexConfig, x, y, w, h int) []BorderHit
 - Функции не производят I/O, не модифицируют глобальное состояние, не вызывают внешние API.
 - Рендеринг полностью детерминирован при одинаковых входных параметрах.
 - Допустимая внешняя зависимость — пакет `github.com/charmbracelet/x/ansi` (публичные константы/функции `ansi.ResetStyle`, `ansi.StringWidth`, `ansi.Truncate`).
+
+## Единый layout
+
+Размеры дочерних областей и позиции границ вычисляются в `layout.go`. Рендерер, hit-testing, элементы, рассылка `ResizeMsg` и перетаскивание используют один и тот же layout-результат. Геометрия и `BorderHit` измеряются в terminal cells; при слишком малом окне все размеры остаются неотрицательными, а доступная область не превышается.
 
 ## Ключевые Правила
 

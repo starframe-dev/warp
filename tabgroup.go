@@ -3,16 +3,16 @@ package warp
 import (
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func padRight(s string, w int) string {
-	lw := lipgloss.Width(s)
-	if lw < w {
-		return s + strings.Repeat(" ", w-lw)
+	width := ansi.StringWidth(s)
+	if width < w {
+		return s + strings.Repeat(" ", w-width)
 	}
 	return s
 }
@@ -66,8 +66,12 @@ func (tg *TabGroup) closeTab(idx int) {
 	if idx < 0 || idx >= len(tg.tabs) || len(tg.tabs) <= 1 {
 		return
 	}
+	active := tg.activeTab
 	tg.tabs = append(tg.tabs[:idx], tg.tabs[idx+1:]...)
-	if tg.activeTab >= len(tg.tabs) {
+	switch {
+	case idx < active:
+		tg.activeTab = active - 1
+	case idx == active && active >= len(tg.tabs):
 		tg.activeTab = len(tg.tabs) - 1
 	}
 }
@@ -94,16 +98,16 @@ func (tg *TabGroup) PrevTab() {
 
 func (tg *TabGroup) contentWidth(totalW int) int {
 	if tg.tabPosition == TabLeft || tg.tabPosition == TabRight {
-		return totalW - tg.verticalTabWidth
+		return max(0, totalW-tg.verticalTabWidth)
 	}
-	return totalW
+	return max(0, totalW)
 }
 
 func (tg *TabGroup) contentHeight(totalH int) int {
 	if tg.tabPosition == TabTop || tg.tabPosition == TabBottom {
-		return totalH - 1
+		return max(0, totalH-1)
 	}
-	return totalH
+	return max(0, totalH)
 }
 
 func (tg *TabGroup) contentOffset() (int, int) {
@@ -124,6 +128,8 @@ func (tg *TabGroup) contentOffset() (int, int) {
 
 // View renders the tab bar + active tab content.
 func (tg *TabGroup) View(w, h int) string {
+	w = max(0, w)
+	h = max(0, h)
 	tg.width = w
 	tg.height = h
 
@@ -132,6 +138,10 @@ func (tg *TabGroup) View(w, h int) string {
 		return strings.Repeat("\n", h)
 	}
 
+	var verticalBar string
+	if tg.tabPosition == TabLeft || tg.tabPosition == TabRight {
+		verticalBar = tg.renderTabBar(w)
+	}
 	cw := tg.contentWidth(w)
 	ch := tg.contentHeight(h)
 
@@ -147,14 +157,12 @@ func (tg *TabGroup) View(w, h int) string {
 		return lipgloss.JoinVertical(lipgloss.Left, content, tabBar)
 
 	case TabLeft:
-		tabBar := tg.renderTabBar(tg.verticalTabWidth)
 		content := tab.renderContent(cw, ch)
-		return lipgloss.JoinHorizontal(lipgloss.Top, tabBar, content)
+		return lipgloss.JoinHorizontal(lipgloss.Top, verticalBar, content)
 
 	case TabRight:
 		content := tab.renderContent(cw, ch)
-		tabBar := tg.renderTabBar(tg.verticalTabWidth)
-		return lipgloss.JoinHorizontal(lipgloss.Top, content, tabBar)
+		return lipgloss.JoinHorizontal(lipgloss.Top, content, verticalBar)
 
 	case TabNone:
 		return tab.renderContent(cw, ch)
@@ -166,17 +174,28 @@ func (tg *TabGroup) View(w, h int) string {
 // Elements implements ElementProvider. It returns the active tab's elements
 // offset by the tab bar position, if any.
 func (tg *TabGroup) Elements(w, h int) []Element {
-	tg.width = w
-	tg.height = h
-
+	w = max(0, w)
+	h = max(0, h)
 	tab := tg.ActiveTab()
 	if tab == nil {
 		return nil
 	}
 
-	cw := tg.contentWidth(w)
-	ch := tg.contentHeight(h)
-	offX, offY := tg.contentOffset()
+	cw, ch := w, h
+	offX, offY := 0, 0
+	switch tg.tabPosition {
+	case TabTop:
+		ch = max(0, h-1)
+		offY = 1
+	case TabBottom:
+		ch = max(0, h-1)
+	case TabLeft:
+		offX = tg.verticalTabBarWidth(w)
+		cw = max(0, w-offX)
+	case TabRight:
+		cw = max(0, w-tg.verticalTabBarWidth(w))
+	}
+
 	elems := collectElements(tab, cw, ch)
 	for i := range elems {
 		elems[i].Bounds.X += offX
@@ -234,8 +253,13 @@ func (tg *TabGroup) Update(msg tea.Msg) tea.Cmd {
 }
 
 func (tg *TabGroup) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
-	keyStr := msg.String()
+	if tab := tg.ActiveTab(); tab != nil {
+		if receiver, ok := tab.focused.(RawKeyReceiver); ok && receiver.WantsRawKeys() {
+			return tab.handleKeys(msg)
+		}
+	}
 
+	keyStr := msg.String()
 	switch keyStr {
 	case "ctrl+c":
 		return tea.Quit
@@ -296,6 +320,9 @@ func (tg *TabGroup) handleTabBarClick(msg tea.MouseMsg) tea.Cmd {
 
 	x := msg.X
 	y := msg.Y
+	if tg.tabPosition == TabRight {
+		x -= tg.width - tg.verticalTabWidth
+	}
 
 	switch tg.tabPosition {
 	case TabLeft, TabRight:
@@ -350,16 +377,13 @@ func (tg *TabGroup) renderHorizontalTabBar(width int) string {
 	var parts []string
 	col := 0
 	for i, tab := range tg.tabs {
-		name := tab.name
-		if len(name) > 20 {
-			name = name[:17] + "..."
-		}
+		name := ansi.Truncate(tab.name, 20, "...")
 		label := fmt.Sprintf(" %s ", name)
 		if i == activeIdx {
 			label = fmt.Sprintf("▎ %s ×", name)
 		}
 
-		labelW := lipgloss.Width(label)
+		labelW := ansi.StringWidth(label)
 		endX := col + labelW
 		closeX := -1
 		if i == activeIdx {
@@ -378,7 +402,7 @@ func (tg *TabGroup) renderHorizontalTabBar(width int) string {
 	}
 
 	newLabel := " + "
-	newW := utf8.RuneCountInString(newLabel)
+	newW := ansi.StringWidth(newLabel)
 	tg.newTabRegion = &tabRegion{startX: col, endX: col + newW}
 	col += newW
 	parts = append(parts, newTabStyle.Render(newLabel))
@@ -390,46 +414,66 @@ func (tg *TabGroup) renderHorizontalTabBar(width int) string {
 	return bar
 }
 
-func (tg *TabGroup) renderVerticalTabBar(_ int) string {
-	tabs := tg.tabs
+func (tg *TabGroup) verticalTabLabels() ([]string, int) {
+	labels := make([]string, len(tg.tabs))
+	naturalWidth := ansi.StringWidth(" + ")
+	for i, tab := range tg.tabs {
+		name := ansi.Truncate(tab.name, 15, "...")
+		label := fmt.Sprintf(" %s ", name)
+		if i == tg.activeTab {
+			label = fmt.Sprintf("▎ %s ×", name)
+		}
+		labels[i] = label
+		naturalWidth = max(naturalWidth, ansi.StringWidth(label))
+	}
+	return labels, naturalWidth
+}
+
+func (tg *TabGroup) verticalTabBarWidth(maxWidth int) int {
+	_, naturalWidth := tg.verticalTabLabels()
+	return min(naturalWidth, max(0, maxWidth))
+}
+
+func (tg *TabGroup) renderVerticalTabBar(maxWidth int) string {
 	activeIdx := tg.activeTab
 	tg.tabRegions = nil
 	tg.newTabRegion = nil
 
-	var lines []string
-	maxW := 0
-	for i, tab := range tabs {
-		name := tab.name
-		if len(name) > 15 {
-			name = name[:12] + "..."
-		}
-		label := fmt.Sprintf(" %s ", name)
-		if i == activeIdx {
-			label = fmt.Sprintf("▎ %s ×", name)
-		}
+	labels, naturalWidth := tg.verticalTabLabels()
+	barWidth := min(naturalWidth, max(0, maxWidth))
+	tg.verticalTabWidth = barWidth
 
-		labelW := lipgloss.Width(label)
-		if labelW > maxW {
-			maxW = labelW
+	lines := make([]string, 0, len(tg.tabs)+1)
+	for i, label := range labels {
+		if ansi.StringWidth(label) > barWidth {
+			label = ansi.Truncate(label, barWidth, "")
 		}
-
+		labelWidth := ansi.StringWidth(label)
+		closeX := -1
+		if i == activeIdx && labelWidth > 0 && strings.HasSuffix(label, "×") {
+			closeX = labelWidth - 1
+		}
 		tg.tabRegions = append(tg.tabRegions, tabRegion{
-			idx: i, startX: 0, endX: labelW, closeX: labelW - 1,
+			idx: i, startX: 0, endX: labelWidth, closeX: closeX,
 		})
 
 		style := inactiveTabStyle
 		if i == activeIdx {
 			style = activeTabStyle
 		}
-		lines = append(lines, style.Render(padRight(label, maxW)))
+		lines = append(lines, style.Render(padRight(label, barWidth)))
 	}
 
-	newLabel := " + "
+	newLabel := ansi.Truncate(" + ", barWidth, "")
+	newWidth := ansi.StringWidth(newLabel)
 	tg.tabRegions = append(tg.tabRegions, tabRegion{
-		idx: -1, startX: 0, endX: lipgloss.Width(newLabel),
+		idx: -1, startX: 0, endX: newWidth, closeX: -1,
 	})
-	lines = append(lines, newTabStyle.Render(padRight(newLabel, maxW)))
+	lines = append(lines, newTabStyle.Render(padRight(newLabel, barWidth)))
 
-	tg.verticalTabWidth = maxW
+	if len(lines) > tg.height {
+		lines = lines[:tg.height]
+		tg.tabRegions = tg.tabRegions[:tg.height]
+	}
 	return strings.Join(lines, "\n")
 }

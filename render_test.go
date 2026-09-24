@@ -158,8 +158,11 @@ func TestComputeFlexSizes(t *testing.T) {
 		{Node: &Node{Panel: &mockPanel{name: "b"}}, Basis: 10, Grow: 0},
 	}
 	sizes = computeFlexSizes(5, items)
-	if len(sizes) != 2 || sizes[0] != 10 || sizes[1] != 10 {
-		t.Errorf("avail < basis = %v, want [10 10]", sizes)
+	if len(sizes) != 2 || sizes[0] != 2 || sizes[1] != 3 {
+		t.Errorf("avail < basis = %v, want [2 3]", sizes)
+	}
+	if sizes[0]+sizes[1] > 5 {
+		t.Errorf("flex dimensions exceed available space: %v", sizes)
 	}
 }
 
@@ -177,9 +180,9 @@ func TestRenderNode(t *testing.T) {
 
 	splitNode := &Node{Split: &SplitConfig{
 		Direction: Vertical,
-		Fraction:    0.5,
-		First:       &Node{Panel: &mockPanel{name: "L"}},
-		Second:      &Node{Panel: &mockPanel{name: "R"}},
+		Fraction:  0.5,
+		First:     &Node{Panel: &mockPanel{name: "L"}},
+		Second:    &Node{Panel: &mockPanel{name: "R"}},
 	}}
 	got = renderNode(splitNode, 21, 3)
 	if len(got) != 3 {
@@ -453,8 +456,8 @@ func TestRenderFlexColumn(t *testing.T) {
 		},
 	}
 	lines2 := renderFlexColumn(flex2, 5, 7, []int{1, 5})
-	if len(lines2) != 6 {
-		t.Errorf("collapsed column lines = %d, want 6", len(lines2))
+	if len(lines2) != 7 {
+		t.Errorf("collapsed column lines = %d, want 7", len(lines2))
 	}
 	borderCount = 0
 	for _, line := range lines2 {
@@ -576,7 +579,7 @@ func TestFindFlexBorders(t *testing.T) {
 	if len(borders) != 1 {
 		t.Fatalf("expected 1 column border, got %d", len(borders))
 	}
-	if borders[0].Direction != Horizontal || borders[0].X != 0 || borders[0].Y != 3 || borders[0].Length != 5 {
+	if borders[0].Direction != Horizontal || borders[0].X != 0 || borders[0].Y != 2 || borders[0].Length != 5 {
 		t.Errorf("unexpected column border: %+v", borders[0])
 	}
 

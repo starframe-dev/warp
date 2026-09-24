@@ -1256,6 +1256,7 @@ func TestUpdateForwardsMessages(t *testing.T) {
 }
 
 func TestServeHTTP(t *testing.T) {
+	t.Setenv("WARP_HTTP_PORT", "0")
 	w := New()
 	if err := w.ServeHTTP(""); err != nil {
 		t.Fatalf("ServeHTTP failed: %v", err)
@@ -1289,6 +1290,7 @@ func TestServeHTTP(t *testing.T) {
 }
 
 func TestServeHTTPIdempotent(t *testing.T) {
+	t.Setenv("WARP_HTTP_PORT", "0")
 	w := New()
 	if err := w.ServeHTTP(""); err != nil {
 		t.Fatalf("ServeHTTP failed: %v", err)
@@ -1304,22 +1306,21 @@ func TestServeHTTPIdempotent(t *testing.T) {
 }
 
 func TestServeHTTPWithEnvPort(t *testing.T) {
-	t.Setenv("WARP_HTTP_PORT", "18765")
+	t.Setenv("WARP_HTTP_PORT", "0")
 	w := New()
 	if err := w.ServeHTTP(""); err != nil {
 		t.Fatalf("ServeHTTP failed: %v", err)
 	}
+	defer w.CloseHTTP()
+
 	addr := w.HTTPAddr()
-	if addr == "" {
-		t.Fatal("expected HTTPAddr")
+	if !strings.HasPrefix(addr, "127.0.0.1:") || parsePort(addr) == "" || parsePort(addr) == "0" {
+		t.Errorf("expected loopback binding with an assigned port, got %q", addr)
 	}
-	if !strings.HasSuffix(addr, ":18765") {
-		t.Errorf("expected address to use env port, got %s", addr)
-	}
-	w.CloseHTTP()
 }
 
 func TestCloseHTTP(t *testing.T) {
+	t.Setenv("WARP_HTTP_PORT", "0")
 	w := New()
 	if err := w.ServeHTTP(""); err != nil {
 		t.Fatalf("ServeHTTP failed: %v", err)

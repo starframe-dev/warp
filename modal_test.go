@@ -69,13 +69,15 @@ func TestModalEnsureDimensions(t *testing.T) {
 		}
 	})
 
-	t.Run("does not recompute", func(t *testing.T) {
+	t.Run("recomputes after viewport resize", func(t *testing.T) {
 		m := NewModal("", "", nil, nil)
 		m.EnsureDimensions(80, 24)
-		firstW := m.BoxWidth()
+		if m.BoxWidth() != 48 {
+			t.Fatalf("initial BoxWidth=%d, want 48", m.BoxWidth())
+		}
 		m.EnsureDimensions(10, 10)
-		if m.BoxWidth() != firstW {
-			t.Errorf("BoxWidth changed after second EnsureDimensions call")
+		if m.BoxWidth() != 10 || m.StartX() != 0 || m.StartY() != 1 {
+			t.Errorf("resized geometry=(%d,%d %dx%d), want (0,1 10x7)", m.StartX(), m.StartY(), m.BoxWidth(), m.BoxHeight())
 		}
 	})
 }
@@ -311,9 +313,9 @@ func TestStripANSIModal(t *testing.T) {
 
 func TestMax(t *testing.T) {
 	tests := []struct {
-		name   string
-		a, b   int
-		want   int
+		name string
+		a, b int
+		want int
 	}{
 		{"a greater", 5, 3, 5},
 		{"b greater", 3, 5, 5},

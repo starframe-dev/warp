@@ -19,7 +19,18 @@ Built on [Bubbletea](https://github.com/charmbracelet/bubbletea) and [Lipgloss](
 - **Popover** — context menus
 - **Focus API** — explicit focus switching (developer decides keys)
 - **Element tree** — semantic UI tree for E2E testing
-- **Gruvbox Dark** theme
+- **Custom themes** — process-wide component colors through `SetTheme`
+- **Gruvbox Dark** default theme
+
+### Keyboard precedence
+
+`TabGroup` handles Warp shortcuts by default (`Ctrl+C`, tab navigation, `Ctrl+W`, and `Ctrl+T`). A focused panel implementing `RawKeyReceiver` with `WantsRawKeys() == true` receives every key first, so it can use those combinations itself. Normal panels retain Warp shortcuts, including `Ctrl+C` to quit.
+
+## Theme and HTTP inspector
+
+`SetTheme` updates Warp's package-wide component styles. Configure the theme before starting the Bubble Tea program; changing it while rendering is not synchronized.
+
+`Warp.ServeHTTP("")` binds the inspector to `127.0.0.1` on `WARP_HTTP_PORT`, or an automatically assigned port when the variable is unset. `HTTPAddr()` returns the actual address. `/elements` exposes the semantic UI tree and allows cross-origin requests; the endpoint has no authentication. An explicitly supplied non-loopback address (for example, `:8080`) may expose UI data to the network, so secure it before use outside a trusted local environment.
 
 ## Quick start
 
@@ -61,4 +72,4 @@ go run ./cmd/demo/
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

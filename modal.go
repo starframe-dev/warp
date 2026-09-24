@@ -44,10 +44,7 @@ type Modal struct {
 	offsetX  int
 	offsetY  int
 
-	// dimsSet is true after ensureDimensions has run
-	dimsSet bool
-
-	// last known total dimensions (set by EnsureDimensions)
+	// Last known total dimensions (set by EnsureDimensions).
 	totalW int
 	totalH int
 }
@@ -68,47 +65,31 @@ func NewModal(title, content string, buttons []ModalButton, onClose func()) *Mod
 	}
 }
 
-// EnsureDimensions computes and stores box dimensions if not yet set.
-// Must be called before HandleMouse if Overlay hasn't been called yet.
+// EnsureDimensions recalculates and clamps the modal box for the current viewport.
+// Call it before HandleMouse if Overlay has not run for the current dimensions.
 func (m *Modal) EnsureDimensions(totalW, totalH int) {
-	if m.dimsSet {
+	if m == nil {
 		return
 	}
-	m.dimsSet = true
-
+	totalW = max(0, totalW)
+	totalH = max(0, totalH)
 	boxWidth := m.Width
 	if boxWidth <= 0 {
 		boxWidth = totalW * 3 / 5
 	}
-	if boxWidth < 30 {
-		boxWidth = 30
-	}
-	if boxWidth > 50 {
-		boxWidth = 50
-	}
-	if boxWidth > totalW {
-		boxWidth = totalW
-	}
+	boxWidth = min(max(boxWidth, 30), 50)
+	boxWidth = min(boxWidth, totalW)
 	m.boxWidth = boxWidth
-
 	m.totalW = totalW
 	m.totalH = totalH
-
-	// Compute boxHeight without lipgloss (same logic as Overlay)
-	// RoundedBorder + Padding(1,2) with 3 content lines => 7 lines
 	m.boxHeight = 7
 
-	// Center + drag offset
-	centerX := (totalW - boxWidth) / 2
-	centerY := (totalH - m.boxHeight) / 2
-	if centerX < 0 {
-		centerX = 0
-	}
-	if centerY < 0 {
-		centerY = 0
-	}
-	m.startX = centerX + m.offsetX
-	m.startY = centerY + m.offsetY
+	centerX := max(0, (totalW-boxWidth)/2)
+	centerY := max(0, (totalH-m.boxHeight)/2)
+	m.startX = clampInt(centerX+m.offsetX, 0, max(0, totalW-boxWidth))
+	m.startY = clampInt(centerY+m.offsetY, 0, max(0, totalH-m.boxHeight))
+	m.offsetX = m.startX - centerX
+	m.offsetY = m.startY - centerY
 }
 
 // Overlay renders the modal on top of existing content lines.
@@ -123,26 +104,30 @@ func (m *Modal) Overlay(lines []string, totalW, totalH int) []string {
 	startX := m.startX
 	startY := m.startY
 
-	innerWidth := boxWidth - 6 // borders (2) + horizontal padding (4)
+	innerWidth := max(0, boxWidth-6) // borders (2) plus horizontal padding (4)
 
-	// Build content lines
-	titleLine := m.Title + strings.Repeat(" ", max(0, innerWidth-lipgloss.Width(m.Title)-1)) + "✕"
+	title := ansi.Truncate(m.Title, max(0, innerWidth-1), "")
+	titleLine := title + strings.Repeat(" ", max(0, innerWidth-ansi.StringWidth(title)-1)) + "✕"
 
 	contentLine := m.Content
-	contentWidth := lipgloss.Width(contentLine)
-	if contentWidth > innerWidth {
-		contentLine = ansi.Truncate(contentLine, innerWidth-1, "") + "…"
+	if ansi.StringWidth(contentLine) > innerWidth {
+		if innerWidth > 0 {
+			contentLine = ansi.Truncate(contentLine, innerWidth, "…")
+		} else {
+			contentLine = ""
+		}
 	}
-	contentLine += strings.Repeat(" ", max(0, innerWidth-lipgloss.Width(contentLine)))
+	contentLine = ansi.Truncate(contentLine, innerWidth, "")
+	contentLine += strings.Repeat(" ", max(0, innerWidth-ansi.StringWidth(contentLine)))
 
 	var btnParts []string
 	for _, btn := range m.Buttons {
 		btnParts = append(btnParts, "["+btn.Label+"]")
 	}
-	btnLine := strings.Join(btnParts, "  ")
-	btnLine += strings.Repeat(" ", max(0, innerWidth-lipgloss.Width(btnLine)))
+	btnLine := ansi.Truncate(strings.Join(btnParts, "  "), innerWidth, "")
+	btnLine += strings.Repeat(" ", max(0, innerWidth-ansi.StringWidth(btnLine)))
 
-	box := modalBorderStyle.Width(boxWidth - 2).Render(titleLine + "\n" + contentLine + "\n" + btnLine)
+	box := modalBorderStyle.Width(max(0, boxWidth-2)).Render(titleLine + "\n" + contentLine + "\n" + btnLine)
 	boxLines := strings.Split(box, "\n")
 	if len(boxLines) == 0 {
 		return lines
@@ -161,7 +146,7 @@ func (m *Modal) Overlay(lines []string, totalW, totalH int) []string {
 		original := lines[startY+i]
 
 		leftPart := ansi.Truncate(original, startX, "")
-		rightStart := visualBytePos(original, startX+boxWidth)
+		rightStart := visualBytePosAfter(original, startX+boxWidth)
 		rightPart := ""
 		if rightStart < len(original) {
 			rightPart = original[rightStart:]
@@ -174,8 +159,8 @@ func (m *Modal) Overlay(lines []string, totalW, totalH int) []string {
 		if leftWidth < startX {
 			leftPart += strings.Repeat(" ", startX-leftWidth)
 		}
-
-		lines[startY+i] = leftPart + bl + rightPart
+		boxPart := padVisualLine(bl, boxWidth)
+		lines[startY+i] = padVisualLine(leftPart+boxPart+rightPart, totalW)
 	}
 
 	return lines
@@ -184,7 +169,7 @@ func (m *Modal) Overlay(lines []string, totalW, totalH int) []string {
 // HandleMouse processes mouse events for the modal.
 // Returns true if the event was consumed.
 func (m *Modal) HandleMouse(msg tea.MouseMsg) bool {
-	if m.boxHeight == 0 {
+	if m == nil || m.boxHeight == 0 {
 		return false
 	}
 
@@ -203,10 +188,10 @@ func (m *Modal) HandleMouse(msg tea.MouseMsg) bool {
 	//
 	// msg.Y is lines-relative (0 = first content line, no header).
 	// Tree.handleMouse adjusts screen Y → lines Y before calling HandleMouse.
-	titleY := startY + 1  // draggable padding strip
-	xBtnY := startY + 2   // ✕ on title line / also draggable
-	btnY := startY + 4    // buttons line (first row)
-	btnY2 := startY + 5   // buttons line (second row, when wrap)
+	titleY := startY + 1 // draggable padding strip
+	xBtnY := startY + 2  // ✕ on title line / also draggable
+	btnY := startY + 4   // buttons line (first row)
+	btnY2 := startY + 5  // buttons line (second row, when wrap)
 
 	// ✕ is at innerWidth-1 within content area, content starts at startX+2 padding left
 	// innerWidth = boxWidth - 6
@@ -238,8 +223,8 @@ func (m *Modal) HandleMouse(msg tea.MouseMsg) bool {
 					break
 				}
 				// content starts at startX+3 (1 border + 2 padding)
-				btnX1 := startX + 3 + btnStart
-				btnX2 := startX + 3 + btnEnd
+				btnX1 := startX + 3 + ansi.StringWidth(btnLine[:btnStart])
+				btnX2 := startX + 3 + ansi.StringWidth(btnLine[:btnEnd])
 				if (int(msg.Y) == btnY || int(msg.Y) == btnY2) && int(msg.X) >= btnX1 && int(msg.X) < btnX2 {
 					if btn.Action != nil {
 						btn.Action()
@@ -269,25 +254,19 @@ func (m *Modal) HandleMouse(msg tea.MouseMsg) bool {
 			m.startX += dx
 			m.startY += dy
 
-			// Clamp to prevent dragging past edges
-			if m.startX < 0 {
-				m.offsetX -= m.startX
-				m.startX = 0
+			maxX, maxY := 0, 0
+			if m.totalW > 0 {
+				maxX = max(0, m.totalW-m.boxWidth)
 			}
-			if m.startY < 0 {
-				m.offsetY -= m.startY
-				m.startY = 0
+			if m.totalH > 0 {
+				maxY = max(0, m.totalH-m.boxHeight)
 			}
-			if m.totalW > 0 && m.startX+m.boxWidth > m.totalW {
-				over := m.startX + m.boxWidth - m.totalW
-				m.offsetX -= over
-				m.startX = m.totalW - m.boxWidth
-			}
-			if m.totalH > 0 && m.startY+m.boxHeight > m.totalH {
-				over := m.startY + m.boxHeight - m.totalH
-				m.offsetY -= over
-				m.startY = m.totalH - m.boxHeight
-			}
+			m.startX = clampInt(m.startX, 0, maxX)
+			m.startY = clampInt(m.startY, 0, maxY)
+			centerX := max(0, (m.totalW-m.boxWidth)/2)
+			centerY := max(0, (m.totalH-m.boxHeight)/2)
+			m.offsetX = m.startX - centerX
+			m.offsetY = m.startY - centerY
 			return true
 		}
 

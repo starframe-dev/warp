@@ -1,378 +1,327 @@
 package warp
 
 import (
-    "strings"
-    "unicode/utf8"
+	"strings"
 
-    tea "github.com/charmbracelet/bubbletea"
-    "github.com/charmbracelet/lipgloss"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/rivo/uniseg"
 )
 
 // FloatPane is a floating panel rendered on top of the main layout.
 type FloatPane struct {
-    Panel Panel
-    X, Y  int
-    Width int
-    Height int
-    Title string
+	Panel  Panel
+	X, Y   int
+	Width  int
+	Height int
+	Title  string
 
-    // State
-    dragging       bool
-    resizing       bool
-    resizeEdge     string // "n", "s", "e", "w", "ne", "nw", "se", "sw"
-    dragStartX     int
-    dragStartY     int
-    origX, origY   int
-    origW, origH   int
+	dragging   bool
+	resizing   bool
+	resizeEdge string
+	dragStartX int
+	dragStartY int
+	origX      int
+	origY      int
+	origW      int
+	origH      int
 
-    // CloseRequested is set when the user clicks the × button.
-    // The owning Tab checks this after handleMouse and calls CloseFloat.
-    CloseRequested bool
+	// CloseRequested is set when the user clicks the × button.
+	// The owning Tab checks this after handleMouse and calls CloseFloat.
+	CloseRequested bool
 
-    // CloseOnOutsideClick closes the float when the user clicks outside it.
-    CloseOnOutsideClick bool
+	// CloseOnOutsideClick closes the float when the user clicks outside it.
+	CloseOnOutsideClick bool
 }
 
 const (
-    floatMinWidth  = 10
-    floatMinHeight = 3
-    floatTitleH    = 1
+	floatMinWidth  = 10
+	floatMinHeight = 3
+	floatTitleH    = 1
 )
 
 // render renders the float pane into lines.
-func (fp *FloatPane) render(w, h int) []string {
-    lines := make([]string, fp.Height)
+func (fp *FloatPane) render(_, _ int) []string {
+	if fp == nil || fp.Width <= 0 || fp.Height <= 0 {
+		return nil
+	}
 
-    // Top border with title and close button
-    title := fp.Title
-    closeBtn := floatCloseStyle.Render("×")
-    // Reserve space: ╭ + closeBtn(2chars: " ×") + ╮ = 4 chars
-    reserveW := 4
-    maxTitleW := fp.Width - reserveW
-    if maxTitleW < 0 {
-        maxTitleW = 0
-    }
-    if lipgloss.Width(title) > maxTitleW && maxTitleW >= 3 {
-        title = title[:maxTitleW-3] + "..."
-    }
-    dashesW := fp.Width - lipgloss.Width(title) - 4
-    if dashesW < 0 {
-        dashesW = 0
-    }
-    topBorder := floatBgStyle.Render("╭") + floatTitleStyle.Render(title) +
-        floatBorderStyle.Render(strings.Repeat("─", dashesW)) +
-        floatBgStyle.Render(" ") + closeBtn + floatBgStyle.Render("╮")
-    lines[0] = topBorder
+	lines := make([]string, fp.Height)
+	title := ansi.Truncate(fp.Title, max(0, fp.Width-4), "...")
+	dashesW := max(0, fp.Width-ansi.StringWidth(title)-4)
+	topBorder := floatBgStyle.Render("╭") + floatTitleStyle.Render(title) +
+		floatBorderStyle.Render(strings.Repeat("─", dashesW)) +
+		floatBgStyle.Render(" ") + floatCloseStyle.Render("×") + floatBgStyle.Render("╮")
+	lines[0] = padVisualLine(topBorder, fp.Width)
+	if fp.Height == 1 {
+		return lines
+	}
 
-    // Content
-    contentH := fp.Height - 2
-    if contentH < 0 {
-        contentH = 0
-    }
-    contentLines := padContent(fp.Panel.View(fp.Width-2, contentH), fp.Width-2, contentH)
-    for i, cl := range contentLines {
-        lines[i+1] = floatBorderStyle.Render("│") + floatBgStyle.Render(cl) + floatBorderStyle.Render("│")
-    }
+	contentW := max(0, fp.Width-2)
+	contentH := max(0, fp.Height-2)
+	content := ""
+	if !isNilPanel(fp.Panel) {
+		content = fp.Panel.View(contentW, contentH)
+	}
+	contentLines := padContent(content, contentW, contentH)
+	for i, line := range contentLines {
+		lines[i+1] = padVisualLine(
+			floatBorderStyle.Render("│")+floatBgStyle.Render(line)+floatBorderStyle.Render("│"),
+			fp.Width,
+		)
+	}
 
-    // Bottom border
-    bottomBorder := floatBgStyle.Render("╰") + floatBorderStyle.Render(strings.Repeat("─", fp.Width-2)) + floatBgStyle.Render("╯")
-    lines[fp.Height-1] = bottomBorder
-
-    return lines
+	if fp.Height > 1 {
+		bottom := floatBgStyle.Render("╰") +
+			floatBorderStyle.Render(strings.Repeat("─", max(0, fp.Width-2))) +
+			floatBgStyle.Render("╯")
+		lines[fp.Height-1] = padVisualLine(bottom, fp.Width)
+	}
+	return lines
 }
 
 // handleMouse processes mouse events for this float pane.
 // mx, my are relative to the content area (not absolute screen).
 // Returns tea.Cmd if the event was handled.
 func (fp *FloatPane) handleMouse(msg tea.MouseMsg, mx, my int) tea.Cmd {
-    // During active drag or resize, skip bounds check — mouse may move outside float
-    if !fp.dragging && !fp.resizing {
-        if mx < fp.X || mx >= fp.X+fp.Width || my < fp.Y || my >= fp.Y+fp.Height {
-            return nil
-        }
-    }
+	return fp.handleMouseWithin(msg, mx, my, 0, 0)
+}
 
-    relX := mx - fp.X
-    relY := my - fp.Y
+func (fp *FloatPane) handleMouseWithin(msg tea.MouseMsg, mx, my, totalW, totalH int) tea.Cmd {
+	if fp == nil || fp.Width <= 0 || fp.Height <= 0 {
+		return nil
+	}
+	if !fp.dragging && !fp.resizing {
+		if mx < fp.X || mx >= fp.X+fp.Width || my < fp.Y || my >= fp.Y+fp.Height {
+			return nil
+		}
+	}
 
-    switch msg.Button {
-    case tea.MouseButtonLeft:
-        switch msg.Action {
-        case tea.MouseActionPress:
-            // Check close button (×) — area: just the × character at fp.Width-2
-            if relY == 0 && relX == fp.Width-2 {
-                fp.CloseRequested = true
-                return nil
-            }
-            // Title bar drag (exclude corners which are for resize)
-            if relY == 0 && relX > 0 && relX < fp.Width-1 {
-                fp.dragging = true
-                fp.dragStartX = mx
-                fp.dragStartY = my
-                fp.origX, fp.origY = fp.X, fp.Y
-                return nil
-            }
-            edge := fp.hitEdge(relX, relY)
-            if edge != "" {
-                fp.resizing = true
-                fp.resizeEdge = edge
-                fp.dragStartX = mx
-                fp.dragStartY = my
-                fp.origX, fp.origY = fp.X, fp.Y
-                fp.origW, fp.origH = fp.Width, fp.Height
-                return nil
-            }
-            // Click inside — forward to panel
-            if fp.Panel != nil && relY > 0 && relY < fp.Height-1 {
-                innerMsg := tea.MouseMsg{
-                    Action: msg.Action,
-                    Button: msg.Button,
-                    X:      relX - 1,
-                    Y:      relY - 1,
-                }
-                return fp.Panel.Update(innerMsg)
-            }
+	relX := mx - fp.X
+	relY := my - fp.Y
+	switch msg.Button {
+	case tea.MouseButtonLeft:
+		switch msg.Action {
+		case tea.MouseActionPress:
+			if relY == 0 && relX == fp.Width-2 {
+				fp.CloseRequested = true
+				return nil
+			}
+			if relY == 0 && relX > 0 && relX < fp.Width-1 {
+				fp.dragging = true
+				fp.dragStartX = mx
+				fp.dragStartY = my
+				fp.origX, fp.origY = fp.X, fp.Y
+				return nil
+			}
+			if edge := fp.hitEdge(relX, relY); edge != "" {
+				fp.resizing = true
+				fp.resizeEdge = edge
+				fp.dragStartX = mx
+				fp.dragStartY = my
+				fp.origX, fp.origY = fp.X, fp.Y
+				fp.origW, fp.origH = fp.Width, fp.Height
+				return nil
+			}
+			if !isNilPanel(fp.Panel) && relY > 0 && relY < fp.Height-1 {
+				innerMsg := tea.MouseMsg{
+					Action: msg.Action,
+					Button: msg.Button,
+					X:      relX - 1,
+					Y:      relY - 1,
+				}
+				return fp.Panel.Update(innerMsg)
+			}
 
-        case tea.MouseActionMotion:
-            if fp.dragging {
-                dx := mx - fp.dragStartX
-                dy := my - fp.dragStartY
-                fp.X = fp.origX + dx
-                fp.Y = fp.origY + dy
-                if fp.X < 0 {
-                    fp.X = 0
-                }
-                if fp.Y < 0 {
-                    fp.Y = 0
-                }
-            }
-            if fp.resizing {
-                dx := mx - fp.dragStartX
-                dy := my - fp.dragStartY
-                fp.applyResize(dx, dy)
-            }
+		case tea.MouseActionMotion:
+			if fp.dragging {
+				fp.X = fp.origX + mx - fp.dragStartX
+				fp.Y = fp.origY + my - fp.dragStartY
+				fp.clampPosition(totalW, totalH)
+			}
+			if fp.resizing {
+				fp.applyResizeWithin(mx-fp.dragStartX, my-fp.dragStartY, totalW, totalH)
+			}
 
-        case tea.MouseActionRelease:
-            fp.dragging = false
-            fp.resizing = false
-            fp.resizeEdge = ""
-        }
-    }
+		case tea.MouseActionRelease:
+			fp.dragging = false
+			fp.resizing = false
+			fp.resizeEdge = ""
+		}
+	}
+	return nil
+}
 
-    return nil
+func (fp *FloatPane) clampPosition(totalW, totalH int) {
+	if fp.X < 0 {
+		fp.X = 0
+	}
+	if fp.Y < 0 {
+		fp.Y = 0
+	}
+	if totalW > 0 {
+		fp.X = min(fp.X, max(0, totalW-fp.Width))
+	}
+	if totalH > 0 {
+		fp.Y = min(fp.Y, max(0, totalH-fp.Height))
+	}
 }
 
 func (fp *FloatPane) hitEdge(x, y int) string {
-    onTop := y == 0
-    onBottom := y == fp.Height-1
-    onLeft := x == 0
-    onRight := x == fp.Width-1
+	onTop := y == 0
+	onBottom := y == fp.Height-1
+	onLeft := x == 0
+	onRight := x == fp.Width-1
 
-    if onTop && onLeft {
-        return "nw"
-    }
-    if onTop && onRight {
-        return "ne"
-    }
-    if onBottom && onLeft {
-        return "sw"
-    }
-    if onBottom && onRight {
-        return "se"
-    }
-    if onTop {
-        return "n"
-    }
-    if onBottom {
-        return "s"
-    }
-    if onLeft {
-        return "w"
-    }
-    if onRight {
-        return "e"
-    }
-    return ""
+	if onTop && onLeft {
+		return "nw"
+	}
+	if onTop && onRight {
+		return "ne"
+	}
+	if onBottom && onLeft {
+		return "sw"
+	}
+	if onBottom && onRight {
+		return "se"
+	}
+	if onTop {
+		return "n"
+	}
+	if onBottom {
+		return "s"
+	}
+	if onLeft {
+		return "w"
+	}
+	if onRight {
+		return "e"
+	}
+	return ""
 }
 
 func (fp *FloatPane) applyResize(dx, dy int) {
-    switch fp.resizeEdge {
-    case "n":
-        fp.Y = fp.origY + dy
-        fp.Height = fp.origH - dy
-    case "s":
-        fp.Height = fp.origH + dy
-    case "w":
-        fp.X = fp.origX + dx
-        fp.Width = fp.origW - dx
-    case "e":
-        fp.Width = fp.origW + dx
-    case "nw":
-        fp.X = fp.origX + dx
-        fp.Y = fp.origY + dy
-        fp.Width = fp.origW - dx
-        fp.Height = fp.origH - dy
-    case "ne":
-        fp.Y = fp.origY + dy
-        fp.Width = fp.origW + dx
-        fp.Height = fp.origH - dy
-    case "sw":
-        fp.X = fp.origX + dx
-        fp.Width = fp.origW - dx
-        fp.Height = fp.origH + dy
-    case "se":
-        fp.Width = fp.origW + dx
-        fp.Height = fp.origH + dy
-    }
-
-    if fp.Width < floatMinWidth {
-        fp.Width = floatMinWidth
-    }
-    if fp.Height < floatMinHeight {
-        fp.Height = floatMinHeight
-    }
-    if fp.X < 0 {
-        fp.X = 0
-    }
-    if fp.Y < 0 {
-        fp.Y = 0
-    }
+	fp.applyResizeWithin(dx, dy, 0, 0)
 }
 
-// StripANSI removes ANSI escape sequences from a string.
+func (fp *FloatPane) applyResizeWithin(dx, dy, totalW, totalH int) {
+	edge := fp.resizeEdge
+	west := strings.Contains(edge, "w")
+	east := strings.Contains(edge, "e")
+	north := strings.Contains(edge, "n")
+	south := strings.Contains(edge, "s")
+
+	left, right := fp.origX, fp.origX+fp.origW
+	top, bottom := fp.origY, fp.origY+fp.origH
+	if west {
+		left += dx
+	} else if east {
+		right += dx
+	}
+	if north {
+		top += dy
+	} else if south {
+		bottom += dy
+	}
+
+	minW, minH := floatMinWidth, floatMinHeight
+	if totalW > 0 {
+		minW = min(minW, totalW)
+		right = clampInt(right, 0, totalW)
+		if west {
+			left = clampInt(left, 0, max(0, right-minW))
+		} else {
+			left = clampInt(left, 0, max(0, totalW-minW))
+			right = clampInt(right, min(totalW, left+minW), totalW)
+		}
+	} else if west {
+		left = max(0, min(left, right-minW))
+	} else {
+		left = max(0, left)
+		right = max(right, left+minW)
+	}
+
+	if totalH > 0 {
+		minH = min(minH, totalH)
+		bottom = clampInt(bottom, 0, totalH)
+		if north {
+			top = clampInt(top, 0, max(0, bottom-minH))
+		} else {
+			top = clampInt(top, 0, max(0, totalH-minH))
+			bottom = clampInt(bottom, min(totalH, top+minH), totalH)
+		}
+	} else if north {
+		top = max(0, min(top, bottom-minH))
+	} else {
+		top = max(0, top)
+		bottom = max(bottom, top+minH)
+	}
+
+	fp.X, fp.Y = left, top
+	fp.Width, fp.Height = max(0, right-left), max(0, bottom-top)
+}
+
+func clampInt(value, low, high int) int {
+	if high < low {
+		return high
+	}
+	return max(low, min(value, high))
+}
+
+// StripANSI removes terminal control sequences from a string.
 func StripANSI(s string) string {
-    var buf strings.Builder
-    buf.Grow(len(s))
-    for i := 0; i < len(s); i++ {
-        if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
-            // CSI sequence: \x1b[ + params (< 0x40) + final (>= 0x40)
-            i += 2 // skip \x1b[
-            for i < len(s) && s[i] < 0x40 {
-                i++
-            }
-            // i points to final byte, skip it via loop increment
-            continue
-        }
-        buf.WriteByte(s[i])
-    }
-    return buf.String()
+	return ansi.Strip(s)
 }
 
 // overlayFloat draws the float pane on top of existing content lines.
-// Handles ANSI escape sequences correctly by tracking visual positions.
 func overlayFloat(lines []string, fp *FloatPane, totalW, totalH int) {
-    if fp.X >= totalW || fp.Y >= totalH {
-        return
-    }
+	if fp == nil || isNilPanel(fp.Panel) || fp.Width <= 0 || fp.Height <= 0 || totalW <= 0 || totalH <= 0 {
+		return
+	}
+	x := max(0, fp.X)
+	y := max(0, fp.Y)
+	if x >= totalW || y >= totalH {
+		return
+	}
+	visibleW := min(fp.Width, totalW-x)
+	if visibleW <= 0 {
+		return
+	}
+	floatLines := fp.render(totalW, totalH)
+	for fy, floatLine := range floatLines {
+		screenY := y + fy
+		if screenY < 0 || screenY >= totalH || screenY >= len(lines) {
+			continue
+		}
 
-    floatLines := fp.render(totalW, totalH)
+		floatLine = ansi.Truncate(floatLine, visibleW, "")
+		floatLine = padVisualLine(floatLine, visibleW)
+		original := lines[screenY]
 
-    for fy, fl := range floatLines {
-        screenY := fp.Y + fy
-        if screenY < 0 || screenY >= len(lines) {
-            continue
-        }
+		prefix := ansi.Truncate(original, x, "")
+		prefixWidth := ansi.StringWidth(prefix)
+		if prefixWidth < x {
+			prefix += strings.Repeat(" ", x-prefixWidth)
+		}
+		suffixStart := visualBytePosAfter(original, x+visibleW)
+		suffix := ""
+		if suffixStart < len(original) {
+			suffix = original[suffixStart:]
+		}
 
-        origLine := lines[screenY]
-        floatVisual := StripANSI(fl)
-        floatWidth := lipgloss.Width(floatVisual)
+		combined := prefix + floatLine + ansi.ResetStyle + suffix
+		lines[screenY] = padVisualLine(combined, totalW)
+	}
+}
 
-        // Clamp float width so it doesn't extend beyond totalW
-        if fp.X+floatWidth > totalW {
-            excess := fp.X + floatWidth - totalW
-            floatWidth -= excess
-            // Truncate fl to visual floatWidth — find byte position
-            bytePos := 0
-            visCount := 0
-            for bytePos < len(fl) && visCount < floatWidth {
-                if fl[bytePos] == '\x1b' {
-                    // Skip ANSI sequence
-                    bytePos++
-                    if bytePos < len(fl) && fl[bytePos] == '[' {
-                        bytePos++
-                        for bytePos < len(fl) && fl[bytePos] < 0x40 {
-                            bytePos++
-                        }
-                        if bytePos < len(fl) {
-                            bytePos++
-                        }
-                    }
-                    continue
-                }
-                _, size := utf8.DecodeRuneInString(fl[bytePos:])
-                bytePos += size
-                visCount++
-            }
-            fl = fl[:bytePos]
-            // Ensure the truncated line ends with a reset so incomplete
-            // ANSI sequences don't bleed into the suffix.
-            fl += "\x1b[0m"
-        }
-
-        // Build new line: prefix (up to visual X) + styled float + suffix (after float)
-        var buf strings.Builder
-        buf.Grow(len(origLine) + len(fl))
-
-        // Copy original prefix up to visual position fp.X
-        visPos := 0
-        i := 0
-        for i < len(origLine) && visPos < fp.X {
-            if origLine[i] == '\x1b' {
-                // Copy entire CSI escape sequence: \x1b[ + params + final
-                start := i
-                if i+1 < len(origLine) && origLine[i+1] == '[' {
-                    i += 2 // skip \x1b[
-                    for i < len(origLine) && origLine[i] < 0x40 {
-                        i++
-                    }
-                    if i < len(origLine) {
-                        i++ // include final byte
-                    }
-                } else {
-                    i++ // skip unknown escape
-                }
-                buf.WriteString(origLine[start:i])
-                continue
-            }
-            // Regular character
-            r, size := utf8.DecodeRuneInString(origLine[i:])
-            buf.WriteRune(r)
-            i += size
-            visPos++
-        }
-
-        // Write the styled float line (already truncated), then reset styles
-        // so the suffix is not affected by the float's ANSI sequences.
-        buf.WriteString(fl)
-        buf.WriteString("\x1b[0m")
-
-        // Skip original content covered by float
-        visPos = fp.X
-        for i < len(origLine) && visPos < fp.X+floatWidth {
-            if origLine[i] == '\x1b' {
-                if i+1 < len(origLine) && origLine[i+1] == '[' {
-                    i += 2 // skip \x1b[
-                    for i < len(origLine) && origLine[i] < 0x40 {
-                        i++
-                    }
-                    if i < len(origLine) {
-                        i++ // skip final byte
-                    }
-                } else {
-                    i++
-                }
-                continue
-            }
-            _, size := utf8.DecodeRuneInString(origLine[i:])
-            i += size
-            visPos++
-        }
-
-        // Copy remaining suffix
-        if i < len(origLine) {
-            buf.WriteString(origLine[i:])
-        }
-
-        lines[screenY] = buf.String()
-    }
+func visualBytePosAfter(s string, targetW int) int {
+	if targetW <= 0 {
+		return 0
+	}
+	start := visualBytePos(s, targetW)
+	if start >= len(s) || ansi.StringWidth(s[:start]) >= targetW {
+		return start
+	}
+	cluster, _, _, _ := uniseg.FirstGraphemeCluster([]byte(s[start:]), -1)
+	return start + len(cluster)
 }

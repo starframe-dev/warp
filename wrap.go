@@ -4,7 +4,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // WordWrap wraps text at word boundaries so no line exceeds width.
@@ -36,80 +36,23 @@ func SpaceWrap(text string, width int) []string {
 }
 
 func wrapLine(line string, width int) []string {
-	if lipgloss.Width(line) <= width {
-		return []string{line}
+	if width <= 0 {
+		return nil
 	}
-
-	var result []string
-	start := 0
-	for start < len(line) {
-		sub := line[start:]
-		if lipgloss.Width(sub) <= width {
-			result = append(result, sub)
-			break
-		}
-		// Walk forward to find a word boundary
-		breakAt := start
-		lastWordEnd := start
-		for i := start; i < len(line); i++ {
-			if unicode.IsSpace(rune(line[i])) {
-				lastWordEnd = i
-			}
-			if lipgloss.Width(line[start:i+1]) > width {
-				breakAt = lastWordEnd
-				break
-			}
-		}
-		if breakAt <= start {
-			breakAt = start + 1
-			// Find visual boundary
-			for i := start; i < len(line); i++ {
-				if lipgloss.Width(line[start:i+1]) > width {
-					breakAt = i
-					break
-				}
-			}
-		}
-		result = append(result, strings.TrimRightFunc(line[start:breakAt], unicode.IsSpace))
-		start = breakAt
-		// Skip whitespace at start of next line
-		for start < len(line) && unicode.IsSpace(rune(line[start])) {
-			start++
+	lines := strings.Split(ansi.Wrap(line, width, " "), "\n")
+	for i, wrapped := range lines {
+		if ansi.StringWidth(wrapped) > width {
+			lines[i] = ansi.Truncate(wrapped, width, "")
 		}
 	}
-	return result
+	return lines
 }
 
 func wrapAtSpaces(line string, width int) []string {
-	if lipgloss.Width(line) <= width {
-		return []string{line}
+	if width <= 0 {
+		return nil
 	}
-
-	words := strings.Fields(line)
-	if len(words) == 0 {
-		return []string{line}
-	}
-
-	var result []string
-	var current strings.Builder
-	for _, word := range words {
-		wordW := lipgloss.Width(word)
-		curW := lipgloss.Width(current.String())
-		if current.Len() == 0 {
-			current.WriteString(word)
-		} else if curW+1+wordW <= width {
-			current.WriteString(" ")
-			current.WriteString(word)
-		} else {
-			result = append(result, current.String())
-			current.Reset()
-			current.WriteString(word)
-		}
-	}
-	if current.Len() > 0 {
-		result = append(result, current.String())
-	}
-	return result
+	return strings.Split(ansi.Wordwrap(line, width, " "), "\n")
 }
 
 func isWordBreak(b byte) bool {

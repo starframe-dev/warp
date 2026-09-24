@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // Scrollable wraps a Panel with scroll support.
@@ -21,29 +20,33 @@ func NewScrollable(content Panel) *Scrollable {
 
 // View renders the visible viewport of the content.
 func (s *Scrollable) View(w, h int) string {
-	if s.Content == nil {
-		return strings.Repeat("\n", h)
-	}
-
-	// Render full content at the requested width but unlimited height
-	fullContent := s.Content.View(w, 9999)
-	lines := strings.Split(fullContent, "\n")
-
-	// Clamp offset
-	maxOffset := len(lines) - h
-	if maxOffset < 0 {
-		maxOffset = 0
-	}
+	w = max(0, w)
+	h = max(0, h)
 	if s.Offset < 0 {
 		s.Offset = 0
 	}
+	if isNilPanel(s.Content) {
+		return strings.Repeat("\n", h)
+	}
+	if h == 0 {
+		return ""
+	}
+
+	// Render only through the end of the requested viewport, not an arbitrary height.
+	requestHeight := s.Offset + h
+	if requestHeight < s.Offset {
+		requestHeight = int(^uint(0) >> 1)
+	}
+	fullContent := s.Content.View(w, requestHeight)
+	lines := strings.Split(fullContent, "\n")
+
+	maxOffset := max(0, len(lines)-h)
 	if s.Offset > maxOffset {
 		s.Offset = maxOffset
 	}
 
-	// Take visible slice
 	visible := make([]string, h)
-	for i := 0; i < h; i++ {
+	for i := range visible {
 		idx := s.Offset + i
 		if idx < len(lines) {
 			visible[i] = padLine(lines[idx], w)
@@ -56,52 +59,53 @@ func (s *Scrollable) View(w, h int) string {
 
 // Update handles scroll messages (mouse wheel, keys).
 func (s *Scrollable) Update(msg tea.Msg) tea.Cmd {
+	if s.Offset < 0 {
+		s.Offset = 0
+	}
+	scrollBy := func(delta int) {
+		if delta < 0 {
+			if s.Offset < -delta {
+				s.Offset = 0
+			} else {
+				s.Offset += delta
+			}
+			return
+		}
+		maxInt := int(^uint(0) >> 1)
+		if s.Offset > maxInt-delta {
+			s.Offset = maxInt
+		} else {
+			s.Offset += delta
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
 		switch msg.Button {
 		case tea.MouseButtonWheelUp:
-			s.Offset -= 3
-			if s.Offset < 0 {
-				s.Offset = 0
-			}
+			scrollBy(-3)
 		case tea.MouseButtonWheelDown:
-			s.Offset += 3
+			scrollBy(3)
 		}
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up":
-			s.Offset--
-			if s.Offset < 0 {
-				s.Offset = 0
-			}
+			scrollBy(-1)
 		case "down":
-			s.Offset++
+			scrollBy(1)
 		case "pgup":
-			s.Offset -= 10
-			if s.Offset < 0 {
-				s.Offset = 0
-			}
+			scrollBy(-10)
 		case "pgdown":
-			s.Offset += 10
+			scrollBy(10)
 		}
 	}
 
-	if s.Content != nil {
+	if !isNilPanel(s.Content) {
 		return s.Content.Update(msg)
 	}
 	return nil
 }
 
 func padLine(line string, w int) string {
-	lw := lipgloss.Width(line)
-	if lw >= w {
-		// Truncate carefully — find byte boundary
-		for i := range line {
-			if lipgloss.Width(line[:i]) > w {
-				return line[:i-1]
-			}
-		}
-		return line
-	}
-	return line + strings.Repeat(" ", w-lw)
+	return padVisualLine(line, max(0, w))
 }

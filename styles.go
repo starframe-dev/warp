@@ -55,86 +55,86 @@ var (
 
 // Tab bar styles
 var (
-    tabBarStyle = lipgloss.NewStyle().
-            Background(tabBarBg)
+	tabBarStyle = lipgloss.NewStyle().
+			Background(tabBarBg)
 
-    activeTabStyle = lipgloss.NewStyle().
-            Background(activeTabBg).
-            Foreground(activeTabFg).
-            Bold(true)
+	activeTabStyle = lipgloss.NewStyle().
+			Background(activeTabBg).
+			Foreground(activeTabFg).
+			Bold(true)
 
-    inactiveTabStyle = lipgloss.NewStyle().
-            Background(tabBarBg).
-            Foreground(inactiveTabFg)
+	inactiveTabStyle = lipgloss.NewStyle().
+				Background(tabBarBg).
+				Foreground(inactiveTabFg)
 
-    newTabStyle = lipgloss.NewStyle().
-            Foreground(newTabFg)
+	newTabStyle = lipgloss.NewStyle().
+			Foreground(newTabFg)
 
-    closeTabStyle = lipgloss.NewStyle().
-            Foreground(closeTabFg)
+	closeTabStyle = lipgloss.NewStyle().
+			Foreground(closeTabFg)
 )
 
 // Border styles
 var (
-    borderStyle = lipgloss.NewStyle().
-            Foreground(borderColor)
+	borderStyle = lipgloss.NewStyle().
+			Foreground(borderColor)
 
-    borderHoverStyle = lipgloss.NewStyle().
-            Foreground(borderHoverColor)
+	borderHoverStyle = lipgloss.NewStyle().
+				Foreground(borderHoverColor)
 
-    borderDragStyle = lipgloss.NewStyle().
-            Foreground(borderDragColor)
+	borderDragStyle = lipgloss.NewStyle().
+			Foreground(borderDragColor)
 
-    collapseStyle = lipgloss.NewStyle().
-            Foreground(borderColor)
+	collapseStyle = lipgloss.NewStyle().
+			Foreground(borderColor)
 )
 
 // Float pane styles
 var (
-    floatBorderStyle = lipgloss.NewStyle().
-            Foreground(floatBorderColor)
+	floatBorderStyle = lipgloss.NewStyle().
+				Foreground(floatBorderColor)
 
-    floatTitleStyle = lipgloss.NewStyle().
-            Background(floatTitleBg).
-            Foreground(floatTitleFg).
-            Bold(true)
+	floatTitleStyle = lipgloss.NewStyle().
+			Background(floatTitleBg).
+			Foreground(floatTitleFg).
+			Bold(true)
 
-    floatCloseStyle = lipgloss.NewStyle().
-            Foreground(floatCloseFg).
-            Bold(true)
+	floatCloseStyle = lipgloss.NewStyle().
+			Foreground(floatCloseFg).
+			Bold(true)
 
-    floatBgStyle = lipgloss.NewStyle().
-            Background(floatBg)
+	floatBgStyle = lipgloss.NewStyle().
+			Background(floatBg)
 )
 
 // Collapsible styles
 var (
-    collapsibleStyle = lipgloss.NewStyle().
-            Foreground(gbLight1).
-            Background(gbDark1)
+	collapsibleStyle = lipgloss.NewStyle().
+				Foreground(gbLight1).
+				Background(gbDark1)
 
-    collapsibleBorderStyle = lipgloss.NewStyle().
-            Foreground(gbDark4)
+	collapsibleBorderStyle = lipgloss.NewStyle().
+				Foreground(gbDark4)
 )
 
 // Dropdown styles
 var (
-    dropdownButtonStyle = lipgloss.NewStyle().
-            Background(gbDark2).
-            Foreground(gbLight1)
+	dropdownButtonStyle = lipgloss.NewStyle().
+				Background(gbDark2).
+				Foreground(gbLight1)
 
-    dropdownItemStyle = lipgloss.NewStyle().
-            Background(gbDark0).
-            Foreground(gbLight1)
+	dropdownItemStyle = lipgloss.NewStyle().
+				Background(gbDark0).
+				Foreground(gbLight1)
 
-    dropdownItemHoverStyle = lipgloss.NewStyle().
-            Background(gbDark2).
-            Foreground(gbYellow)
+	dropdownItemHoverStyle = lipgloss.NewStyle().
+				Background(gbDark2).
+				Foreground(gbYellow)
 
-    dropdownItemSelectedStyle = lipgloss.NewStyle().
-            Background(gbDark2).
-            Foreground(gbGreen).
-            Bold(true)
+	dropdownItemSelectedStyle = lipgloss.NewStyle().
+					Background(gbDark2).
+					Foreground(gbGreen).
+					Bold(true)
 )
 
 // Popover styles in popover.go

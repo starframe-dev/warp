@@ -19,11 +19,11 @@ func makeLine(prefix string, width int) string {
 
 func TestModalOverlayExactContent(t *testing.T) {
 	tests := []struct {
-		name       string
-		totalW     int
-		content    []string
-		wantLeft   string
-		wantRight  string
+		name      string
+		totalW    int
+		content   []string
+		wantLeft  string
+		wantRight string
 	}{
 		{
 			name:   "80x24 delete chat",

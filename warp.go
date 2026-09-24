@@ -19,9 +19,11 @@ type Warp struct {
 	width  int
 	height int
 
-	httpServer *http.Server
-	httpAddr   string
-	httpMu     sync.Mutex
+	httpServer  *http.Server
+	httpAddr    string
+	httpClosing bool
+	elementsMu  sync.Mutex
+	mu          sync.RWMutex
 }
 
 // New creates a new Warp with a TabGroup root (one default tab).
@@ -33,26 +35,38 @@ func New() *Warp {
 // SetRoot replaces the root panel. Use this to install custom layouts
 // (splits, flex, nested tab groups, etc.).
 func (w *Warp) SetRoot(panel Panel) {
+	w.mu.Lock()
 	w.root = panel
+	w.mu.Unlock()
 }
 
 // Root returns the current root panel.
 func (w *Warp) Root() Panel {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 	return w.root
 }
 
 // convenience delegates to the root panel if it is a *TabGroup
 
 func (w *Warp) tabGroup() *TabGroup {
-	tg, _ := w.root.(*TabGroup)
+	tg, _ := w.Root().(*TabGroup)
 	return tg
 }
 
 // Width returns the last known width.
-func (w *Warp) Width() int { return w.width }
+func (w *Warp) Width() int {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.width
+}
 
 // Height returns the last known height.
-func (w *Warp) Height() int { return w.height }
+func (w *Warp) Height() int {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.height
+}
 
 // NewTab delegates to the root TabGroup (no-op if root is not a TabGroup).
 func (w *Warp) NewTab(name string) *Tab {
@@ -98,27 +112,32 @@ func (w *Warp) Init() tea.Cmd {
 
 // Update forwards all messages to the root panel without interception.
 func (w *Warp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		w.width = msg.Width
-		w.height = msg.Height
+	w.mu.Lock()
+	if size, ok := msg.(tea.WindowSizeMsg); ok {
+		w.width = size.Width
+		w.height = size.Height
 	}
+	root := w.root
+	w.mu.Unlock()
 
-	if w.root != nil {
-		return w, w.root.Update(msg)
+	if !isNilPanel(root) {
+		return w, root.Update(msg)
 	}
 	return w, nil
 }
 
 // View renders the root panel.
 func (w *Warp) View() string {
-	if w.root == nil {
+	w.mu.RLock()
+	root, width, height := w.root, w.width, w.height
+	w.mu.RUnlock()
+	if isNilPanel(root) {
 		return ""
 	}
-	if w.width == 0 || w.height == 0 {
+	if width == 0 || height == 0 {
 		return "Loading..."
 	}
-	return w.root.View(w.width, w.height)
+	return root.View(width, height)
 }
 
 // AsPanel returns a Panel adapter for this Warp, enabling nested warps.
@@ -132,8 +151,10 @@ type warpPanel struct {
 }
 
 func (wp *warpPanel) View(width, height int) string {
+	wp.warp.mu.Lock()
 	wp.warp.width = width
 	wp.warp.height = height
+	wp.warp.mu.Unlock()
 	return wp.warp.View()
 }
 
@@ -155,19 +176,19 @@ func (w *Warp) Run() error {
 
 // ServeHTTP starts an HTTP server exposing the element tree at /elements.
 func (w *Warp) ServeHTTP(addr string) error {
-	w.httpMu.Lock()
-	defer w.httpMu.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
-	if w.httpServer != nil {
+	if w.httpServer != nil || w.httpClosing {
 		return nil
 	}
 
 	if addr == "" {
-		if p := os.Getenv("WARP_HTTP_PORT"); p != "" {
-			addr = ":" + p
-		} else {
-			addr = ":0"
+		port := os.Getenv("WARP_HTTP_PORT")
+		if port == "" {
+			port = "0"
 		}
+		addr = net.JoinHostPort("127.0.0.1", port)
 	}
 
 	mux := http.NewServeMux()
@@ -193,30 +214,36 @@ func (w *Warp) ServeHTTP(addr string) error {
 
 // CloseHTTP stops the HTTP server.
 func (w *Warp) CloseHTTP() error {
-	w.httpMu.Lock()
-	defer w.httpMu.Unlock()
-
-	if w.httpServer == nil {
+	w.mu.Lock()
+	server := w.httpServer
+	if server == nil {
+		w.mu.Unlock()
 		return nil
 	}
-	err := w.httpServer.Shutdown(context.Background())
 	w.httpServer = nil
 	w.httpAddr = ""
+	w.httpClosing = true
+	w.mu.Unlock()
+
+	err := server.Shutdown(context.Background())
+	w.mu.Lock()
+	w.httpClosing = false
+	w.mu.Unlock()
 	return err
 }
 
 // HTTPAddr returns the current HTTP listening address, or empty if not serving.
 func (w *Warp) HTTPAddr() string {
-	w.httpMu.Lock()
-	defer w.httpMu.Unlock()
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 	return w.httpAddr
 }
 
 func (w *Warp) handleElements(wr http.ResponseWriter, _ *http.Request) {
-	w.httpMu.Lock()
+	w.mu.RLock()
 	width, height := w.width, w.height
 	root := w.root
-	w.httpMu.Unlock()
+	w.mu.RUnlock()
 
 	if width == 0 {
 		width = 80
@@ -226,8 +253,8 @@ func (w *Warp) handleElements(wr http.ResponseWriter, _ *http.Request) {
 	}
 
 	var elems []Element
-	if root != nil {
-		elems = collectElements(root, width, height)
+	if !isNilPanel(root) {
+		elems = w.inspectElements(root, width, height)
 	}
 	if elems == nil {
 		elems = []Element{}
@@ -237,6 +264,12 @@ func (w *Warp) handleElements(wr http.ResponseWriter, _ *http.Request) {
 	wr.Header().Set("Access-Control-Allow-Origin", "*")
 	wr.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(wr).Encode(elems)
+}
+
+func (w *Warp) inspectElements(root Panel, width, height int) []Element {
+	w.elementsMu.Lock()
+	defer w.elementsMu.Unlock()
+	return collectElements(root, width, height)
 }
 
 func parsePort(addr string) string {

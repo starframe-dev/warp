@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // DropdownItem is a single item in a dropdown menu.
@@ -32,6 +33,8 @@ func NewDropdownMenu(label string, items []DropdownItem) *DropdownMenu {
 
 // View renders the dropdown button or the open menu.
 func (d *DropdownMenu) View(w, h int) string {
+	w = max(0, w)
+	h = max(0, h)
 	if !d.Open {
 		return d.renderButton(w)
 	}
@@ -40,20 +43,26 @@ func (d *DropdownMenu) View(w, h int) string {
 
 func (d *DropdownMenu) renderButton(w int) string {
 	label := d.Label + " ▼"
-	if len(label) > w {
-		label = label[:w-1] + "…"
+	if ansi.StringWidth(label) > w {
+		label = ansi.Truncate(label, w, "…")
 	}
 	return dropdownButtonStyle.Render(padRight(label, w))
 }
 
 func (d *DropdownMenu) renderMenu(w, h int) string {
-	menuH := len(d.Items) + 1 // button + items
-	if menuH > h {
-		menuH = h
+	w = max(0, w)
+	h = max(0, h)
+	menuH := min(len(d.Items)+1, h)
+	if menuH == 0 {
+		return ""
 	}
 
 	lines := make([]string, menuH)
-	lines[0] = dropdownButtonStyle.Render(padRight(d.Label+" ▲", w))
+	button := d.Label + " ▲"
+	if ansi.StringWidth(button) > w {
+		button = ansi.Truncate(button, w, "…")
+	}
+	lines[0] = dropdownButtonStyle.Render(padRight(button, w))
 
 	for i := 0; i < len(d.Items) && i+1 < menuH; i++ {
 		item := d.Items[i]
@@ -62,8 +71,8 @@ func (d *DropdownMenu) renderMenu(w, h int) string {
 			prefix = "✓ "
 		}
 		label := prefix + item.Label
-		if len(label) > w {
-			label = label[:w-1] + "…"
+		if ansi.StringWidth(label) > w {
+			label = ansi.Truncate(label, w, "…")
 		}
 		style := dropdownItemStyle
 		if i == d.Hovered {

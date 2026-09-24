@@ -667,8 +667,8 @@ func TestTabFloatWithZeroSize(t *testing.T) {
 	tab := NewTab("test")
 	p := tabMockPanel{id: 1}
 	tab.Float(p, 0, 0, 0, 0)
-	if len(tab.floats) != 1 {
-		t.Fatalf("expected float to be added with zero size, got %d", len(tab.floats))
+	if len(tab.floats) != 0 {
+		t.Fatalf("expected zero-size float to be rejected, got %d floats", len(tab.floats))
 	}
 }
 

@@ -283,8 +283,8 @@ func TestFloatPaneApplyResizeClamp(t *testing.T) {
 	if fp.X != 0 {
 		t.Errorf("expected X clamped to 0, got %d", fp.X)
 	}
-	if fp.Width != 40 {
-		t.Errorf("expected width 40, got %d", fp.Width)
+	if fp.Width != 30 {
+		t.Errorf("expected west resize to preserve the original right edge at 30, got width %d", fp.Width)
 	}
 }
 
