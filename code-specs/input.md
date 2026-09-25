@@ -45,7 +45,7 @@ func (in *Input) SetValue(v string)
 
 **Поведение:**
 1. Устанавливает `Value` на переданный параметр
-2. Устанавливает `Cursor` в длину строки в символах (runes)
+2. Устанавливает `Cursor` в количество рун значения
 3. Вызывает `clampCursor()` для валидации диапазона
 
 #### SetCursor
@@ -112,17 +112,17 @@ func (in *Input) View(w, h int) string
 Отрисовывает компонент.
 
 **Параметры:**
-- `w` — доступная ширина в символах
+- `w` — доступная ширина в терминальных ячейках
 - `h` — доступная высота в строках
 
 **Поведение:**
-- Если `h >= 3`: отрисовывает в боксе (с рамкой)
+- Если `w >= 3` и `h >= 3`: отрисовывает в боксе (с рамкой)
 - Иначе: отрисовывает inline (просто текст)
 - Возвращает строку с отрисованным содержимым
 
 ### View Modes
 
-#### Boxed Mode (h >= 3)
+#### Boxed Mode (w >= 3, h >= 3)
 
 Отрисовывает компонент внутри рамки:
 - Верхняя граница: `╭───╮`
@@ -130,7 +130,7 @@ func (in *Input) View(w, h int) string
 - Боковые границы: `│`
 - Контент центрирован вертикально
 
-#### Inline Mode (h < 3)
+#### Inline Mode (w < 3 or h < 3)
 
 Отрисовывает просто как строку текста без рамки.
 
@@ -154,20 +154,16 @@ func (in *Input) renderLine(maxW int) string
 **Поведение:**
 1. Добавляет текст-подсказку (`Prompt`)
 2. Обрезает значение, если не влезает в `maxW`
-3. Подсвечивает символ под курсором ANSI-кодом `\x1b[7m`
+3. Подсвечивает grapheme cluster под курсором ANSI-кодом `\x1b[7m`
 4. Добавляет курсор после значения, если он находится в пределах строки
 
-### truncateTailToWidth
+### truncateInputAtCursor
 
 ```go
-func truncateTailToWidth(s string, maxW, cursor int) string
+func truncateInputAtCursor(value string, maxCells, cursor int) (string, int)
 ```
 
-Обрезает строку так, чтобы курсор оставался видимым.
-
-**Стратегия:**
-- Если `cursor < maxW`: берёт первые `maxW` символов
-- Иначе: центрирует содержимое вокруг курсора
+Обрезает значение по терминальным ячейкам, сохраняя курсор в видимой области. Графема, которая пересекает край видимого окна, заменяется пробелами, а не разрезается.
 
 ## Update API
 
@@ -188,14 +184,14 @@ func (in *Input) Update(msg tea.Msg) tea.Cmd
 **Поведение:**
 - Игнорирует сообщения, если компонент не в фокусе
 - Обрабатывает:
-  - `backspace` — удаляет символ перед курсором
-  - `delete` — удаляет символ под курсором
+  - `backspace` — удаляет grapheme cluster перед курсором
+  - `delete` — удаляет grapheme cluster под курсором
   - `left`/`right` — перемещение курсора
   - `home`/`end` — перемещение к началу/концу
-  - `enter` — отправка (submit)
+  - `enter` — no-op placeholder (submit пока не реализован)
   - Табы — передача родительскому компоненту
-  - Любые одиночные символы — вставка
-- Клавиши управления курсором ограничены границами значения
+  - `tea.KeyRunes` — вставляет все руны события, включая события с несколькими рунами
+- Стрелки перемещают курсор по границам grapheme clusters; курсор остаётся в допустимых границах значения
 
 ### Insert
 
@@ -206,14 +202,14 @@ func (in *Input) insertAtCursor(s string)
 Вставляет текст в позицию курсора.
 
 **Поведение:**
-1. Преобразует `Value` в slice `rune`
-2. Вставляет символы после курсора
+1. Преобразует `Value` и весь вставляемый текст в slice `rune`
+2. Вставляет все руны события в позицию курсора
 3. Конвертирует обратно в строку
-4. Сдвигает курсор на длину вставленного текста
+4. Перемещает курсор после вставленного текста и нормализует его к границе grapheme cluster
 
 ### Grapheme-aware Editing
 
-`Cursor` сохраняет публичную семантику позиции в рунах, но его валидные позиции ограничены границами grapheme clusters. Стрелки влево/вправо перемещают курсор к соседней границе. Backspace/Delete удаляют целый grapheme cluster. `SetCursor` и прямые невалидные позиции нормализуются к правой границе кластера.
+`Cursor` сохраняет публичную семантику позиции в рунах, но его допустимые позиции ограничены границами grapheme clusters. Стрелки влево/вправо переходят к предыдущей/следующей границе; Backspace/Delete удаляют целый grapheme cluster. `SetCursor` и позиции внутри кластера нормализуются к его правой границе. `Home`/`End` устанавливают начало/конец строки.
 
 ### Delete Operations
 
@@ -223,7 +219,7 @@ func (in *Input) insertAtCursor(s string)
 func (in *Input) deleteBeforeCursor()
 ```
 
-Удаляет символ перед курсором.
+Удаляет grapheme cluster перед курсором.
 
 **Поведение:**
 1. Находит предыдущую границу grapheme cluster
@@ -236,7 +232,7 @@ func (in *Input) deleteBeforeCursor()
 func (in *Input) deleteAtCursor()
 ```
 
-Удаляет символ под курсором.
+Удаляет grapheme cluster под курсором.
 
 **Поведение:**
 1. Находит следующую границу grapheme cluster
@@ -259,11 +255,11 @@ func (in *Input) clampCursor()
 
 ```go
 type Input struct {
-    Value   string   // текст значения
-    Cursor  int      // позиция курсора в символах
-    Prompt  string   // текст-подсказка
-    Width   int      // желаемая ширина (0 = авто)
-    focused bool     // состояние фокуса
+    Value   string   // Input value
+    Cursor  int      // Cursor position in runes
+    Prompt  string   // Prompt text
+    Width   int      // Desired width; zero uses the View width
+    focused bool     // Focus state
 }
 ```
 
@@ -304,17 +300,17 @@ var inputFocusBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(gbBlue
 
 ## Invariants
 
-1. **Cursor всегда валиден:** `0 <= Cursor <= len(runes(Value))`
+1. **Cursor всегда валиден:** `0 <= Cursor <= len(runes(Value))` и находится на границе grapheme cluster
 2. **Focused изменяет стиль рамки**
 3. **View всегда возвращает строку**
 4. **Update игнорирует не-keyMsg и нефокусные сообщения**
-5. **Вставка ограничена доступной шириной**
+5. **Ширина View ограничивает только отображение, не `Value`**
 
 ## Constraints
 
-- Не поддерживается мультисимвольный ввод за один раз (только по одному символу)
-- Обрезание при переполнении: приоритет у курсора
-- Фокус не сохраняется между рендерами (внешний контроль)
+- Одно событие `tea.KeyRunes` может вставить несколько рун
+- Длина `Value` не ограничивается шириной рендера; при переполнении отображение выбирает ячейки вокруг курсора
+- Фокус хранится в поле компонента до вызова `Blur`
 
 ## Usage Pattern
 
@@ -322,7 +318,7 @@ var inputFocusBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(gbBlue
 input := NewInput("Name:")
 input.Focus()
 
-// Обработка событий
+// Handle events
 func keyPress(msg tea.Msg) {
     cmd := input.Update(msg)
     if cmd != nil {
@@ -330,12 +326,12 @@ func keyPress(msg tea.Msg) {
     }
 }
 
-// Рендеринг
+// Render the input
 func view(w, h int) string {
     return input.View(w, h)
 }
 
-// Управление состоянием
+// Manage input state
 input.SetValue("Alice")
 input.SetCursor(5)
 ```

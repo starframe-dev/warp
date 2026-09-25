@@ -247,13 +247,17 @@ func (t *Tab) Float(panel Panel, x, y, width, height int) {
 	if isNilPanel(panel) || width <= 0 || height <= 0 {
 		return
 	}
+	width = max(floatMinWidth, width)
+	height = max(floatMinHeight, height)
 	fp := &FloatPane{
-		Panel:  panel,
-		X:      max(0, x),
-		Y:      max(0, y),
-		Width:  max(floatMinWidth, width),
-		Height: max(floatMinHeight, height),
-		Title:  "Float",
+		Panel:           panel,
+		X:               max(0, x),
+		Y:               max(0, y),
+		Width:           width,
+		Height:          height,
+		Title:           "Float",
+		preferredWidth:  width,
+		preferredHeight: height,
 	}
 	fp.clampPosition(t.width, t.height)
 	t.floats = append(t.floats, fp)

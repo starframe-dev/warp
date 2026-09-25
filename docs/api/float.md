@@ -1,17 +1,29 @@
 # warp — `float.go` (float pane)
 
-The `float` package file implements a *floating panel* that is rendered
-on top of the main warp layout. It owns its own rectangle (`X`, `Y`,
-`Width`, `Height`), renders a titled, closeable border, handles mouse
-interaction (drag, resize, close, focus), and finally overlays its
-content onto already-rendered screen lines — all while being ANSI-aware,
-so styled text and borders never corrupt each other.
+`FloatPane` is rendered on top of a tab's main layout. It owns a screen
+rectangle (`X`, `Y`, `Width`, `Height`), draws a titled, closeable border,
+and supports mouse dragging and resizing. The owning `Tab` manages focus,
+z-order, outside-click closing, and overlay rendering; ANSI-aware clipping
+keeps styled text and borders within the viewport.
 
 ## Public API
 
 ### `FloatPane`
 
-`type FloatPane struct { Panel Panel X, Y, Width, Height int Title string // exported state used by the owner CloseRequested bool CloseOnOutsideClick bool // unexported interaction state (drag / resize bookkeeping) ... }`
+```go
+type FloatPane struct {
+    Panel Panel
+    X, Y, Width, Height int
+    Title string
+
+    preferredWidth int
+    preferredHeight int
+
+    CloseRequested bool
+    CloseOnOutsideClick bool
+    // Drag and resize bookkeeping is unexported.
+}
+```
 
 A floating panel that is composed from a regular `Panel` plus a screen
 rectangle. The exported fields are:
@@ -20,13 +32,20 @@ rectangle. The exported fields are:
   (`Width-2`, `Height-2`) so the 1-cell border is not counted.
 - `X`, `Y`, `Width`, `Height` — screen rectangle.
 - `Title` — text drawn in the title bar.
-- `CloseRequested` — set to `true` when the user clicks the `×` button.
-  The owning tab is responsible for polling this flag after
-  `handleMouse` and then calling its `CloseFloat` routine.
+- `CloseRequested` — set to `true` when the user clicks the `×` button;
+  the owning `Tab` observes this and removes the float.
 - `CloseOnOutsideClick` — when `true`, the owner may close the float if
   the user clicks outside its rectangle.
 
 ## Behavior
+
+### Preferred size and viewport
+
+`Tab.Float(panel, x, y, width, height)` creates a float and stores the requested dimensions as its preferred size, raised to the minimum dimensions (10×3). `Width` and `Height` are the current visible dimensions; the preferred dimensions are stored separately.
+
+On `tea.WindowSizeMsg`, `ResizeMsg`, and before rendering, the tab clamps the visible rectangle to the viewport without changing the preferred dimensions. When the viewport grows, the float restores its preferred width and height and reclamps `X` and `Y` so the rectangle fits. A mouse resize updates the preferred size to the user's selected dimensions, so that size is restored after subsequent viewport changes. A viewport smaller than 10×3 may temporarily show a smaller float; automatic clamping preserves the preferred size.
+
+A float created before its tab receives a viewport keeps its preferred dimensions. The first resize or render clamps the visible rectangle to the known viewport.
 
 ### Rendering — `render(w, h)`
 
@@ -75,9 +94,7 @@ bails out when the pointer is outside `[X, X+Width) × [Y, Y+Height)`.
 | `floatMinHeight = 3` | Minimum usable height. |
 | `floatTitleH = 1`    | Number of title rows.  |
 
-`applyResize` clamps `Width ≥ 10`, `Height ≥ 3`, `X ≥ 0`, `Y ≥ 0`. The
-`applyResize` switch handles all eight edge strings in one place so the
-same arithmetic works for every edge.
+`applyResizeWithin` enforces the minimum dimensions when the viewport allows them; in a smaller viewport it clamps the visible size to the available cells. The eight edge strings share one resize calculation. A manual resize records its resulting dimensions as the new preferred size.
 
 ## ANSI safety
 
@@ -87,34 +104,28 @@ overlay:
 
 ### `StripANSI(s string) string`
 
-Removes every `\x1b[` (CSI) sequence from a string by skipping the
-parameter bytes and the final byte. The result is plain text and can
-safely be measured with `lipgloss.Width` or `ansi.StringWidth`.
+Removes ANSI terminal control sequences from a string. The result is
+plain text and can safely be measured with `lipgloss.Width` or
+`ansi.StringWidth`.
 
 ### `overlayFloat(lines []string, fp *FloatPane, totalW, totalH int)`
 
 Draws `fp.render(totalW, totalH)` on top of the existing `lines` without
 disturbing the rest of the screen. For every row it:
 
-1.  Locates the visual column `fp.X` by scanning the original line
-    byte-by-byte, copying complete ANSI sequences as opaque units and
-    counting visual cells one at a time.
-2.  Truncates the styled float line so that it never extends past
-    `totalW`. If truncation is needed a `\x1b[0m` reset is appended so
-    the truncated line cannot leak color into the suffix.
+1.  Locates visual column `fp.X` using ANSI- and grapheme-aware width
+    measurement; wide clusters are not split.
+2.  Truncates the styled float line to the visible viewport width and
+    adds an ANSI reset before the uncovered suffix so styles cannot leak.
 3.  Skips the original bytes that the float visually covers.
 4.  Appends the remaining original suffix verbatim.
 
-The function is idempotent: a float that starts at `(0,0)` with the full
-terminal size simply replaces the entire `lines` slice while leaving
-every byte of the suffix untouched.
 
 ## Style tokens used by the float
 
 The float renders through four `lipgloss` styles defined in `styles.go`.
-They are intentionally composed of exactly two colors from the theme so
-the border, title, close and background are easy to re-skin through
-[theme.go](#theme).
+They use the package theme colors and can be changed through
+[theme.go](./theme.md).
 
 - `floatBorderStyle` — border characters (`╭│─╮╰╯`).
 - `floatTitleStyle` — title text; bold, background and foreground from
@@ -125,30 +136,10 @@ the border, title, close and background are easy to re-skin through
 
 ## Example
 
-``` go
-type FloatPane struct {
-    Panel  Panel
-    X, Y, Width, Height int
-    Title string
-
-    CloseRequested      bool
-    CloseOnOutsideClick bool
-}
-
-// Typical owner loop:
-func (t *Tab) handleMouse(msg tea.MouseMsg) tea.Cmd {
-    fp := t.Float
-    if fp == nil {
-        return nil
-    }
-    cmd := fp.handleMouse(msg, msg.X, msg.Y)
-    if fp.CloseRequested {
-        t.CloseFloat()
-    } else if fp.CloseOnOutsideClick && !fp.contains(msg.X, msg.Y) {
-        t.CloseFloat()
-    }
-    return cmd
-}
+```go
+// detailsPanel implements warp.Panel.
+tab := warp.NewTab("details")
+tab.Float(detailsPanel, 10, 5, 30, 10)
 ```
 
 ## Notes & constraints
@@ -161,6 +152,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg) tea.Cmd {
   target.
 - Drag/resize bookkeeping uses the *original*
   `(origX, origY, origW, origH)` snapshot, so a long drag never
-  accumulates rounding error.
+  accumulates rounding error. Automatic viewport clamping changes only
+  visible dimensions; manual resizing updates the preferred dimensions.
 - `render` is the only function that produces styled bytes;
   `overlayFloat` and the mouse path only consume it.

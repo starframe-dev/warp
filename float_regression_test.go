@@ -91,6 +91,65 @@ func TestFloatReclampsAutomaticallyOnViewportResize(t *testing.T) {
 	}
 }
 
+func TestFloatRestoresPreferredSizeAfterViewportShrinkAndExpand(t *testing.T) {
+	tab := NewTab("preferred-size")
+	tab.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	tab.Float(&geometryTestPanel{name: "float"}, 90, 30, 30, 10)
+	fp := tab.floats[0]
+
+	tab.Update(tea.WindowSizeMsg{Width: 5, Height: 2})
+	if fp.Width != 5 || fp.Height != 2 || fp.preferredWidth != 30 || fp.preferredHeight != 10 {
+		t.Fatalf("float at 5x2 = %+v, preferred=%dx%d", fp, fp.preferredWidth, fp.preferredHeight)
+	}
+	assertFloatWithinViewport(t, fp, 5, 2)
+	tab.View(5, 2)
+
+	tab.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	if fp.Width != 30 || fp.Height != 10 {
+		t.Fatalf("float after expand = %dx%d, want 30x10", fp.Width, fp.Height)
+	}
+	assertFloatWithinViewport(t, fp, 80, 24)
+	if !strings.Contains(StripANSI(tab.View(80, 24)), "╭") {
+		t.Fatal("restored float is not visible")
+	}
+}
+
+func TestManualFloatResizeUpdatesPreferredSize(t *testing.T) {
+	tab := NewTab("manual-preferred-size")
+	tab.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	tab.Float(&geometryTestPanel{name: "float"}, 10, 5, 30, 10)
+	fp := tab.floats[0]
+
+	fp.handleMouseWithin(
+		tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft},
+		fp.X+fp.Width-1, fp.Y+fp.Height-1, 80, 24,
+	)
+	if !fp.resizing || fp.resizeEdge != "se" {
+		t.Fatalf("resize did not start at southeast corner: edge=%q", fp.resizeEdge)
+	}
+	fp.handleMouseWithin(
+		tea.MouseMsg{Action: tea.MouseActionMotion, Button: tea.MouseButtonLeft},
+		fp.dragStartX+12, fp.dragStartY+2, 80, 24,
+	)
+	fp.handleMouseWithin(
+		tea.MouseMsg{Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft},
+		fp.X+fp.Width-1, fp.Y+fp.Height-1, 80, 24,
+	)
+	if fp.Width != 42 || fp.Height != 12 || fp.preferredWidth != 42 || fp.preferredHeight != 12 {
+		t.Fatalf("manual resize = %dx%d, preferred=%dx%d; want 42x12", fp.Width, fp.Height, fp.preferredWidth, fp.preferredHeight)
+	}
+
+	tab.Update(ResizeMsg{Width: 5, Height: 2})
+	if fp.Width != 5 || fp.Height != 2 || fp.preferredWidth != 42 || fp.preferredHeight != 12 {
+		t.Fatalf("float after shrink = %+v, preferred=%dx%d", fp, fp.preferredWidth, fp.preferredHeight)
+	}
+	tab.Update(ResizeMsg{Width: 80, Height: 24})
+	if fp.Width != 42 || fp.Height != 12 {
+		t.Fatalf("float after expand = %dx%d, want manual preferred size 42x12", fp.Width, fp.Height)
+	}
+	assertFloatWithinViewport(t, fp, 80, 24)
+}
+
 func TestFloatCreatedBeforeFirstWindowSizeIsReclamped(t *testing.T) {
 	tab := NewTab("before-size")
 	tab.Float(&geometryTestPanel{name: "float"}, 100, 30, 30, 10)

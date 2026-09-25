@@ -1,0 +1,9 @@
+{
+  "name": "warp-lore",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@human-horizon/code-check": "^0.4.5",
+    "@human-horizon/weft": "^0.6.8"
+  }
+}

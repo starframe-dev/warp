@@ -16,6 +16,9 @@ type FloatPane struct {
 	Height int
 	Title  string
 
+	preferredWidth  int
+	preferredHeight int
+
 	dragging   bool
 	resizing   bool
 	resizeEdge string
@@ -156,23 +159,29 @@ func (fp *FloatPane) clampPosition(totalW, totalH int) {
 	if fp == nil {
 		return
 	}
+	fp.ensurePreferredSize()
 	fp.X = max(0, fp.X)
 	fp.Y = max(0, fp.Y)
-	fp.Width = max(0, fp.Width)
-	fp.Height = max(0, fp.Height)
 	if totalW > 0 {
-		if fp.Width == 0 {
-			fp.Width = min(floatMinWidth, totalW)
-		}
-		fp.Width = min(fp.Width, totalW)
+		fp.Width = min(fp.preferredWidth, totalW)
 		fp.X = min(fp.X, max(0, totalW-fp.Width))
+	} else {
+		fp.Width = fp.preferredWidth
 	}
 	if totalH > 0 {
-		if fp.Height == 0 {
-			fp.Height = min(floatMinHeight, totalH)
-		}
-		fp.Height = min(fp.Height, totalH)
+		fp.Height = min(fp.preferredHeight, totalH)
 		fp.Y = min(fp.Y, max(0, totalH-fp.Height))
+	} else {
+		fp.Height = fp.preferredHeight
+	}
+}
+
+func (fp *FloatPane) ensurePreferredSize() {
+	if fp.preferredWidth <= 0 {
+		fp.preferredWidth = max(floatMinWidth, fp.Width)
+	}
+	if fp.preferredHeight <= 0 {
+		fp.preferredHeight = max(floatMinHeight, fp.Height)
 	}
 }
 
@@ -268,6 +277,7 @@ func (fp *FloatPane) applyResizeWithin(dx, dy, totalW, totalH int) {
 
 	fp.X, fp.Y = left, top
 	fp.Width, fp.Height = max(0, right-left), max(0, bottom-top)
+	fp.preferredWidth, fp.preferredHeight = fp.Width, fp.Height
 }
 
 func clampInt(value, low, high int) int {

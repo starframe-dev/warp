@@ -27,6 +27,9 @@ type FloatPane struct {
     Height int
     Title string
 
+    preferredWidth int
+    preferredHeight int
+
     // State
     dragging       bool
     resizing       bool
@@ -55,6 +58,8 @@ type FloatPane struct {
 | `Width` | `int` | Ширина панели в символах |
 | `Height` | `int` | Высота панели в строках |
 | `Title` | `string` | Текст заголовка панели |
+| `preferredWidth` | `int` | Предпочтительная ширина для восстановления после сжатия viewport |
+| `preferredHeight` | `int` | Предпочтительная высота для восстановления после сжатия viewport |
 | `dragging` | `bool` | Флаг активного перетаскивания заголовка |
 | `resizing` | `bool` | Флаг активного изменения размера |
 | `resizeEdge` | `string` | Граница изменения размера (n/s/e/w/ne/nw/se/sw) |
@@ -82,9 +87,11 @@ const (
 
 ---
 
-## Нормализация viewport
+## Нормализация viewport и preferred size
 
-При `WindowSizeMsg`, `ResizeMsg` и перед отрисовкой `Tab` нормализует каждый float относительно фактического viewport. Размеры неотрицательны и, если viewport имеет положительный размер, не превышают его; координаты остаются внутри доступной области. Если viewport меньше минимального размера float, окно уменьшается до доступных ячеек и остаётся достижимым.
+При создании `Tab.Float` сохраняет запрошенные размеры как `preferredWidth`/`preferredHeight`; они не меньше минимальных размеров float. При `WindowSizeMsg`, `ResizeMsg` и перед отрисовкой `Tab` нормализует только видимые `Width`/`Height` и координаты. Если viewport меньше preferred size, видимые размеры временно уменьшаются до viewport, а preferred size остаётся неизменным. При увеличении viewport видимые размеры восстанавливаются из preferred size, затем `X`/`Y` повторно ограничиваются так, чтобы окно помещалось в viewport.
+
+Пользовательский resize через мышь записывает итоговый размер в `preferredWidth`/`preferredHeight`. Поэтому после сжатия и последующего расширения восстанавливается последний вручную заданный размер. В viewport меньше `floatMinWidth`/`floatMinHeight` видимый float может быть меньше этих минимумов, но остаётся достижимым; preferred size при автоматическом reclamp не меняется.
 
 ### `render(w, h int) []string`
 
@@ -159,8 +166,9 @@ const (
 - `dy` — вертикальное смещение
 
 **Поведение**:
-- Обновляет координаты и размеры в зависимости от `resizeEdge`
+- Обновляет координаты и видимые размеры в зависимости от `resizeEdge`
 - Соблюдает минимальные размеры, если viewport позволяет; в меньшем viewport размеры ограничиваются доступными ячейками
+- Сохраняет полученный при пользовательском resize размер как новый preferred size
 - При изменении левой/верхней границы корректирует позицию так, чтобы противоположный край оставался на месте
 - Ограничивает размеры и координаты текущим viewport
 
@@ -285,37 +293,15 @@ const (
 
 ## Примеры использования
 
-### Создание панели
+### Создание float в Tab
 
 ```go
-fp := &FloatPane{
-    X:        0,
-    Y:        10,
-    Width:    80,
-    Height:   24,
-    Title:    "Панель настроек",
-    Panel:    nil, // или панель
-}
+tab := NewTab("settings")
+tab.Float(settingsPanel, 0, 10, 80, 24)
+screen := tab.View(screenWidth, screenHeight)
 ```
 
-### Настройка закрытия по клику вне
-
-```go
-fp.CloseOnOutsideClick = true
-```
-
-### Использование в цикле отрисовки
-
-```go
-func (t *Tab) drawScreen() {
-    // ... основной рендеринг ...
-    
-    // Наложение панелей
-    for _, fp := range t.FloatPanes {
-        overlayFloat(lines, fp, screenWidth, screenHeight)
-    }
-}
-```
+`Tab.View` ограничивает float viewport перед отрисовкой и накладывает его поверх layout вкладки. Для изменения размера мышью итоговый пользовательский размер сохраняется как preferred size.
 
 ---
 
