@@ -78,9 +78,7 @@ func (s *Selectable) SelectedText() string {
 		if endX > ansi.StringWidth(lineVis) {
 			endX = ansi.StringWidth(lineVis)
 		}
-		if startX < endX {
-			parts = append(parts, extractVisRange(line, startX, endX))
-		}
+		parts = append(parts, extractVisRange(line, startX, endX))
 	}
 	return strings.Join(parts, "\n")
 }
@@ -167,6 +165,11 @@ func (s *Selectable) View(w, h int) string {
 		result[y] = highlightRange(line, startX, endX)
 	}
 	return strings.Join(result, "\n")
+}
+
+// Elements transparently forwards semantic elements from the wrapped panel.
+func (s *Selectable) Elements(w, h int) []Element {
+	return cloneElements(collectElements(s.Content, max(0, w), max(0, h)))
 }
 
 // Update handles mouse and keyboard for selection.

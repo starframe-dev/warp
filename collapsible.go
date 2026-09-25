@@ -44,6 +44,24 @@ func (c *Collapsible) View(w, h int) string {
 	return strings.Join(append([]string{title}, lines...), "\n")
 }
 
+// Elements returns visible content elements below the persistent title row.
+func (c *Collapsible) Elements(w, h int) []Element {
+	if c.Collapsed || isNilPanel(c.Content) {
+		return nil
+	}
+	w = max(0, w)
+	h = max(0, h)
+	if w == 0 || h <= 1 {
+		return nil
+	}
+
+	contentHeight := h - 1
+	elements := collectElements(c.Content, w, contentHeight)
+	elements = clipElements(elements, Bounds{W: w, H: contentHeight})
+	shiftElements(elements, 0, 1)
+	return elements
+}
+
 // Update forwards visible content events and adjusts coordinates for the title row.
 func (c *Collapsible) Update(msg tea.Msg) tea.Cmd {
 	if isNilPanel(c.Content) {

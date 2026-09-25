@@ -9,6 +9,7 @@
 ```go
 func NewScrollable(content Panel) *Scrollable
 func (s *Scrollable) View(w, h int) string
+func (s *Scrollable) Elements(w, h int) []Element
 func (s *Scrollable) Update(msg tea.Msg) tea.Cmd
 ```
 
@@ -36,6 +37,8 @@ func (s *Scrollable) Update(msg tea.Msg) tea.Cmd
 ## Геометрия
 
 Ширина вычисляется в terminal cells, а не в байтах или рунах. ANSI escape-последовательности не занимают ячеек; широкая Unicode-графема не разрезается при обрезке.
+
+`Elements(w, h)` запрашивает вложенные элементы на высоту `Offset + h`, отсекает Bounds вне прямоугольника `[0, w) × [Offset, Offset+h)`, обрезает частичные пересечения и сдвигает Y на `-Offset`. Дочерние элементы преобразуются рекурсивно, без изменения слайсов провайдера.
 
 ## Проверки
 

@@ -63,8 +63,9 @@ func (s *Selectable) SelectedText() string
 
 Returns the currently selected text as a plain string. Uses the cached
 rendered lines so that the coordinate system matches exactly what is
-visible on screen. Falls back to rendering at a large size (9999×9999)
-if `View` has not been called yet (e.g. in unit tests).
+visible on screen. If no rendered lines are cached, it renders `Content`
+using the last known dimensions, substituting `80` for a non-positive
+width and `24` for a non-positive height.
 
 ``` go
 func (s *Selectable) ClearSelection()
@@ -97,6 +98,13 @@ end-exclusive (`[start, end)`); horizontal boundaries are clamped to
 `[0, w]`, so the boundary after the final visible cell remains valid. If
 `Content` is nil, `View` returns exactly `h` blank lines (`""` when
 `h == 0`; otherwise `h-1` newline characters).
+
+``` go
+func (s *Selectable) Elements(width, height int) []Element
+```
+
+Transparently forwards semantic elements from the wrapped panel using the
+same bounds and normalized dimensions.
 
 ``` go
 func (s *Selectable) Update(msg tea.Msg) tea.Cmd
@@ -137,7 +145,8 @@ grapheme.
 `SelectedText` walks the cached rendered lines and extracts complete
 graphemes overlapping each selected terminal-cell range. ANSI escape
 sequences are skipped, so the extracted text matches the visible
-selection.
+selection. Every selected row contributes a fragment, including empty rows,
+so joining fragments preserves blank lines and trailing newlines.
 
 ### ANSI / Unicode handling
 

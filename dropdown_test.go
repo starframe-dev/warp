@@ -273,6 +273,70 @@ func TestDropdownMenu_UpdateKeyboardWhenClosed(t *testing.T) {
 	}
 }
 
+func TestDropdownMenuKeyboardUsesVisibleItems(t *testing.T) {
+	items := make([]DropdownItem, 5)
+	for i := range items {
+		items[i] = DropdownItem{Label: string(rune('A' + i))}
+	}
+	d := NewDropdownMenu("Choose", items)
+	d.Open = true
+	d.View(20, 3) // button plus two visible items
+
+	for range 10 {
+		d.Update(tea.KeyMsg{Type: tea.KeyDown})
+	}
+	if d.Hovered != 1 {
+		t.Fatalf("repeated Down Hovered=%d, want last visible index 1", d.Hovered)
+	}
+	d.Update(tea.KeyMsg{Type: tea.KeyUp})
+	if d.Hovered != 0 {
+		t.Fatalf("Up Hovered=%d, want 0", d.Hovered)
+	}
+	d.Update(tea.KeyMsg{Type: tea.KeyUp})
+	if d.Hovered != 0 {
+		t.Fatalf("Up at first visible item Hovered=%d, want 0", d.Hovered)
+	}
+
+	d.Update(tea.MouseMsg{Action: tea.MouseActionMotion, Y: 2})
+	if d.Hovered != 1 {
+		t.Fatalf("mouse row 2 Hovered=%d, want keyboard last index 1", d.Hovered)
+	}
+	d.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if d.Hovered != 1 {
+		t.Fatalf("Down after last visible item Hovered=%d, want 1", d.Hovered)
+	}
+	d.Update(tea.MouseMsg{Action: tea.MouseActionMotion, Y: 3})
+	if d.Hovered != -1 {
+		t.Fatalf("clipped mouse row Hovered=%d, want -1", d.Hovered)
+	}
+}
+
+func TestDropdownKeyboardEnterIgnoresClippedItems(t *testing.T) {
+	items := []DropdownItem{{Label: "A"}, {Label: "B"}, {Label: "C"}, {Label: "D"}, {Label: "E"}}
+	d := NewDropdownMenu("Choose", items)
+	d.Open = true
+	d.View(20, 3)
+	selected := -1
+	d.OnSelect = func(index int) { selected = index }
+	d.Hovered = 2
+
+	d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if !d.Open || selected != -1 {
+		t.Fatalf("Enter selected clipped index: open=%v selected=%d", d.Open, selected)
+	}
+	for i, item := range d.Items {
+		if item.Selected {
+			t.Fatalf("Enter selected clipped item %d", i)
+		}
+	}
+
+	d.Hovered = 1
+	d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if d.Open || selected != 1 || !d.Items[1].Selected {
+		t.Fatalf("Enter visible index 1: open=%v selected=%d items=%+v", d.Open, selected, d.Items)
+	}
+}
+
 func TestDropdownMenu_Close(t *testing.T) {
 	d := NewDropdownMenu("Choose", []DropdownItem{{Label: "One"}})
 	d.Open = true

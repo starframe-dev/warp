@@ -59,8 +59,9 @@ Handles mouse and keyboard messages for the dropdown:
 - Mouse press on the button (row *y = 0*) toggles open/close.
 - Mouse motion over a visible item row updates `Hovered`; motion over the button, outside the menu, or over a clipped row resets it to `-1`. Hovering does not select an item.
 - Mouse press on an item row selects that item.
-- Keyboard *up*/*down* moves the hover; *enter* selects the hovered
-  item; *esc* closes the menu.
+- Keyboard *up*/*down* moves `Hovered` only among visible rows; *enter*
+  selects only a visible hovered item; *esc* closes the menu. Until the
+  open menu is rendered, the previous full-list fallback is retained.
 
 ### `DropdownMenu.Close()`
 
@@ -91,9 +92,9 @@ The dropdown has two visible states driven by `Open`:
 
 ### Keyboard Interaction
 
-- *up*/*down*: move `Hovered` within the item bounds.
-- *enter*: selects the hovered item using the same logic as mouse
-  selection.
+- *up*/*down*: move `Hovered` within the currently visible item bounds.
+- *enter*: selects the hovered item only when its index is currently
+  visible; clipped items cannot be selected by keyboard.
 - *esc*: closes the menu without selecting anything.
 
 ### Selection Semantics

@@ -13,6 +13,7 @@ type Collapsible struct {
 
 func NewCollapsible(title string, content Panel) *Collapsible
 func (c *Collapsible) View(w, h int) string
+func (c *Collapsible) Elements(w, h int) []Element
 func (c *Collapsible) Update(msg tea.Msg) tea.Cmd
 func (c *Collapsible) Toggle()
 ```
@@ -24,6 +25,13 @@ func (c *Collapsible) Toggle()
 The title row is visible in both states: `▼` when expanded and `▶` when collapsed. In expanded mode, the inner panel is rendered below the title with height `max(0, h-1)`, clipped and padded to the available viewport. In collapsed mode, only the title row is rendered. A non-positive height produces an empty view; with non-positive width, the title is blank and expanded mode still preserves exactly `h` rows.
 
 A nil `Content` still renders the title when `h > 0`; the remaining expanded rows are blank.
+
+## Semantic Elements
+
+`Elements(w, h)` returns no child elements while collapsed. When expanded,
+it requests content elements at height `max(0, h-1)`, clips them to the
+content viewport, and adds one to each visible Y coordinate. The title row
+is not reported as an element.
 
 ## Messages and mouse coordinates
 

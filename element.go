@@ -29,13 +29,57 @@ type ElementProvider interface {
 
 // collectElements returns elements from a panel if it implements ElementProvider.
 func collectElements(panel Panel, width, height int) []Element {
-	if panel == nil {
+	if isNilPanel(panel) {
 		return nil
 	}
 	if ep, ok := panel.(ElementProvider); ok {
 		return ep.Elements(width, height)
 	}
 	return nil
+}
+
+func clipElements(elements []Element, viewport Bounds) []Element {
+	if len(elements) == 0 || viewport.W <= 0 || viewport.H <= 0 {
+		return nil
+	}
+
+	var clipped []Element
+	for _, element := range elements {
+		bounds, visible := intersectBounds(element.Bounds, viewport)
+		if !visible {
+			continue
+		}
+		element.Bounds = bounds
+		element.Children = clipElements(element.Children, viewport)
+		clipped = append(clipped, element)
+	}
+	return clipped
+}
+
+func intersectBounds(bounds, viewport Bounds) (Bounds, bool) {
+	if bounds.W <= 0 || bounds.H <= 0 || viewport.W <= 0 || viewport.H <= 0 {
+		return Bounds{}, false
+	}
+
+	left := max(bounds.X, viewport.X)
+	top := max(bounds.Y, viewport.Y)
+	right := min(elementBoundsEnd(bounds.X, bounds.W), elementBoundsEnd(viewport.X, viewport.W))
+	bottom := min(elementBoundsEnd(bounds.Y, bounds.H), elementBoundsEnd(viewport.Y, viewport.H))
+	if right <= left || bottom <= top {
+		return Bounds{}, false
+	}
+	return Bounds{X: left, Y: top, W: right - left, H: bottom - top}, true
+}
+
+func elementBoundsEnd(start, size int) int {
+	if size <= 0 {
+		return start
+	}
+	maxInt := int(^uint(0) >> 1)
+	if start > maxInt-size {
+		return maxInt
+	}
+	return start + size
 }
 
 // ElementProviderFunc adapts a plain function to the ElementProvider interface.

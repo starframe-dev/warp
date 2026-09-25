@@ -23,11 +23,19 @@ type Collapsible struct {
 
 func NewCollapsible(title string, content Panel) *Collapsible
 func (c *Collapsible) View(w, h int) string
+func (c *Collapsible) Elements(w, h int) []Element
 func (c *Collapsible) Update(msg tea.Msg) tea.Cmd
 func (c *Collapsible) Toggle()
 ```
 
 `Toggle` инвертирует `Collapsed`. Методы `Tab.Collapse` и `Tab.Expand` синхронно задают явное состояние `Collapsible` и его `FlexItem`, поэтому повторные вызовы Collapse/Expand идемпотентны.
+
+## Семантические элементы
+
+`Elements(w, h)` возвращает nil для свёрнутой панели. В раскрытом состоянии
+запрашивает `Content.Elements(w, max(0, h-1))`, ограничивает результат
+прямоугольником содержимого и сдвигает Y на `+1`. Заголовок не
+экспонируется как отдельный семантический элемент.
 
 ## Маршрутизация сообщений
 

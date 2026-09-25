@@ -33,10 +33,7 @@ func (s *Scrollable) View(w, h int) string {
 	}
 
 	// Render only through the end of the requested viewport, not an arbitrary height.
-	requestHeight := s.Offset + h
-	if requestHeight < s.Offset {
-		requestHeight = int(^uint(0) >> 1)
-	}
+	requestHeight := s.requestedContentHeight(h)
 	fullContent := s.Content.View(w, requestHeight)
 	lines := strings.Split(fullContent, "\n")
 
@@ -55,6 +52,33 @@ func (s *Scrollable) View(w, h int) string {
 		}
 	}
 	return strings.Join(visible, "\n")
+}
+
+// Elements returns semantic elements translated into the visible viewport.
+func (s *Scrollable) Elements(w, h int) []Element {
+	w = max(0, w)
+	h = max(0, h)
+	if s.Offset < 0 {
+		s.Offset = 0
+	}
+	if isNilPanel(s.Content) || w == 0 || h == 0 {
+		return nil
+	}
+
+	requestHeight := s.requestedContentHeight(h)
+	visibleHeight := requestHeight - s.Offset
+	elements := collectElements(s.Content, w, requestHeight)
+	elements = clipElements(elements, Bounds{X: 0, Y: s.Offset, W: w, H: visibleHeight})
+	shiftElements(elements, 0, -s.Offset)
+	return elements
+}
+
+func (s *Scrollable) requestedContentHeight(viewportHeight int) int {
+	requestHeight := s.Offset + viewportHeight
+	if requestHeight < s.Offset {
+		return int(^uint(0) >> 1)
+	}
+	return requestHeight
 }
 
 // Update handles scroll messages (mouse wheel, keys).

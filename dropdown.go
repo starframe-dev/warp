@@ -58,6 +58,7 @@ func (d *DropdownMenu) renderMenu(w, h int) string {
 	menuH := min(len(d.Items)+1, h)
 	d.visibleItemCount = max(0, menuH-1)
 	d.menuLayoutKnown = true
+	d.normalizeHovered()
 	if menuH == 0 {
 		return ""
 	}
@@ -132,17 +133,18 @@ func (d *DropdownMenu) Update(msg tea.Msg) tea.Cmd {
 		if !d.Open {
 			return nil
 		}
+		d.normalizeHovered()
 		switch msg.String() {
 		case "up":
 			if d.Hovered > 0 {
 				d.Hovered--
 			}
 		case "down":
-			if d.Hovered < len(d.Items)-1 {
+			if d.Hovered < d.hoverableItemCount()-1 {
 				d.Hovered++
 			}
 		case "enter":
-			if d.Hovered >= 0 {
+			if d.Hovered >= 0 && d.Hovered < d.hoverableItemCount() {
 				d.selectItem(d.Hovered)
 			}
 		case "esc":
@@ -156,7 +158,14 @@ func (d *DropdownMenu) hoverableItemCount() int {
 	if d.menuLayoutKnown {
 		return min(len(d.Items), d.visibleItemCount)
 	}
+	// Before the first open-menu render, the visible item count is unknown.
 	return len(d.Items)
+}
+
+func (d *DropdownMenu) normalizeHovered() {
+	if d.Hovered < -1 || d.Hovered >= d.hoverableItemCount() {
+		d.Hovered = -1
+	}
 }
 
 func (d *DropdownMenu) selectItem(idx int) {

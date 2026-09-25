@@ -40,6 +40,16 @@ request height saturates on integer overflow. Lines beyond the content
 are padded to fill the viewport. With nil content, returns exactly `h`
 blank lines (`""` for `h == 0`; otherwise `h-1` newline characters).
 
+### Elements
+
+``` go
+func (s *Scrollable) Elements(w, h int) []Element
+```
+
+Requests semantic elements through `Offset + h`, clips them to the visible
+viewport, then subtracts `Offset` from their Y coordinates. Fully offscreen
+elements are omitted and partially visible bounds are clipped.
+
 ### Update
 
 ``` go
