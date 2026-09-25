@@ -38,10 +38,18 @@ func TestNewScrollable(t *testing.T) {
 
 func TestScrollableView_NilContent(t *testing.T) {
 	s := &Scrollable{Content: nil}
-	got := s.View(10, 3)
-	want := strings.Repeat("\n", 3)
-	if got != want {
-		t.Errorf("nil content View mismatch:\nwant %q\ngot  %q", want, got)
+	for height := 0; height <= 5; height++ {
+		got := s.View(10, height)
+		want := ""
+		if height > 0 {
+			want = strings.Repeat("\n", height-1)
+		}
+		if got != want {
+			t.Errorf("height=%d nil content View=%q, want %q", height, got, want)
+		}
+		if height > 0 && len(strings.Split(got, "\n")) != height {
+			t.Errorf("height=%d produced %d lines", height, len(strings.Split(got, "\n")))
+		}
 	}
 }
 

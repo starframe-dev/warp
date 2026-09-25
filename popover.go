@@ -175,7 +175,9 @@ func (p *Popover) HandleMouse(msg tea.MouseMsg) bool {
 			// Inside menu: check which item.
 			contentIdx := int(msg.Y) - menuY - 1 // -1 for top border
 			if contentIdx >= 0 && contentIdx < len(p.Items) {
-				p.Items[contentIdx].Action()
+				if action := p.Items[contentIdx].Action; action != nil {
+					action()
+				}
 				if p.OnClose != nil {
 					p.OnClose()
 				}
@@ -220,7 +222,9 @@ func (p *Popover) HandleKey(msg tea.KeyMsg) bool {
 		return true
 	case tea.KeyEnter:
 		if p.selected >= 0 && p.selected < len(p.Items) {
-			p.Items[p.selected].Action()
+			if action := p.Items[p.selected].Action; action != nil {
+				action()
+			}
 		}
 		if p.OnClose != nil {
 			p.OnClose()

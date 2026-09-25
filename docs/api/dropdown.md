@@ -57,6 +57,7 @@ height to the available `h` lines.
 Handles mouse and keyboard messages for the dropdown:
 
 - Mouse press on the button (row *y = 0*) toggles open/close.
+- Mouse motion over a visible item row updates `Hovered`; motion over the button, outside the menu, or over a clipped row resets it to `-1`. Hovering does not select an item.
 - Mouse press on an item row selects that item.
 - Keyboard *up*/*down* moves the hover; *enter* selects the hovered
   item; *esc* closes the menu.
@@ -81,6 +82,7 @@ The dropdown has two visible states driven by `Open`:
 
 - If the menu is closed and the user presses on row `0` (the button),
   `Open` is set to `true` and `Hovered` is reset to `-1`.
+- While the menu is open, motion over a visible item row `y` sets `Hovered = y-1`; motion on the button row, outside the menu, or over a clipped row sets `Hovered = -1`. Motion never selects an item.
 - If the menu is open and the user presses on row `0`, the menu closes.
 - If the menu is open and the user presses on a row inside the item
   list, the corresponding item is selected (its `Selected` flag is set,
@@ -116,9 +118,7 @@ callback is invoked.
   `dropdownItemSelectedStyle` (defined elsewhere in the package). The
   currently hovered row uses the hover style, and a selected item uses
   the selected style.
-- Only press mouse actions (`tea.MouseActionPress`) are processed; other
-  mouse actions are ignored. `Update` always returns `nil` because the
-  dropdown does not schedule follow-up commands.
+- Mouse motion updates hover state and mouse press handles open/close or selection; other mouse actions are ignored. `Update` always returns `nil` because the dropdown does not schedule follow-up commands.
 
 ## Integration with bubbletea
 

@@ -45,15 +45,25 @@ used for mouse hit-testing.
 ### Tab switching
 
 `NextTab` and `PrevTab` wrap around the tab list using modulo
-arithmetic. They are no-ops when only one tab exists. `switchTab(idx)`
-is internal and clamps the index to a valid range before updating
-`activeTab`.
+arithmetic. They are no-ops when only one tab exists. Internal
+`switchTab(idx)` ignores invalid indices and no-ops when the requested
+tab is already active.
 
 ### Tab creation and closing
 
 `NewTab` appends a new tab and immediately activates it. `closeTab`
-removes a tab by index; if the active tab is closed, the active index is
-clamped to the last remaining tab. Closing the only tab is a no-op.
+removes a tab by index; if the active tab is closed, the next tab at that
+index is activated, or the last remaining tab when the removed tab was
+last. Closing the only tab is a no-op.
+
+### Focus lifecycle
+
+Switching tabs calls `Blur` on the old tab's focused `Focusable` while
+retaining its focus target, then calls `Focus` on the new active tab's
+retained target. Thus an inactive tab does not report a focused child,
+but its focus target is restored when reactivated. Closing a tab blurs
+and clears its focused panel; closing the active tab restores focus in
+the newly active tab.
 
 ### Rendering
 
@@ -63,7 +73,8 @@ clamped to the last remaining tab. Closing the only tab is a no-op.
 labels (for top/bottom) or a vertical column (for left/right). Tab
 labels are truncated to 20 chars (horizontal) or 15 chars (vertical)
 with an ellipsis. The active tab label shows a `▎` prefix and `×` close
-glyph.
+glyph. If `ActiveTab()` is nil, `View` returns exactly `h` blank lines
+(`""` when `h == 0`; otherwise `h-1` newline characters).
 
 ### Mouse interaction
 

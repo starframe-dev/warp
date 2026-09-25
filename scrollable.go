@@ -26,7 +26,7 @@ func (s *Scrollable) View(w, h int) string {
 		s.Offset = 0
 	}
 	if isNilPanel(s.Content) {
-		return strings.Repeat("\n", h)
+		return emptyView(h)
 	}
 	if h == 0 {
 		return ""

@@ -81,10 +81,14 @@ be queried as an element provider before real panels are attached.
 - **Keyboard:** `handleKeys` forwards only to the focused panel; warp
   never intercepts Tab/Shift+Tab automatically — use the explicit
   `FocusNext`/`FocusPrev` methods.
+- **Focus cleanup:** `CloseFloat` blurs and clears the focus target when
+  it removes the focused float. An outside click may then focus the panel
+  under the click.
 - **Collapse/Expand:** `Collapse` saves the split fraction and shrinks
   the panel to a fixed size; `Expand` restores the saved fraction. Flex
-  items get a `Collapsed` flag, and `Collapsible` panels toggle their
-  own state.
+  items and `Collapsible` panels are assigned the requested state
+  explicitly, making repeated Collapse/Expand calls idempotent. A nil
+  `SetSplitCollapse` callback does not disable the internal state toggle.
 - **Element collection:** `Elements` recursively walks splits and flex
   layouts, computing per-branch sizes (accounting for 1-cell borders)
   and offsetting element bounds so coordinates are relative to the tab

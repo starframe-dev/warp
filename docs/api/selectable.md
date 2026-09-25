@@ -39,8 +39,8 @@ Public struct with the following exported fields:
 | Field | Type | Description |
 |----|----|----|
 | Content | `Panel` | The wrapped content panel to which selection is added. |
-| AnchorX, AnchorY | `int` | Selection anchor in cell coordinates (fixed on mouse press). |
-| CursorX, CursorY | `int` | Active end of the selection (follows mouse/keyboard). |
+| AnchorX, AnchorY | `int` | One selection boundary in terminal-cell coordinates. |
+| CursorX, CursorY | `int` | Active end-exclusive boundary; `CursorX` may equal the viewport width. |
 | HasSelection | `bool` | True when a non-empty selection exists. |
 | Selecting | `bool` | True while an active mouse drag is in progress. |
 
@@ -91,11 +91,12 @@ Selects all visible content within the given width and height bounds.
 func (s *Selectable) View(w, h int) string
 ```
 
-Renders the wrapped content with selection highlight. Caches the
-rendered lines for later text extraction. Clamps selection coordinates
-to panel bounds — only the cursor end is clamped, while the anchor stays
-where the user originally pressed so that reverse-direction drag
-continues to work correctly.
+Renders the wrapped content with selection highlight and caches the
+rendered lines for later text extraction. Selection ranges are
+end-exclusive (`[start, end)`); horizontal boundaries are clamped to
+`[0, w]`, so the boundary after the final visible cell remains valid. If
+`Content` is nil, `View` returns exactly `h` blank lines (`""` when
+`h == 0`; otherwise `h-1` newline characters).
 
 ``` go
 func (s *Selectable) Update(msg tea.Msg) tea.Cmd
@@ -108,11 +109,9 @@ by the selection logic are proxied to the wrapped `Panel`.
 
 ### Mouse selection
 
-- **Press (left button):** Sets the anchor and cursor to the press
-  position; `Selecting` becomes true.
-- **Motion:** Moves the cursor; `HasSelection` is set to true.
-- **Release:** Finalizes the cursor position; clears selection if anchor
-  and cursor coincide.
+- **Press (left button):** Records the origin cell and starts dragging.
+- **Motion:** Converts pointer cell `x` to end-exclusive boundary `x+1` when dragging forward; reverse dragging uses the boundary after the origin cell. `HasSelection` becomes true.
+- **Release:** Finalizes the end-exclusive boundary. Press/release without motion does not create a selection.
 
 ### Keyboard selection
 
@@ -126,37 +125,33 @@ by the selection logic are proxied to the wrapped `Panel`.
 
 ### Rendering
 
-`View` renders the content and applies the reverse-video style to the
-selected range. The range is computed via `sortedBounds`, which
-normalizes anchor/cursor so that start ≤ end. Lines outside the
-selection range pass through unchanged. The highlight is applied
-per-line using the visual (rune) column range, so it is correct even
-when the content contains multi-byte UTF-8 runes.
+`View` renders the content and applies reverse-video style to the
+selected range. `sortedBounds` normalizes the anchor and cursor into
+end-exclusive bounds. Lines outside the selected range pass through
+unchanged. Highlighting uses terminal-cell widths and grapheme
+boundaries; selecting any part of a wide grapheme highlights the whole
+grapheme.
 
 ### Text extraction
 
-`SelectedText` walks the cached rendered lines and extracts the
-visual-range text for each line in the selection. ANSI escape sequences
-are skipped, and only the runes within the requested visual range are
-collected. This ensures the extracted text matches exactly what the user
-sees on screen.
+`SelectedText` walks the cached rendered lines and extracts complete
+graphemes overlapping each selected terminal-cell range. ANSI escape
+sequences are skipped, so the extracted text matches the visible
+selection.
 
 ### ANSI / Unicode handling
 
-Both `highlightRange` and `extractVisRange` parse the line byte-by-byte,
-tracking the visual rune position. ANSI escape sequences (`\x1b[...m`)
-are skipped without advancing the visual position. Multi-byte UTF-8
-runes are decoded with `utf8.DecodeRuneInString`. This avoids incorrect
-slicing of raw bytes.
+`highlightRange` and `extractVisRange` track ANSI-aware terminal-cell
+positions and complete grapheme clusters rather than byte or rune
+indices. CSI and OSC sequences do not advance the visual position; a
+selection overlapping any cell of a grapheme includes that grapheme.
 
 ## Implementation details
 
 - **OSC 52 clipboard:** The `Copy` method encodes the selected text as
   base64 and emits the sequence `\x1b]52;c;<data>\x07`. This works in
   Bubbletea's alternate screen buffer.
-- **Reverse-direction drag:** Only the cursor end is clamped to panel
-  bounds; the anchor is left as-is. This ensures that dragging in the
-  reverse direction still works correctly after a resize or re-render.
+- **End-exclusive bounds:** `SelectAll(w, h)` sets the final horizontal boundary to `w`, so the last cell is included. Mouse dragging and Shift+Right use the same boundary convention for ASCII and Unicode text.
 - **Selection invalidation:** If the cursor and anchor coincide after a
   release or a keyboard step, the selection is cleared automatically.
 - **Message proxying:** Any message not handled by the selection logic

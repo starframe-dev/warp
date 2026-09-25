@@ -1,6 +1,7 @@
 package warp
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -135,9 +136,18 @@ func TestTabGroupView(t *testing.T) {
 func TestTabGroupViewEmptyTab(t *testing.T) {
 	tg := NewTabGroup(TabTop)
 	tg.activeTab = -1
-	out := tg.View(10, 3)
-	if out == "" {
-		t.Fatal("expected blank lines for missing active tab")
+	for height := 0; height <= 5; height++ {
+		out := tg.View(10, height)
+		want := ""
+		if height > 0 {
+			want = strings.Repeat("\n", height-1)
+		}
+		if out != want {
+			t.Errorf("height=%d missing-tab View=%q, want %q", height, out, want)
+		}
+		if height > 0 && len(strings.Split(out, "\n")) != height {
+			t.Errorf("height=%d produced %d lines", height, len(strings.Split(out, "\n")))
+		}
 	}
 }
 
@@ -495,6 +505,45 @@ func TestCloseTabDirect(t *testing.T) {
 	single.closeTab(0)
 	if len(single.tabs) != 1 {
 		t.Fatalf("expected closeTab to leave single tab, got %d", len(single.tabs))
+	}
+}
+
+func TestTabGroupFocusFollowsActiveTabAndClosedTabBlurs(t *testing.T) {
+	tg := NewTabGroup(TabNone)
+	firstPanel := &tabFocusablePanel{}
+	firstTab := tg.ActiveTab()
+	firstTab.SetRootPanel(firstPanel)
+	firstTab.SetFocus(firstPanel)
+	if !firstPanel.Focused() {
+		t.Fatal("active tab should focus its selected panel")
+	}
+
+	secondTab := tg.NewTab("second")
+	if firstPanel.Focused() {
+		t.Fatal("switching tabs should blur the inactive tab's panel")
+	}
+	secondPanel := &tabFocusablePanel{}
+	secondTab.SetRootPanel(secondPanel)
+	secondTab.SetFocus(secondPanel)
+	if !secondPanel.Focused() {
+		t.Fatal("new active tab should focus its selected panel")
+	}
+
+	tg.PrevTab()
+	if !firstPanel.Focused() || secondPanel.Focused() {
+		t.Fatal("switching back should restore focus only in the active tab")
+	}
+	tg.NextTab()
+	if firstPanel.Focused() || !secondPanel.Focused() {
+		t.Fatal("switching forward should restore focus only in the active tab")
+	}
+
+	tg.closeTab(tg.activeTab)
+	if secondPanel.Focused() {
+		t.Fatal("closing a tab should blur its removed panel")
+	}
+	if !firstPanel.Focused() {
+		t.Fatal("the newly active tab should regain focus")
 	}
 }
 

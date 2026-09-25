@@ -786,8 +786,8 @@ func TestSelectableMouseDrag(t *testing.T) {
 	}
 
 	text := s.SelectedText()
-	if text != "bcd" {
-		t.Errorf("expected selected text 'bcd', got %q", text)
+	if text != "bcde" {
+		t.Errorf("expected selected text 'bcde', got %q", text)
 	}
 }
 

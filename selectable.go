@@ -20,6 +20,8 @@ type Selectable struct {
 	// Both are in cell coordinates relative to the panel.
 	AnchorX, AnchorY int
 	CursorX, CursorY int
+	mouseStartX      int
+	mouseStartY      int
 
 	HasSelection bool
 	Selecting    bool // true during active mouse drag
@@ -111,8 +113,12 @@ func (s *Selectable) SelectAll(w, h int) {
 		s.ClearSelection()
 		return
 	}
+	if s.lastW != w || s.lastH != h {
+		s.lastLines = nil
+	}
+	s.lastW, s.lastH = w, h
 	s.AnchorX, s.AnchorY = 0, 0
-	s.CursorX, s.CursorY = w-1, h-1
+	s.CursorX, s.CursorY = w, h-1
 	s.HasSelection = true
 }
 
@@ -121,7 +127,9 @@ func (s *Selectable) View(w, h int) string {
 	w = max(0, w)
 	h = max(0, h)
 	if isNilPanel(s.Content) {
-		return strings.Repeat("\n", h)
+		s.lastW, s.lastH = w, h
+		s.lastLines = nil
+		return emptyView(h)
 	}
 
 	// Get content first and remember the rendered lines so SelectedText can
@@ -131,39 +139,8 @@ func (s *Selectable) View(w, h int) string {
 	s.lastH = h
 	s.lastLines = strings.Split(content, "\n")
 
-	// Clamp selection to panel bounds. Only clamp the cursor end; the anchor
-	// must stay where the user originally pressed so reverse-direction drag
-	// continues to work correctly.
 	if s.HasSelection || s.Selecting {
-		if s.AnchorX < 0 {
-			s.AnchorX = 0
-		}
-		if s.AnchorX >= w {
-			s.AnchorX = w - 1
-		}
-		if s.AnchorY < 0 {
-			s.AnchorY = 0
-		}
-		if s.AnchorY >= h {
-			s.AnchorY = h - 1
-		}
-		if s.CursorX < 0 {
-			s.CursorX = 0
-		}
-		if s.CursorX >= w {
-			s.CursorX = w - 1
-		}
-		if s.CursorY < 0 {
-			s.CursorY = 0
-		}
-		if s.CursorY >= h {
-			s.CursorY = h - 1
-		}
-		if s.CursorX == s.AnchorX && s.CursorY == s.AnchorY {
-			if !s.Selecting {
-				s.HasSelection = false
-			}
-		}
+		s.clampSelection(w, h)
 	}
 
 	if !s.HasSelection || w == 0 || h == 0 {
@@ -205,22 +182,24 @@ func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 		case tea.MouseButtonLeft:
 			switch msg.Action {
 			case tea.MouseActionPress:
-				s.AnchorX = msg.X
-				s.AnchorY = msg.Y
-				s.CursorX = msg.X
-				s.CursorY = msg.Y
+				s.mouseStartX = int(msg.X)
+				s.mouseStartY = int(msg.Y)
+				s.AnchorX = int(msg.X)
+				s.AnchorY = int(msg.Y)
+				s.CursorX = int(msg.X)
+				s.CursorY = int(msg.Y)
 				s.HasSelection = false
 				s.Selecting = true
 			case tea.MouseActionMotion:
 				if s.Selecting {
-					s.CursorX = msg.X
-					s.CursorY = msg.Y
+					s.setMouseSelection(int(msg.X), int(msg.Y))
 					s.HasSelection = true
 				}
 			case tea.MouseActionRelease:
 				if s.Selecting {
-					s.CursorX = msg.X
-					s.CursorY = msg.Y
+					if s.HasSelection {
+						s.setMouseSelection(int(msg.X), int(msg.Y))
+					}
 					s.Selecting = false
 					if s.AnchorX == s.CursorX && s.AnchorY == s.CursorY {
 						s.HasSelection = false
@@ -248,13 +227,21 @@ func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 					s.CursorY--
 				}
 			case "shift+down":
-				s.CursorY++
+				if s.lastH <= 0 {
+					s.CursorY++
+				} else {
+					s.CursorY = min(s.CursorY+1, s.lastH-1)
+				}
 			case "shift+left":
 				if s.CursorX > 0 {
 					s.CursorX--
 				}
 			case "shift+right":
-				s.CursorX++
+				if s.lastW <= 0 {
+					s.CursorX++
+				} else {
+					s.CursorX = min(s.CursorX+1, s.lastW)
+				}
 			}
 			s.Selecting = false
 			handled = true
@@ -291,7 +278,43 @@ func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// sortedBounds returns selection bounds with start <= end.
+func (s *Selectable) clampSelection(w, h int) {
+	if w <= 0 || h <= 0 {
+		s.AnchorX, s.AnchorY = 0, 0
+		s.CursorX, s.CursorY = 0, 0
+		s.ClearSelection()
+		return
+	}
+	s.AnchorX = min(max(0, s.AnchorX), w)
+	s.CursorX = min(max(0, s.CursorX), w)
+	s.AnchorY = min(max(0, s.AnchorY), h-1)
+	s.CursorY = min(max(0, s.CursorY), h-1)
+	if s.AnchorX == s.CursorX && s.AnchorY == s.CursorY && !s.Selecting {
+		s.HasSelection = false
+	}
+}
+
+func (s *Selectable) setMouseSelection(x, y int) {
+	startX, startY := s.mouseStartX, s.mouseStartY
+	if s.lastW > 0 {
+		startX = min(max(0, startX), s.lastW-1)
+		x = min(max(0, x), s.lastW-1)
+	}
+	if s.lastH > 0 {
+		startY = min(max(0, startY), s.lastH-1)
+		y = min(max(0, y), s.lastH-1)
+	}
+
+	if y > startY || (y == startY && x >= startX) {
+		s.AnchorX, s.AnchorY = startX, startY
+		s.CursorX, s.CursorY = x+1, y
+		return
+	}
+	s.AnchorX, s.AnchorY = startX+1, startY
+	s.CursorX, s.CursorY = x, y
+}
+
+// sortedBounds returns end-exclusive selection bounds with start <= end.
 func (s *Selectable) sortedBounds() (sx, sy, ex, ey int) {
 	sx, sy = s.AnchorX, s.AnchorY
 	ex, ey = s.CursorX, s.CursorY

@@ -22,24 +22,52 @@ func NewCollapsible(title string, content Panel) *Collapsible {
 	}
 }
 
-// View renders the collapsible panel.
-// When collapsed, returns a single-line title bar.
+// View renders a title row and, when expanded, the inner content below it.
 func (c *Collapsible) View(w, h int) string {
+	if h <= 0 {
+		return ""
+	}
+	title := c.renderTitle(w)
 	if c.Collapsed {
-		return c.renderCollapsed(w)
+		return title
 	}
-	if c.Content != nil {
-		return c.Content.View(w, h)
+
+	contentHeight := h - 1
+	content := ""
+	if !isNilPanel(c.Content) {
+		content = c.Content.View(w, contentHeight)
 	}
-	return ""
+	lines := padContent(content, w, contentHeight)
+	if len(lines) == 0 && contentHeight > 0 {
+		return title + strings.Repeat("\n", contentHeight)
+	}
+	return strings.Join(append([]string{title}, lines...), "\n")
 }
 
-// Update forwards messages to the inner content panel.
+// Update forwards visible content events and adjusts coordinates for the title row.
 func (c *Collapsible) Update(msg tea.Msg) tea.Cmd {
-	if c.Content != nil {
+	if isNilPanel(c.Content) {
+		return nil
+	}
+	switch msg := msg.(type) {
+	case ResizeMsg:
+		contentHeight := msg.Height
+		if c.Collapsed {
+			contentHeight = 0
+		} else {
+			contentHeight = max(0, contentHeight-1)
+		}
+		msg.Height = contentHeight
+		return c.Content.Update(msg)
+	case tea.MouseMsg:
+		if c.Collapsed || msg.Y <= 0 {
+			return nil
+		}
+		msg.Y--
+		return c.Content.Update(msg)
+	default:
 		return c.Content.Update(msg)
 	}
-	return nil
 }
 
 // Toggle switches between collapsed and expanded states.
@@ -47,8 +75,8 @@ func (c *Collapsible) Toggle() {
 	c.Collapsed = !c.Collapsed
 }
 
-// renderCollapsed renders the title bar for a collapsed panel.
-func (c *Collapsible) renderCollapsed(w int) string {
+// renderTitle renders the title row in either state.
+func (c *Collapsible) renderTitle(w int) string {
 	if w <= 0 {
 		return ""
 	}

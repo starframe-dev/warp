@@ -122,7 +122,10 @@ func (t *Tab) SetSplitCollapse(parent Panel, collapseRow int, onCollapse func() 
 		} else {
 			firstChild.Collapse.Active = !firstChild.Collapse.Active
 		}
-		return onCollapse()
+		if onCollapse != nil {
+			return onCollapse()
+		}
+		return nil
 	}
 }
 
@@ -267,6 +270,9 @@ func (t *Tab) Float(panel Panel, x, y, width, height int) {
 func (t *Tab) CloseFloat(fp *FloatPane) {
 	for i, f := range t.floats {
 		if f == fp {
+			if samePanel(t.focused, fp.Panel) {
+				t.setFocus(nil)
+			}
 			t.floats = append(t.floats[:i], t.floats[i+1:]...)
 			return
 		}
@@ -340,10 +346,28 @@ func (t *Tab) setFocus(panel Panel) {
 	if current, ok := isFocusable(t.focused); ok {
 		current.Blur()
 	}
-	if next, ok := isFocusable(panel); ok {
-		next.Focus()
+	if t.isActive() {
+		if next, ok := isFocusable(panel); ok {
+			next.Focus()
+		}
 	}
 	t.focused = panel
+}
+
+func (t *Tab) isActive() bool {
+	return t.parent == nil || t.parent.ActiveTab() == t
+}
+
+func (t *Tab) suspendFocus() {
+	if focused, ok := isFocusable(t.focused); ok {
+		focused.Blur()
+	}
+}
+
+func (t *Tab) resumeFocus() {
+	if focused, ok := isFocusable(t.focused); ok {
+		focused.Focus()
+	}
 }
 
 // View implements warp.Panel for Tab so it can be queried as an element provider.
@@ -520,7 +544,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 					if my == hit.Y { // Click on the first line (title bar)
 						c.Toggle()
 						t.updateFlexCollapsed(hit.Node)
-						return nil
+						return tea.Batch(t.broadcastResize(t.root, 0, 0, cw, ch)...)
 					}
 				}
 				// Forward mouse event to the panel
@@ -656,7 +680,7 @@ func (t *Tab) collapseNode(parent, target *Node, size int) bool {
 			if item.Node == target {
 				item.Collapsed = true
 				if c, ok := target.Panel.(*Collapsible); ok {
-					c.Toggle()
+					c.Collapsed = true
 				}
 				return true
 			}
@@ -687,7 +711,7 @@ func (t *Tab) expandNode(parent, target *Node) bool {
 			if item.Node == target {
 				item.Collapsed = false
 				if c, ok := target.Panel.(*Collapsible); ok {
-					c.Toggle()
+					c.Collapsed = false
 				}
 				return true
 			}

@@ -47,9 +47,10 @@ Creates a new empty input with the given prompt.
 
 `View` dispatches to `viewBoxed` when the width is at least three cells
 and the height is at least three lines, drawing a rounded-corner box with
-a focused or unfocused border style. Otherwise it falls back to
-`viewInline`, which renders the prompt and value as a single styled line
-repeated across the height.
+a focused or unfocused border style. The value is rendered in exactly
+one interior row at `1 + (h-3)/2`; all other rows between the borders
+remain blank. Otherwise it falls back to `viewInline`, which renders the
+prompt and value as a single styled line repeated across the height.
 
 The visible line is built by `renderLine`. The prompt and value are
 measured in terminal cells, including ANSI styling and wide characters.

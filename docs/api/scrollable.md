@@ -34,10 +34,11 @@ Creates a new `Scrollable` wrapping the given `Panel`. The initial
 func (s *Scrollable) View(w, h int) string
 ```
 
-Renders the visible viewport. The full content is rendered once at the
-requested width with an effectively unlimited height, split into lines,
-and then sliced to show only `h` lines starting at `s.Offset`. Lines
-beyond the content are padded with spaces to fill the viewport.
+Renders the visible viewport by asking the inner panel for only
+`Offset + h` rows, then slicing `h` rows starting at `s.Offset`. The
+request height saturates on integer overflow. Lines beyond the content
+are padded to fill the viewport. With nil content, returns exactly `h`
+blank lines (`""` for `h == 0`; otherwise `h-1` newline characters).
 
 ### Update
 
@@ -75,14 +76,13 @@ This ensures the viewport never scrolls past the end of the content.
 
 ## Implementation details
 
-- **Rendering strategy:** the inner `Panel` is rendered with
-  `View(w, 9999)`, i.e. a very large height, so that its full content is
-  produced in one pass. The result is split on `"\n"` into lines.
-- **Line padding/truncation:** each visible line is passed through the
-  package-level helper `padLine`, which uses `lipgloss.Width` to
-  determine display width. Lines shorter than `w` are right-padded with
-  spaces; lines longer than `w` are truncated at a byte boundary that
-  keeps the visible width within the column budget.
+- **Rendering strategy:** the inner `Panel` is rendered with height
+  `Offset + h`, not an arbitrary sentinel. The result is split on
+  `"\n"` into lines; overflow saturates at the maximum `int`.
+- **Line padding/truncation:** each visible line is passed through
+  `padLine` / `padVisualLine`, which use ANSI-aware terminal-cell widths
+  and truncate without splitting graphemes. Lines shorter than `w` are
+  right-padded with spaces.
 - **Message forwarding:** any message that does not affect scrolling
   (i.e. non-mouse, non-key, or keys other than up/down/pgup/pgdown) is
   forwarded to `s.Content.Update(msg)`. If `s.Content` is nil, no

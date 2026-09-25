@@ -1,7 +1,6 @@
 package warp
 
 import (
-	"regexp"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -150,7 +149,7 @@ func (m *Modal) Overlay(lines []string, totalW, totalH int) []string {
 		rightPart := ""
 		if rightStart < len(original) {
 			rightPart = original[rightStart:]
-			if ansiRe.ReplaceAllString(rightPart, "") == "" {
+			if ansi.Strip(rightPart) == "" {
 				rightPart = ""
 			}
 		}
@@ -363,10 +362,8 @@ func visualBytePos(s string, targetW int) int {
 	return len(s)
 }
 
-var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
-
 func stripANSI(s string) string {
-	return ansiRe.ReplaceAllString(s, "")
+	return ansi.Strip(s)
 }
 
 func max(a, b int) int {

@@ -32,6 +32,29 @@ func TestModalResizePreservesOffsetAndClampsToViewport(t *testing.T) {
 	}
 }
 
+func TestModalOverlayStripsOSCAndStyledBackgroundSequences(t *testing.T) {
+	const width, height = 80, 20
+	styled := "\x1b]8;;https://example.test\x1b\\\x1b[31m界é\x1b[0m\x1b]8;;\x1b\\"
+	lines := make([]string, height)
+	for i := range lines {
+		lines[i] = strings.Repeat(" ", width)
+	}
+	lines[0] = padVisualLine(styled, width)
+
+	modal := NewModal("Title", "Content", nil, nil)
+	got := modal.Overlay(lines, width, height)
+	if strings.Contains(got[0], "\x1b]8;") {
+		t.Fatal("background retained an OSC hyperlink sequence")
+	}
+	if strings.Contains(got[0], "\x1b[31m") {
+		t.Fatal("background retained the original foreground color sequence")
+	}
+	want := "界é" + strings.Repeat(" ", width-ansi.StringWidth("界é"))
+	if stripped := ansi.Strip(got[0]); stripped != want {
+		t.Fatalf("dimmed background text=%q, want %q", stripped, want)
+	}
+}
+
 func TestModalOverlayTinyUnicodeViewports(t *testing.T) {
 	for width := 1; width <= 8; width++ {
 		for height := 1; height <= 8; height++ {

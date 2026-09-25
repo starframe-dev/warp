@@ -28,7 +28,8 @@ type PopoverItem struct {
 ```
 
 Describes a single entry in the menu. `Name` is the label to render;
-`Action` is invoked when the item is activated (click or Enter).
+`Action` is optional and is invoked on click or Enter only when non-nil.
+The item still closes the popover when its action is nil.
 
 ### Popover
 
@@ -87,8 +88,7 @@ func (p *Popover) HandleMouse(msg tea.MouseMsg) bool
 Consumes mouse events for the popover. Returns `true` when the event is
 handled and the caller should suppress default handling.
 
-- Press inside the box: activates the item under the cursor (accounting
-  for the 1-row top border) and closes the popover.
+- Press on an item row inside the box: calls its `Action` if non-nil and closes the popover. `OnClose`, when set, is called even when the action is nil.
 - Press outside: closes the popover.
 - Motion: updates hover highlighting by tracking the item under the
   cursor.
@@ -106,7 +106,7 @@ func (p *Popover) HandleKey(msg tea.KeyMsg) bool
 Consumes keyboard events:
 
 - `Esc` — closes the popover.
-- `Enter` — activates the selected item (if any) and closes.
+- `Enter` — calls the selected item's `Action` if non-nil, then closes.
 - `Up` / `Down` — move the selection, clamped to the item list.
 
 Any other key returns `false` (not consumed).

@@ -130,6 +130,65 @@ func TestDropdownMenu_UpdateMouseSelect(t *testing.T) {
 	}
 }
 
+func TestDropdownMenu_UpdateMouseHover(t *testing.T) {
+	selectedCalls := 0
+	d := NewDropdownMenu("Choose", []DropdownItem{
+		{Label: "One"},
+		{Label: "Two"},
+		{Label: "Three"},
+	})
+	d.Open = true
+	d.OnSelect = func(int) { selectedCalls++ }
+	d.View(20, 4)
+
+	d.Update(tea.MouseMsg{Action: tea.MouseActionMotion, Y: 2})
+	if d.Hovered != 1 {
+		t.Fatalf("mouse motion Hovered=%d, want 1", d.Hovered)
+	}
+	if !d.Open || d.Items[1].Selected || selectedCalls != 0 {
+		t.Fatal("hovering should not select or close an item")
+	}
+	view := d.View(20, 4)
+	hoveredRow := dropdownItemHoverStyle.Render(padRight("  Two", 20))
+	if !strings.Contains(view, hoveredRow) {
+		t.Fatalf("hovered row style was not rendered: %q", view)
+	}
+
+	d.Update(tea.MouseMsg{Action: tea.MouseActionMotion, Y: 0})
+	if d.Hovered != -1 {
+		t.Fatalf("motion on button row Hovered=%d, want -1", d.Hovered)
+	}
+	d.Update(tea.MouseMsg{Action: tea.MouseActionMotion, Y: 4})
+	if d.Hovered != -1 {
+		t.Fatalf("motion outside item rows Hovered=%d, want -1", d.Hovered)
+	}
+
+	d.Update(tea.MouseMsg{Action: tea.MouseActionMotion, Y: 2})
+	d.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, Y: 2})
+	if d.Open || !d.Items[1].Selected || selectedCalls != 1 {
+		t.Fatal("clicking the hovered item should select it exactly once")
+	}
+}
+
+func TestDropdownMenu_MouseIgnoresClippedRows(t *testing.T) {
+	d := NewDropdownMenu("Choose", []DropdownItem{
+		{Label: "One"},
+		{Label: "Two"},
+		{Label: "Hidden"},
+	})
+	d.Open = true
+	d.View(20, 3) // button plus only the first two item rows
+
+	d.Update(tea.MouseMsg{Action: tea.MouseActionMotion, Y: 3})
+	if d.Hovered != -1 {
+		t.Fatalf("motion over a clipped row Hovered=%d, want -1", d.Hovered)
+	}
+	d.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, Y: 3})
+	if !d.Open || d.Items[2].Selected {
+		t.Fatal("clicking a clipped row should not select or close the menu")
+	}
+}
+
 func TestDropdownMenu_UpdateMouseOutOfBounds(t *testing.T) {
 	d := NewDropdownMenu("Choose", []DropdownItem{
 		{Label: "One"},

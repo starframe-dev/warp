@@ -83,8 +83,9 @@ func (in *Input) viewBoxed(w, h int) string {
 	bottom := "╰" + strings.Repeat("─", innerW) + "╯"
 
 	lines[0] = borderStyle.Render(top)
+	contentRow := 1 + (h-3)/2
 	for i := 1; i < h-1; i++ {
-		if i == (h-2)/2+1 || i == 1 {
+		if i == contentRow {
 			lines[i] = borderStyle.Render("│") + inputStyle.Render(contentLine) + borderStyle.Render("│")
 		} else {
 			lines[i] = borderStyle.Render("│") + strings.Repeat(" ", innerW) + borderStyle.Render("│")

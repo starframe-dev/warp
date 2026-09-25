@@ -20,6 +20,9 @@ type DropdownMenu struct {
 	Open     bool
 	Hovered  int // index of hovered item, -1 if none
 	OnSelect func(idx int)
+
+	visibleItemCount int
+	menuLayoutKnown  bool
 }
 
 // NewDropdownMenu creates a dropdown menu.
@@ -53,6 +56,8 @@ func (d *DropdownMenu) renderMenu(w, h int) string {
 	w = max(0, w)
 	h = max(0, h)
 	menuH := min(len(d.Items)+1, h)
+	d.visibleItemCount = max(0, menuH-1)
+	d.menuLayoutKnown = true
 	if menuH == 0 {
 		return ""
 	}
@@ -90,6 +95,17 @@ func (d *DropdownMenu) renderMenu(w, h int) string {
 func (d *DropdownMenu) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
+		if msg.Action == tea.MouseActionMotion {
+			if d.Open {
+				idx := msg.Y - 1
+				if idx >= 0 && idx < d.hoverableItemCount() {
+					d.Hovered = idx
+				} else {
+					d.Hovered = -1
+				}
+			}
+			return nil
+		}
 		if msg.Action != tea.MouseActionPress {
 			return nil
 		}
@@ -98,6 +114,7 @@ func (d *DropdownMenu) Update(msg tea.Msg) tea.Cmd {
 			if msg.Y == 0 {
 				d.Open = true
 				d.Hovered = -1
+				d.menuLayoutKnown = false
 			}
 			return nil
 		}
@@ -108,7 +125,7 @@ func (d *DropdownMenu) Update(msg tea.Msg) tea.Cmd {
 			return nil
 		}
 		idx := msg.Y - 1
-		if idx >= 0 && idx < len(d.Items) {
+		if idx >= 0 && idx < d.hoverableItemCount() {
 			d.selectItem(idx)
 		}
 	case tea.KeyMsg:
@@ -133,6 +150,13 @@ func (d *DropdownMenu) Update(msg tea.Msg) tea.Cmd {
 		}
 	}
 	return nil
+}
+
+func (d *DropdownMenu) hoverableItemCount() int {
+	if d.menuLayoutKnown {
+		return min(len(d.Items), d.visibleItemCount)
+	}
+	return len(d.Items)
 }
 
 func (d *DropdownMenu) selectItem(idx int) {

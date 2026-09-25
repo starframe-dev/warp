@@ -106,6 +106,27 @@ func TestInputEditingUsesGraphemeBoundaries(t *testing.T) {
 	}
 }
 
+func TestInputBoxedValueAppearsInOneInteriorRow(t *testing.T) {
+	input := NewInput("")
+	input.Focus()
+	input.SetValue("boxed-value")
+
+	for height := 3; height <= 9; height++ {
+		view := input.View(30, height)
+		lines := strings.Split(ansi.Strip(view), "\n")
+		if len(lines) != height {
+			t.Fatalf("boxed input height=%d produced %d rows", height, len(lines))
+		}
+		if got := strings.Count(ansi.Strip(view), "boxed-value"); got != 1 {
+			t.Fatalf("boxed input height=%d rendered value %d times", height, got)
+		}
+		contentRow := 1 + (height-3)/2
+		if !strings.Contains(lines[contentRow], "boxed-value") {
+			t.Fatalf("height=%d content row %d=%q does not contain the value", height, contentRow, lines[contentRow])
+		}
+	}
+}
+
 func TestInputNarrowPromptAndBoxStayWithinCellBounds(t *testing.T) {
 	input := NewInput("界🙂 ")
 	for width := 0; width <= 8; width++ {

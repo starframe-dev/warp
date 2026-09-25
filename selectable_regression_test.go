@@ -43,6 +43,62 @@ func TestSelectableUsesTerminalCellsForCJKAndEmoji(t *testing.T) {
 	}
 }
 
+func TestSelectableEndExclusiveSelectionAcrossUnicode(t *testing.T) {
+	texts := []string{"abc", "Привет", "界A", "👩‍💻x", "éx"}
+	for _, text := range texts {
+		text := text
+		width := ansi.StringWidth(text)
+		t.Run(text, func(t *testing.T) {
+			newSelectable := func() *Selectable {
+				selectable := NewSelectable(&selectableTextPanel{text: text})
+				selectable.View(width, 1)
+				return selectable
+			}
+
+			t.Run("select all", func(t *testing.T) {
+				selectable := newSelectable()
+				selectable.SelectAll(width, 1)
+				selectable.View(width, 1)
+				if got := selectable.SelectedText(); got != text {
+					t.Fatalf("SelectAll selected %q, want %q", got, text)
+				}
+			})
+
+			for _, direction := range []struct {
+				name  string
+				start int
+				end   int
+			}{
+				{name: "forward mouse", start: 0, end: width - 1},
+				{name: "reverse mouse", start: width - 1, end: 0},
+			} {
+				direction := direction
+				t.Run(direction.name, func(t *testing.T) {
+					selectable := newSelectable()
+					selectable.Update(tea.MouseMsg{X: direction.start, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+					selectable.Update(tea.MouseMsg{X: direction.end, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionMotion})
+					selectable.Update(tea.MouseMsg{X: direction.end, Y: 0, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease})
+					selectable.View(width, 1)
+					if got := selectable.SelectedText(); got != text {
+						t.Fatalf("mouse selection selected %q, want %q", got, text)
+					}
+				})
+			}
+
+			t.Run("Shift+Right to line end", func(t *testing.T) {
+				selectable := newSelectable()
+				for range width {
+					selectable.Update(tea.KeyMsg{Type: tea.KeyShiftRight})
+				}
+				selectable.View(width, 1)
+				if got := selectable.SelectedText(); got != text {
+					t.Fatalf("Shift+Right selected %q, want %q", got, text)
+				}
+			})
+		})
+	}
+}
+
 func TestSelectableClampsZeroAndNegativeViewports(t *testing.T) {
 	selectable := NewSelectable(&geometryTestPanel{name: "界🙂"})
 	selectable.HasSelection = true

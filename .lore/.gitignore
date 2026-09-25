@@ -2,3 +2,7 @@ node_modules
 pnpm-lock.yaml
 .DS_Store
 
+# Local secrets belong outside the required, non-secret weft/.env mapping.
+weft/.env.*
+weft/secrets.env
+

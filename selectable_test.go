@@ -63,10 +63,18 @@ func TestSelectableViewNoSelection(t *testing.T) {
 
 func TestSelectableViewNilContent(t *testing.T) {
 	s := NewSelectable(nil)
-	got := s.View(5, 2)
-	want := "\n\n"
-	if got != want {
-		t.Errorf("View nil content: got %q, want %q", got, want)
+	for height := 0; height <= 5; height++ {
+		got := s.View(5, height)
+		want := ""
+		if height > 0 {
+			want = strings.Repeat("\n", height-1)
+		}
+		if got != want {
+			t.Errorf("height=%d nil content View=%q, want %q", height, got, want)
+		}
+		if height > 0 && len(strings.Split(got, "\n")) != height {
+			t.Errorf("height=%d produced %d lines", height, len(strings.Split(got, "\n")))
+		}
 	}
 }
 
@@ -81,8 +89,8 @@ func TestSelectableSelectAll(t *testing.T) {
 	if s.AnchorX != 0 || s.AnchorY != 0 {
 		t.Errorf("SelectAll anchor: got (%d,%d), want (0,0)", s.AnchorX, s.AnchorY)
 	}
-	if s.CursorX != 3 || s.CursorY != 1 {
-		t.Errorf("SelectAll cursor: got (%d,%d), want (3,1)", s.CursorX, s.CursorY)
+	if s.CursorX != 4 || s.CursorY != 1 {
+		t.Errorf("SelectAll cursor: got (%d,%d), want (4,1)", s.CursorX, s.CursorY)
 	}
 }
 
@@ -227,8 +235,8 @@ func TestSelectableUpdateMousePressAndRelease(t *testing.T) {
 	if !s.HasSelection {
 		t.Error("Mouse release should create selection")
 	}
-	if s.SelectedText() != "el" {
-		t.Errorf("Mouse selection text: got %q, want %q", s.SelectedText(), "el")
+	if s.SelectedText() != "ell" {
+		t.Errorf("Mouse selection text: got %q, want %q", s.SelectedText(), "ell")
 	}
 }
 
@@ -269,8 +277,8 @@ func TestSelectableUpdateMouseMotion(t *testing.T) {
 	if !s.HasSelection {
 		t.Error("Mouse motion during drag should create selection")
 	}
-	if s.SelectedText() != "hell" {
-		t.Errorf("Mouse motion selection: got %q, want %q", s.SelectedText(), "hell")
+	if s.SelectedText() != "hello" {
+		t.Errorf("Mouse motion selection: got %q, want %q", s.SelectedText(), "hello")
 	}
 }
 
@@ -344,9 +352,8 @@ func TestSelectableUpdateCtrlA(t *testing.T) {
 		t.Fatal("Ctrl+A should select all")
 	}
 	s.View(5, 2)
-	// SelectAll sets the cursor to the last cell, so the first selected line
-	// is fully included and only the last line is truncated by the half-open range.
-	if s.SelectedText() != "hello\nworl" {
+	// SelectAll places the cursor at the end-exclusive boundary after the last cell.
+	if s.SelectedText() != "hello\nworld" {
 		t.Errorf("Ctrl+A selection: got %q", s.SelectedText())
 	}
 }
@@ -440,8 +447,8 @@ func TestSelectableSelectionClampBounds(t *testing.T) {
 	s.CursorX = 10
 	s.CursorY = 5
 	s.View(5, 1)
-	if s.CursorX != 4 {
-		t.Errorf("CursorX should be clamped to width-1, got %d", s.CursorX)
+	if s.CursorX != 5 {
+		t.Errorf("CursorX should be clamped to the end-exclusive width, got %d", s.CursorX)
 	}
 	if s.CursorY != 0 {
 		t.Errorf("CursorY should be clamped to height-1, got %d", s.CursorY)

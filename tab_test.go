@@ -152,6 +152,29 @@ func TestTabFloatAndCloseFloat(t *testing.T) {
 	tab.CloseFloat(fp)
 }
 
+func TestTabCloseFloatClearsFocusAndKeyboardTarget(t *testing.T) {
+	tab := NewTab("test")
+	input := NewInput("")
+	tab.Float(input, 0, 0, 10, 4)
+	float := tab.floats[0]
+	tab.SetFocus(input)
+	if !input.Focused() {
+		t.Fatal("floating input should be focused before close")
+	}
+
+	tab.CloseFloat(float)
+	if input.Focused() {
+		t.Fatal("closing a focused float should blur its panel")
+	}
+	if tab.Focus() != nil {
+		t.Fatal("closing a focused float should clear the tab focus target")
+	}
+	tab.handleKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if input.Value != "" {
+		t.Fatalf("closed float received keyboard input: %q", input.Value)
+	}
+}
+
 func TestTabFocusAndSetFocus(t *testing.T) {
 	tab := NewTab("test")
 	p := tabMockPanel{id: 1}
@@ -363,11 +386,48 @@ func TestTabHandleMouseBorderDrag(t *testing.T) {
 	}
 }
 
+func TestTabCollapsibleHeaderAndContentMouseRouting(t *testing.T) {
+	tab := NewTab("test")
+	inner := &capturingPanel{collapsibleTestPanel: collapsibleTestPanel{name: "content"}}
+	collapsible := NewCollapsible("title", inner)
+	tab.SetRootPanel(collapsible)
+	tab.Update(tea.WindowSizeMsg{Width: 20, Height: 6})
+
+	tab.HandleMouse(tea.MouseMsg{X: 2, Y: 0, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	if !collapsible.Collapsed {
+		t.Fatal("clicking the visible title row should collapse the panel")
+	}
+	resize, ok := inner.msgs[len(inner.msgs)-1].(ResizeMsg)
+	if !ok || resize.Height != 0 {
+		t.Fatalf("collapsed content resize=%v, want height 0", inner.msgs[len(inner.msgs)-1])
+	}
+
+	tab.HandleMouse(tea.MouseMsg{X: 2, Y: 0, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	if collapsible.Collapsed {
+		t.Fatal("clicking the collapsed title row should expand the panel")
+	}
+	resize, ok = inner.msgs[len(inner.msgs)-1].(ResizeMsg)
+	if !ok || resize.Height != 5 {
+		t.Fatalf("expanded content resize=%v, want height 5", inner.msgs[len(inner.msgs)-1])
+	}
+
+	inner.msgs = nil
+	tab.HandleMouse(tea.MouseMsg{X: 2, Y: 1, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	if len(inner.msgs) != 1 {
+		t.Fatalf("first content row delivered %d messages, want 1", len(inner.msgs))
+	}
+	mouse, ok := inner.msgs[0].(tea.MouseMsg)
+	if !ok || mouse.Y != 0 {
+		t.Fatalf("first content row mouse=%v, want inner Y=0", inner.msgs[0])
+	}
+}
+
 func TestTabHandleMouseOutsideFloat(t *testing.T) {
 	tab := NewTab("test")
-	p := tabMockPanel{id: 1}
-	tab.Float(p, 0, 0, 10, 3)
+	input := NewInput("")
+	tab.Float(input, 0, 0, 10, 3)
 	tab.floats[0].CloseOnOutsideClick = true
+	tab.SetFocus(input)
 	tab.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
 
 	msg := tea.MouseMsg{
@@ -380,6 +440,9 @@ func TestTabHandleMouseOutsideFloat(t *testing.T) {
 	tab.HandleMouse(msg)
 	if len(tab.floats) != 0 {
 		t.Fatalf("expected float to close on outside click, got %d", len(tab.floats))
+	}
+	if input.Focused() {
+		t.Fatal("outside-click close should blur the floating panel")
 	}
 }
 
@@ -449,6 +512,84 @@ func TestTabCollapseAndExpand(t *testing.T) {
 
 	if tab.Collapse(tabMockPanel{id: 99}, 5) {
 		t.Fatal("expected Collapse to fail for unknown panel")
+	}
+}
+
+func TestTabCollapseAndExpandAreIdempotentInNestedFlex(t *testing.T) {
+	tab := NewTab("test")
+	nestedPanel := tabMockPanel{id: 1}
+	sidePanel := tabMockPanel{id: 2}
+	collapsible := NewCollapsible("section", BasePanel{})
+	belowPanel := tabMockPanel{id: 3}
+
+	tab.FlexRow(tab.RootPanel(), []FlexItemSpec{
+		{Panel: nestedPanel, Grow: 1},
+		{Panel: sidePanel, Grow: 1},
+	})
+	tab.FlexColumn(nestedPanel, []FlexItemSpec{
+		{Panel: collapsible, Grow: 1},
+		{Panel: belowPanel, Grow: 1},
+	})
+	collapsibleNode := tab.root.findNode(collapsible)
+	if collapsibleNode == nil {
+		t.Fatal("collapsible node not found in nested flex")
+	}
+
+	findNodeLayout := func(layout *layoutNode, target *Node) *layoutNode {
+		var find func(*layoutNode) *layoutNode
+		find = func(current *layoutNode) *layoutNode {
+			if current == nil {
+				return nil
+			}
+			if current.node == target {
+				return current
+			}
+			for _, child := range current.children {
+				if found := find(child); found != nil {
+					return found
+				}
+			}
+			return nil
+		}
+		return find(layout)
+	}
+	getHeight := func() int {
+		layout := newLayout(tab.root, layoutRect{w: 30, h: 12})
+		nodeLayout := findNodeLayout(layout, collapsibleNode)
+		if nodeLayout == nil {
+			t.Fatal("collapsible layout not found")
+		}
+		return nodeLayout.bounds.h
+	}
+
+	if before := getHeight(); before <= 1 {
+		t.Fatalf("expanded nested flex height=%d, want more than one row", before)
+	}
+	if !tab.Collapse(collapsible, 1) || !tab.Collapse(collapsible, 1) {
+		t.Fatal("repeated Collapse should find the nested panel")
+	}
+	innerFlex := tab.root.Flex.Items[0].Node.Flex
+	if innerFlex.Items[0].Collapsed != collapsible.Collapsed || !collapsible.Collapsed {
+		t.Fatal("nested flex item and Collapsible state should both be collapsed")
+	}
+	if got := getHeight(); got != 1 {
+		t.Fatalf("collapsed nested flex height=%d, want 1", got)
+	}
+	if title := collapsible.View(12, 1); !strings.Contains(title, "▶") {
+		t.Fatalf("collapsed title row is missing ▶: %q", title)
+	}
+
+	if !tab.Expand(collapsible) || !tab.Expand(collapsible) {
+		t.Fatal("repeated Expand should find the nested panel")
+	}
+	if innerFlex.Items[0].Collapsed || collapsible.Collapsed {
+		t.Fatal("nested flex item and Collapsible state should both be expanded")
+	}
+	if got := getHeight(); got <= 1 {
+		t.Fatalf("expanded nested flex height=%d, want more than one row", got)
+	}
+	if view := collapsible.View(12, 2); !strings.Contains(view, "▼") {
+		t.Fatalf("expanded view is missing its persistent title row: %q", view)
 	}
 }
 
@@ -759,6 +900,40 @@ func TestTabSetSplitCollapse(t *testing.T) {
 	}
 	if first := tab.root.Split.First; first.Collapse == nil || !first.Collapse.Active {
 		t.Fatal("expected first child to be collapsed")
+	}
+}
+
+func TestTabSetSplitCollapseNilCallbackMouseClick(t *testing.T) {
+	tab := NewTab("test")
+	first := tabMockPanel{id: 1}
+	second := tabMockPanel{id: 2}
+	tab.SetRootPanel(first)
+	tab.SplitVertical(first, 0.5, second)
+	tab.SetSplitCollapse(first, 2, nil)
+	tab.Update(tea.WindowSizeMsg{Width: 40, Height: 10})
+
+	var border *BorderHit
+	for _, hit := range findBorders(tab.root, 0, 0, 40, 10) {
+		if hit.Split == tab.root.Split {
+			border = &hit
+			break
+		}
+	}
+	if border == nil {
+		t.Fatal("split border not found")
+	}
+
+	cmd := tab.HandleMouse(tea.MouseMsg{
+		X:      border.X,
+		Y:      border.Y + 2,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	})
+	if cmd != nil {
+		t.Fatal("nil callback should produce no command")
+	}
+	if collapse := tab.root.Split.First.Collapse; collapse == nil || !collapse.Active {
+		t.Fatal("clicking collapse symbol should activate collapse state")
 	}
 }
 

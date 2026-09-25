@@ -1,309 +1,53 @@
-# Render Package Specification
+# Спецификация пакета рендеринга
 
-## Описание
+## Назначение
 
-Файл `render.go` отвечает за рендеринг дерева узлов (node tree) в строковые представления с поддержкой различных макетных паттернов: splits (вертикальные/горизонтальные), flex-контейнеры и leaf-панели.
+`render.go` преобразует layout-дерево в строки терминального содержимого, обрабатывает ANSI-ширину и предоставляет вспомогательные вычисления размеров и точки входа для сбора границ. Геометрия и список отображаемых границ берутся из `layout.go` через `newLayout`; сбор `BorderHit` выполняет `collectLayoutBorders`.
 
-## Публичный API
+## Типы и зависимости
 
-### Типы
+`BorderHit` содержит указатели на `SplitConfig`/`FlexConfig`, направление, координаты `X`/`Y`, длину, прямоугольник `Bounds` и `FlexIndex`. Его поля заполняются сборщиком layout-границ.
 
-#### BorderHit
+Файл использует типы пакета (`Node`, `SplitConfig`, `FlexConfig`, `FlexItem`, `Direction`, `Bounds`, `layoutNode` и др.), константы стилей и `github.com/charmbracelet/x/ansi`.
 
-```go
-// BorderHit описывает позиционируемую границу (drag handle) для drag-and-drop операций.
-type BorderHit struct {
-    Split     *SplitConfig
-    Flex      *FlexConfig
-    Direction Direction
-    X, Y      int
-    Length    int
-    Bounds    Bounds // Прямоугольник split/flex, содержащий границу
-    FlexIndex int    // Индекс разделителя flex; -1 для split
-}
-```
+## Рендеринг
 
-### Внутренние функции
+- `renderNode(node, w, h)` строит layout с размерами `max(0,w)` × `max(0,h)` и передаёт его в `renderLayout`.
+- `renderLayout(nil)` возвращает `nil`; при высоте не больше нуля также возвращает `nil`. Пустой узел рисуется пустыми строками. Leaf без панели либо с неположительной шириной даёт пустые строки; иначе `Panel.View` передаётся в `padContent`. Для узлов Split и Flex вызываются соответствующие layout-рендереры.
+- `renderSplitLayout` использует первые два дочерних layout-узла; если их меньше двух, возвращает пустые строки. Наличие границы определяется `layout.borders`. Для `Vertical` узлы компонуются построчно с вертикальной границей; для `Horizontal` между группами строк вставляется горизонтальная граница. При `Dragging` применяется `borderDragStyle`, иначе `borderStyle`; сами границы обрамляются `ansi.ResetStyle`. Если у вертикального split задан `OnCollapse` и `CollapseRow >= 0`, на этой строке вместо обычной границы выводится стилизованный символ `<`. Результат подгоняется к размерам layout.
+- `renderFlexLayout` возвращает пустые строки при отсутствии конфигурации или детей. Видимые разделители определяются индексами `layout.borders`. Для горизонтального направления дети компонуются в строку с вертикальными границами; для вертикального — в группы строк с горизонтальными границами. Стиль границ зависит от `Dragging`; строки подгоняются к области layout.
+- `renderVerticalSplit`, `renderHorizontalSplit` и `renderFlex` — обёртки, создающие `Node` нужного типа и вызывающие `renderNode`. `renderFlexRow` и `renderFlexColumn` игнорируют переданный срез размеров и делегируют `renderFlex`.
+- `lineAt` безопасно возвращает пустую строку для индекса вне диапазона.
+- `renderBlankLines` создаёт `h` строк; если ширина положительна, каждая содержит `w` пробелов, иначе строки пустые. При `h <= 0` возвращает `nil`.
+- `padLayoutLines` возвращает ровно `h` строк, усекая/дополняя существующие и дополняя недостающие строки пробелами при положительной ширине.
+- `renderVerticalBorder` и `renderHorizontalBorder` выбирают обычный либо drag-стиль и изолируют его `ansi.ResetStyle`. Горизонтальная граница при неположительной ширине пуста.
 
-Публичные API-элементы (`Node`, `SplitConfig`, `FlexConfig`, `FlexItem`, `Direction` и т.п.) описаны в других файлах пакета. В `render.go` используются поля:
+## Распределение размеров
 
-- `Node.IsLeaf()`, `Node.Panel.View(w, h)`, `Node.IsCollapsed()`, `Node.CollapsedSize(direction)`
-- `SplitConfig.Direction`, `SplitConfig.First`, `SplitConfig.Second`, `SplitConfig.Fraction`, `SplitConfig.Dragging`, `SplitConfig.OnCollapse`, `SplitConfig.CollapseRow`
-- `FlexConfig.Direction`, `FlexConfig.Items`, `FlexConfig.Dragging`
-- `FlexItem.Node`, `FlexItem.Basis`, `FlexItem.Grow`, `FlexItem.Collapsed`
+### `computeFlexSizes(avail, items)`
 
-## Функции
+- При пустом `items` возвращает `nil`; отрицательное `avail` заменяется нулём.
+- Свёрнутый элемент (по `flexItemCollapsed`) получает базу 1 и исключается из распределения дополнительного места. Для остальных база равна `Basis`, если она положительна, иначе `MinPanelSize`.
+- Если `avail == 0`, возвращаются нулевые размеры.
+- Если сумма баз превышает доступное место, всё доступное место распределяется пропорционально базам с целочисленным округлением: остаток получает последний индекс распределения. В противном случае выдаются базовые размеры.
+- Оставшееся место распределяется только между несвёрнутыми элементами. Если сумма их положительных `Grow` равна нулю, используются равные веса; иначе используются значения `Grow` (элементы с неположительным Grow получают нулевой вес). Целочисленный остаток получает последний индекс распределения.
+- Внутренние `allIndices` формируют последовательность индексов, а `distributeSizes` распределяет неотрицательную величину по весам. При пустых индексах, неположительной сумме весов, NaN или бесконечной сумме функция не распределяет сумму.
 
-### renderNode
+### `computeSplitSizes`
 
-```go
-// renderNode рендерит дерево узлов в строковые линии заданных размеров.
-//
-// @param node - Укореняющий узел для рендеринга
-// @param w - Ширина в ячейках
-// @param h - Высота в строках
-// @returns []string — Массив строк с контентом (точно w × h)
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func renderNode(node *Node, w, h int) []string
-```
+Отрицательное доступное место заменяется нулём. Размер свернутого элемента берётся не меньше 1 и ограничивается `avail`. Если свернут первый (или второй) элемент, оставшийся размер при достаточном пространстве корректируется так, чтобы второй (или первый) элемент имел не меньше `MinPanelSize`; когда оба свернуты, первый получает ограниченный размер, а второй — остаток. Для обычного split NaN-доля заменяется на 0.5, доля ограничивается диапазоном [0,1]. Первый размер вычисляется как `int(avail*fraction)` и при `avail >= 2*MinPanelSize` ограничивается диапазоном `[MinPanelSize, avail-MinPanelSize]`; при меньшей области он ограничивается `[0,avail]`. Второй размер — остаток.
 
-### renderVerticalSplit
+## Строки и содержимое
 
-```go
-// renderVerticalSplit рендерит вертикальный split (левый/правый колонки).
-//
-// @param split - Конфигурация split-распределения
-// @param w - Ширина доступной области
-// @param h - Высота в строках
-// @returns []string — Массив строк
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func renderVerticalSplit(split *SplitConfig, w, h int) []string
-```
+- `padVisualLine` при неположительной ширине возвращает пустую строку; иначе усекает по визуальной ширине с `ansi.Truncate`, измеряет ширину `ansi.StringWidth` и дополняет пробелами до заданной ширины.
+- `padContent` при неположительной ширине или высоте делегирует `makeEmptyLines`. В остальных случаях разбивает содержимое по `\n`, возвращает ровно `h` строк, визуально усекает/дополняет каждую до `w` и добавляет `ansi.ResetStyle` в конец каждой строки.
+- `makeEmptyLines` возвращает `nil`, если ширина или высота неположительны; иначе возвращает `h` строк по `w` пробелов.
+- `emptyView(height)` возвращает пустую строку для `height <= 0`, иначе строку из `height-1` переводов строки.
 
-### renderHorizontalSplit
+## Границы
 
-```go
-// renderHorizontalSplit рендерит горизонтальный split (верхний/нижний строки).
-//
-// @param split - Конфигурация split-распределения
-// @param w - Ширина в ячейках
-// @param h - Высота доступной области
-// @returns []string — Массив строк
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func renderHorizontalSplit(split *SplitConfig, w, h int) []string
-```
+`findBorders(node, x, y, w, h)` создаёт layout с координатами и неотрицательными размерами и возвращает `collectLayoutBorders(layout)`. `findFlexBorders` делает то же для временного узла с Flex. Детальная геометрия, фильтрация скрытых границ и обход дочерних узлов реализованы layout-кодом, а не в этих функциях.
 
-### renderFlex
+## Побочные эффекты
 
-```go
-// renderFlex рендерит flex-контейнер с распределением по весам.
-//
-// @param flex - Конфигурация flex-распределения
-// @param w - Ширина в ячейках
-// @param h - Высота в строках
-// @returns []string — Массив строк
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func renderFlex(flex *FlexConfig, w, h int) []string
-```
-
-### renderFlexRow
-
-```go
-// renderFlexRow рендерит flex-строку (горизонтальное направление).
-//
-// @param flex - Конфигурация flex-распределения
-// @param w - Ширина в ячейках
-// @param h - Высота в строках
-// @param sizes - Вычисленные размеры каждого элемента
-// @returns []string — Массив строк
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func renderFlexRow(flex *FlexConfig, w, h int, sizes []int) []string
-```
-
-### renderFlexColumn
-
-```go
-// renderFlexColumn рендерит flex-колонку (вертикальное направление).
-//
-// @param flex - Конфигурация flex-распределения
-// @param w - Ширина в ячейках
-// @param h - Высота в строках
-// @param sizes - Вычисленные размеры каждого элемента
-// @returns []string — Массив строк
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func renderFlexColumn(flex *FlexConfig, w, h int, sizes []int) []string
-```
-
-### computeFlexSizes
-
-```go
-// computeFlexSizes вычисляет размеры для flex-элементов по базовым и grow-весам.
-//
-// @param avail — Доступное пространство
-// @param items — Массив flex-элементов
-// @returns []int — Вычисленные размеры для каждого элемента
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func computeFlexSizes(avail int, items []*FlexItem) []int
-```
-
-### computeSplitSizes
-
-```go
-// computeSplitSizes вычисляет размеры для split-распределения.
-// Учитывает состояние свёрнутости (collapsed) элементов.
-//
-// @param avail - Доступное пространство
-// @param fraction - Доля первого элемента
-// @param firstCollapsed - Свёрнут первый элемент?
-// @param secondCollapsed - Свёрнут второй элемент?
-// @param firstSize - Размер свернутого первого элемента
-// @param secondSize - Размер свернутого второго элемента
-// @returns first, second — Вычисленные размеры первого и второго элемента
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func computeSplitSizes(avail int, fraction float64, firstCollapsed, secondCollapsed bool, firstSize, secondSize int) (first, second int)
-```
-
-### padContent
-
-```go
-// padContent обеспечивает точные размеры w × h для контента.
-// Обрезает по визуальной ширине (не байтам) для корректной работы с UTF-8 и ANSI.
-// Каждая строка заканчивается ANSI reset, чтобы стили не утекали в соседей.
-//
-// @param content - Исходный контент (строка)
-// @param w - Ширина в ячейках
-// @param h - Высота в строках
-// @returns []string — Массив строк с отформатированным контентом
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func padContent(content string, w, h int) []string
-```
-
-### makeEmptyLines
-
-```go
-// makeEmptyLines создаёт массив пустых строк заданных размеров.
-//
-// @param w - Ширина в ячейках
-// @param h - Высота в строках
-// @returns []string — Массив из h строк, каждая длиной w
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func makeEmptyLines(w, h int) []string
-```
-
-### findBorders
-
-```go
-// findBorders рекурсивно собирает все позиции границ для drag-and-drop.
-//
-// @param node - Укореняющий узел
-// @param x, y - Стартовая позиция (верхний левый угол)
-// @param w, h - Размеры области
-// @returns []BorderHit — Список собранных границ
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func findBorders(node *Node, x, y, w, h int) []BorderHit
-```
-
-### findFlexBorders
-
-```go
-// findFlexBorders собирает границы внутри flex-контейнера.
-//
-// @param flex - Конфигурация flex-распределения
-// @param x, y - Стартовая позиция
-// @param w, h - Размеры области
-// @returns []BorderHit — Список собранных границ
-//
-// @sideeffect none — Функция не имеет побочных эффектов (чистая)
-// @pure
-func findFlexBorders(flex *FlexConfig, x, y, w, h int) []BorderHit
-```
-
-## Поведение
-
-### Split-рендеринг
-
-- **Vertical split** рендерит две колонки, разделённые вертикальной границей `│`.
-- **Horizontal split** рендерит две группы строк, разделённые горизонтальной границей `─`.
-- Когда один из узлов свернут (`IsCollapsed()`), граница между узлами не рендерится — узлы встают вплотную.
-- При `Dragging = true` граница рендерится через `borderDragStyle` вместо `borderStyle`.
-- Границы обёрнуты `ansi.ResetStyle` с обеих сторон, чтобы стили панелей не утекали через границу.
-- Когда `OnCollapse != nil` и `CollapseRow >= 0`, и граница рендерится (не collapsed), символ границы на строке `CollapseRow` заменяется на collapse-символ `collapseStyle.Render("<")` (изолированный ANSI-стилями).
-- Размеры первого/второго вычисляются через `computeSplitSizes` с учётом `Fraction` и collapsed-состояний.
-
-### Flex-рендеринг
-
-- **Horizontal flex** — элементы в строке, разделённые вертикальными границами `│`.
-- **Vertical flex** — элементы в колонке, разделённые горизонтальными границами `─`.
-- Граница между двумя элементами рендерится только если оба соседних элемента не collapsed.
-- Границы обёрнуты `ansi.ResetStyle`, как и в split-рендеринге.
-- Размеры элементов вычисляются через `computeFlexSizes`.
-
-### Вычисление размеров flex
-
-`computeFlexSizes`:
-
-1. Для каждого элемента берётся базовый размер: `basis = Basis` (если не collapsed и `Basis <= 0`, то `basis = MinPanelSize`); для collapsed элементов `basis = 1`.
-2. `remaining = avail - totalBasis`. Если `remaining <= 0`, возвращаются `sizes` как есть.
-3. Если нет grow-весов (`totalGrow == 0`), `remaining` распределяется поровну между всеми не-collapsed элементами.
-4. Иначе `remaining` распределяется пропорционально `Grow` для каждого не-collapsed элемента, а остаток (остаток от целочисленного деления) дописывается в последний не-collapsed элемент.
-5. Collapsed элементы получают `basis` (обычно 1) и не участвуют в распределении.
-
-### Вычисление размеров split
-
-`computeSplitSizes`:
-
-1. Если `firstCollapsed`: `first = firstSize` (минимум 1), `second = avail - first`; если `second < MinPanelSize`, то `second = MinPanelSize`, `first = avail - second`.
-2. Если `secondCollapsed`: симметрично.
-3. Иначе `first = int(avail * fraction)` (не меньше `MinPanelSize`), `second = avail - first` (не меньше `MinPanelSize`, иначе коррекция).
-
-### Leaf-рендеринг
-
-- Leaf-узел рендерится через `node.Panel.View(w, h)`, результат прогоняется через `padContent`.
-- `padContent`:
-  1. Обрезает каждую строку по визуальной ширине `w` через `ansi.Truncate(line, w, "")`.
-  2. Дописывает пробелы до визуальной ширины `w` через `ansi.StringWidth`.
-  3. Добавляет `ansi.ResetStyle` в конец каждой строки, чтобы стили не утекали.
-  4. Возвращает ровно `h` строк.
-- Если `w <= 0` или `h <= 0`, возвращает `makeEmptyLines(w, h)`.
-
-### makeEmptyLines
-
-- Если `w <= 0` или `h <= 0`, возвращает `nil`.
-- Иначе возвращает `h` строк по `w` пробелов.
-
-### findBorders / findFlexBorders
-
-- `findBorders` рекурсивно собирает позиции границ:
-  - Для split: позиция границы вычисляется через `computeSplitSizes`; граница добавляется только если оба узла не collapsed.
-  - Для flex: позиция границ вычисляется через `computeFlexSizes`; граница добавляется только если оба соседних элемента не collapsed.
-- `findFlexBorders` — внутренняя версия для flex-контейнера, без split-ветки.
-- Границы внутри flex-контейнера обходятся через `findBorders(item.Node, ...)`, позиции `cx`/`cy` накапливаются по мере обхода.
-
-## Side Effects Contract
-
-- Все функции файла `render.go` помечены как `@pure` / `@sideeffect none`.
-- Функции не производят I/O, не модифицируют глобальное состояние, не вызывают внешние API.
-- Рендеринг полностью детерминирован при одинаковых входных параметрах.
-- Допустимая внешняя зависимость — пакет `github.com/charmbracelet/x/ansi` (публичные константы/функции `ansi.ResetStyle`, `ansi.StringWidth`, `ansi.Truncate`).
-
-## Единый layout
-
-Размеры дочерних областей и позиции границ вычисляются в `layout.go`. Рендерер, hit-testing, элементы, рассылка `ResizeMsg` и перетаскивание используют один и тот же layout-результат. Геометрия и `BorderHit` измеряются в terminal cells; при слишком малом окне все размеры остаются неотрицательными, а доступная область не превышается.
-
-## Ключевые Правила
-
-1. **Всегда проверяй размеры** — `w <= 0` или `h <= 0` возвращает `nil` или пустые линии.
-2. **Учитывай collapsed** — границы не рендерятся между collapsed элементами, collapsed flex-элементы не участвуют в распределении, а collapsed split-узлы используют `CollapsedSize(direction)`.
-3. **Изолируй ANSI стили** — каждая строка и граница обёрнута в `ansi.ResetStyle`.
-4. **Минимальный размер** — `MinPanelSize` используется как fallback при недостатке пространства.
-5. **Border isolation** — границы изолированы через `ansi.ResetStyle` для предотвращения утечки стилей.
-
-## Чеклист
-
-- [x] Рендер вернёт точно `w × h` строк (для leaf через `padContent`; для split/flex через компоновку из `renderNode`)
-- [x] Границы рендерятся только между не-collapsed элементами
-- [x] ANSI стили изолированы на каждой строке и границе
-- [x] Collapsed split-узлы используют `CollapsedSize(direction)`
-- [x] Все функции помечены как `@pure` / `@sideeffect none`
+Функции файла выполняют вычисления и формируют строки/срезы; прямого I/O и изменения глобального состояния в файле нет. Рендеринг вызывает `Panel.View` и использует layout-функции и ANSI-пакет.

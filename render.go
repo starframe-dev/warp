@@ -388,6 +388,13 @@ func makeEmptyLines(w, h int) []string {
 	return lines
 }
 
+func emptyView(height int) string {
+	if height <= 0 {
+		return ""
+	}
+	return strings.Repeat("\n", height-1)
+}
+
 // BorderHit describes a draggable border and the layout rectangle that owns it.
 type BorderHit struct {
 	Split     *SplitConfig

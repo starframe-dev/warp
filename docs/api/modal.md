@@ -223,8 +223,8 @@ These accessors expose the last computed box geometry after `Overlay`
   ANSI-aware stream (via the `parser` table and `uniseg` grapheme
   clusters) and returns the byte offset where the visual width first
   reaches `targetW`; returns `len(s)` if it never does.
-- `stripANSI(s string) string` — removes ANSI escape sequences matching
-  `\x1b\[[0-9;]*[a-zA-Z]`.
+- `stripANSI(s string) string` — delegates to `ansi.Strip` and removes
+  supported ANSI/OSC control sequences, including SGR and hyperlinks.
 - `max(a, b int) int` — small int max helper (pre-Go-1.21 compatible).
 
 ## Styles
@@ -252,6 +252,6 @@ the TUI:
 - Content truncation uses visual width: `ansi.Truncate(s, n, "")`
   followed by appending `…` when the raw content was wider than the
   inner width.
-- ANSI sequences in the background lines are stripped before applying
-  the dim background so that escape bytes do not leak into the sliced
-  left/right parts of each line.
+- The background is stripped with `ansi.Strip` before dimming, including
+  CSI/SGR and OSC sequences, so escape bytes and hyperlink controls do
+  not leak into the sliced left/right parts of each line.

@@ -299,6 +299,8 @@ func TestStripANSIModal(t *testing.T) {
 		{"plain text", "hello", "hello"},
 		{"with reset", "\x1b[0mreset\x1b[0m", "reset"},
 		{"with color", "\x1b[31mred\x1b[0m", "red"},
+		{"OSC hyperlink", "\x1b]8;;https://example.test\x07link\x1b]8;;\x07", "link"},
+		{"styled Unicode and hyperlink", "\x1b]8;;https://example.test\x1b\\\x1b[31m界é\x1b[0m\x1b]8;;\x1b\\", "界é"},
 	}
 
 	for _, tt := range tests {

@@ -50,7 +50,7 @@ func NewTabGroup(pos TabPosition) *TabGroup {
 func (tg *TabGroup) NewTab(name string) *Tab {
 	tab := newTab(name, tg)
 	tg.tabs = append(tg.tabs, tab)
-	tg.activeTab = len(tg.tabs) - 1
+	tg.switchTab(len(tg.tabs) - 1)
 	return tab
 }
 
@@ -67,6 +67,8 @@ func (tg *TabGroup) closeTab(idx int) {
 		return
 	}
 	active := tg.activeTab
+	closing := tg.tabs[idx]
+	closing.setFocus(nil)
 	tg.tabs = append(tg.tabs[:idx], tg.tabs[idx+1:]...)
 	switch {
 	case idx < active:
@@ -74,25 +76,37 @@ func (tg *TabGroup) closeTab(idx int) {
 	case idx == active && active >= len(tg.tabs):
 		tg.activeTab = len(tg.tabs) - 1
 	}
+	if idx == active {
+		if next := tg.ActiveTab(); next != nil {
+			next.resumeFocus()
+		}
+	}
 }
 
 func (tg *TabGroup) switchTab(idx int) {
-	if idx >= 0 && idx < len(tg.tabs) {
-		tg.activeTab = idx
+	if idx < 0 || idx >= len(tg.tabs) || idx == tg.activeTab {
+		return
+	}
+	if current := tg.ActiveTab(); current != nil {
+		current.suspendFocus()
+	}
+	tg.activeTab = idx
+	if next := tg.ActiveTab(); next != nil {
+		next.resumeFocus()
 	}
 }
 
 // NextTab switches to the next tab.
 func (tg *TabGroup) NextTab() {
 	if len(tg.tabs) > 1 {
-		tg.activeTab = (tg.activeTab + 1) % len(tg.tabs)
+		tg.switchTab((tg.activeTab + 1) % len(tg.tabs))
 	}
 }
 
 // PrevTab switches to the previous tab.
 func (tg *TabGroup) PrevTab() {
 	if len(tg.tabs) > 1 {
-		tg.activeTab = (tg.activeTab - 1 + len(tg.tabs)) % len(tg.tabs)
+		tg.switchTab((tg.activeTab - 1 + len(tg.tabs)) % len(tg.tabs))
 	}
 }
 
@@ -135,7 +149,7 @@ func (tg *TabGroup) View(w, h int) string {
 
 	tab := tg.ActiveTab()
 	if tab == nil {
-		return strings.Repeat("\n", h)
+		return emptyView(h)
 	}
 
 	var verticalBar string

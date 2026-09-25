@@ -419,6 +419,49 @@ func TestPopoverHandleKey(t *testing.T) {
 	})
 }
 
+func TestPopoverNilActionStillCloses(t *testing.T) {
+	t.Run("mouse click", func(t *testing.T) {
+		closeCalls := 0
+		popover := &Popover{
+			Items:   []PopoverItem{{Name: "No action"}},
+			X:       2,
+			Y:       1,
+			OnClose: func() { closeCalls++ },
+		}
+		popover.Overlay(blankLines(20, 8), 20, 8)
+
+		consumed := popover.HandleMouse(tea.MouseMsg{
+			X:      popover.clampedX + 1,
+			Y:      popover.clampedY + 1,
+			Action: tea.MouseActionPress,
+			Button: tea.MouseButtonLeft,
+		})
+		if !consumed {
+			t.Fatal("item click should be consumed")
+		}
+		if closeCalls != 1 {
+			t.Fatalf("OnClose calls=%d, want 1", closeCalls)
+		}
+	})
+
+	t.Run("Enter", func(t *testing.T) {
+		closeCalls := 0
+		popover := &Popover{
+			Items:   []PopoverItem{{Name: "No action"}},
+			OnClose: func() { closeCalls++ },
+		}
+		popover.Overlay(blankLines(20, 8), 20, 8)
+
+		consumed := popover.HandleKey(tea.KeyMsg{Type: tea.KeyEnter})
+		if !consumed {
+			t.Fatal("Enter should be consumed")
+		}
+		if closeCalls != 1 {
+			t.Fatalf("OnClose calls=%d, want 1", closeCalls)
+		}
+	})
+}
+
 func TestPopoverOnCloseNil(t *testing.T) {
 	popover := &Popover{
 		Items: []PopoverItem{

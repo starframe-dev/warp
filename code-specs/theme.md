@@ -1,64 +1,33 @@
 # theme.go
 
-## Наззначение
+## Назначение
 
-Файл `theme.go` реализует механизм переопределения палитры и стилей TUI-пакета `warp`. Он предоставляет публичный API `SetTheme`, который по данным `ThemeColors` пересчитывает все package-level цветовые константы (`gbDark0`, `gbDark1`, ...) и производные `lipgloss.Style`, используемые в контролах и оверлеях (табы, фолоты, дропдауны, поповеры, модалки, инпуты, коллапсабилы).
+Файл `theme.go` предоставляет публичный API для перенастройки цветов и связанных `lipgloss.Style` пакета `warp`. `SetTheme` записывает новые значения в package-level переменные, объявленные в других файлах пакета, и пересоздаёт используемые пакетные стили.
 
 ## Публичный API
 
-### `ThemeColors` (struct)
+### `ThemeColors`
 
-```go
-type ThemeColors struct {
-    Background          string  // цвет фона
-    Surface             string  // цвет поверхности
-    Raised             string  // приподнятый уровень
-    Border             string  // цвет границы
-    BorderMuted      string  // приглушённая граница
-    Text                string  // основной текст
-    TextMuted         string  // приглушённый текст
-    TextStrong        string  // сильный/яркий текст
-    Accent            string  // акцентный цвет
-    AccentMuted       string  // приглушённый акцент
-    Error             string  // цвет ошибки
-    Success           string  // цвет успеха
-    Warning           string  // цвет предупреждения
-    SelectionBackground  string  // фон выделения
-    SelectionForeground  string  // передний план выделения
-}
-```
-
-Все поля — строки hex-кода (например, `"#123456"`), интерпретируемые `lipgloss.Color(...)`.
+Структура содержит строки для семантических цветов: `Background`, `Surface`, `Raised`, `Border`, `BorderMuted`, `Text`, `TextMuted`, `TextStrong`, `Accent`, `AccentMuted`, `Error`, `Success`, `Warning`, `SelectionBackground` и `SelectionForeground`. Строки передаются в `lipgloss.Color`; структура не проверяет, что они имеют формат hex-кода.
 
 ### `SetTheme(colors ThemeColors)`
 
-Глобальная функция, пересчитывающая все package-level палитровые константы и производные стили.
+Функция не возвращает ошибку и выполняет следующие назначения:
 
-Поведение:
-1. Преобразует каждое поле `ThemeColors` в `lipgloss.Color` и присваивает их пакетным переменным-константам (`gbDark0` = Background, `gbDark1` = Surface, `gbDark2` = Raised, `gbDark3` = BorderMuted, `gbDark4` = Border, `gbGray` = TextMuted, `gbLight1` = TextStrong, `gbRed` = Error, `gbGreen` = Success, `gbYellow` = Warning, `gbBlue` = Accent).
-2. Пересчитает производные цвета (`tabBarBg`, `activeTabBg`, `activeTabFg`, `inactiveTabFg`, `newTabFg`, `closeTabFg`, `borderColor`, `borderDragColor`, `borderHoverColor`, `floatBorderColor`, `floatTitleBg`, `floatTitleFg`, `floatBg`, `floatCloseFg`).
-3. Пересоздаёт все производные `lipgloss.Style` (`tabBarStyle`, `activeTabStyle`, `inactiveTabStyle`, `newTabStyle`, `closeTabStyle`, `borderStyle`, `borderHoverStyle`, `borderDragStyle`, `collapseStyle`, `floatBorderStyle`, `floatTitleStyle`, `floatCloseStyle`, `floatBgStyle`, `collapsibleStyle`, `collapsibleBorderStyle`, `dropdownButtonStyle`, `dropdownItemStyle`, `dropdownItemHoverStyle`, `dropdownItemSelectedStyle`, `popoverBaseStyle`, `popoverSelectedStyle`, `modalBorderStyle`, `dimStyle`, `inputStyle`, `inputBorderStyle`, `inputFocusBorderStyle`).
+- `Background` → `gbDark0`; `Surface` → `gbDark1`; `Raised` → `gbDark2`; `BorderMuted` → `gbDark3`; `Border` → `gbDark4`.
+- `TextMuted` → `gbGray`; `TextStrong` → `gbLight1`; `Error` → `gbRed`; `Success` → `gbGreen`; `Warning` → `gbYellow`; `Accent` → `gbBlue`.
+- `Text` и `AccentMuted` в текущей реализации не используются.
+- `tabBarBg` получает `gbDark0`; `activeTabBg` и `activeTabFg` получают соответственно `SelectionBackground` и `SelectionForeground`; `inactiveTabFg`, `newTabFg` и `closeTabFg` получают `gbGray`, `gbGreen` и `gbRed`.
+- `borderColor`, `borderDragColor`, `borderHoverColor` получают `gbDark1`, `gbYellow`, `gbDark3`. `floatBorderColor`, `floatTitleBg`, `floatTitleFg`, `floatBg`, `floatCloseFg` получают `gbGray`, `gbDark1`, `gbLight1`, `gbDark0`, `gbRed`.
 
-Важные детали:
-- `Text` и `AccentMuted` из `ThemeColors` не используются в `SetTheme` — они записаны в структуру, но не имеют соответствующих пакетных констант.
-- `SelectionBackground` и `SelectionForeground` используются только для `activeTabBg`/`activeTabFg`.
-- Функция не возвращает ошибок: `lipgloss.Color` принимает произвольные строки; невалидные hex-значения не вызывают ошибку (поведение зависит от `lipgloss`).
+Затем пересоздаются стили табов, границ, плавающих панелей, collapsible-компонентов, dropdown, popover, modal, dim и input: `tabBarStyle`, `activeTabStyle`, `inactiveTabStyle`, `newTabStyle`, `closeTabStyle`, `borderStyle`, `borderHoverStyle`, `borderDragStyle`, `collapseStyle`, `floatBorderStyle`, `floatTitleStyle`, `floatCloseStyle`, `floatBgStyle`, `collapsibleStyle`, `collapsibleBorderStyle`, `dropdownButtonStyle`, `dropdownItemStyle`, `dropdownItemHoverStyle`, `dropdownItemSelectedStyle`, `popoverBaseStyle`, `popoverSelectedStyle`, `modalBorderStyle`, `dimStyle`, `inputStyle`, `inputBorderStyle`, `inputFocusBorderStyle`. Их атрибуты (фон, передний план, граница, отступы и жирность) задаются непосредственно в `SetTheme`; в частности, `modalBorderStyle` получает скруглённую границу и `Padding(1, 2)`.
 
-## Взаимосвязь с остальным кодом
+`SetTheme` меняет общие для пакета переменные и стили, а не тему отдельного экземпляра `Warp`. Вызовы не синхронизированы с рендерингом.
 
-- Палитровые константы (`gbDark0..gbDark4`, `gbGray`, `gbLight1`, `gbRed`, `gbGreen`, `gbYellow`, `gbBlue`) и производные цвета (`tabBarBg`, `activeTabBg`, ...) объявлены в `styles.go`.
-- `SetTheme` перезаписывает значения, инициализированные в `styles.go` при первом вызове.
-- Производные стили используются в `tabgroup.go` (таб-бар), `float.go` (фолот-окна), `dropdown.go` (выпадающие списки), `modal.go` (модальные окна), `input.go` (поле ввода), `collapsible.go` (коллапс-секции).
+## Связанные объявления
 
-## Тестирование
+Палитровые и производные цветовые переменные и большинство перечисленных стилей объявлены в `styles.go`; стили popover, modal, dim и input также объявлены в соответствующих файлах пакета. `SetTheme` пересваивает их значения. Обновлённые стили применяются последующими обращениями к этим package-level переменным.
 
-- `TestSetTheme` в `theme_test.go` сохраняет оригинальные значения палитровых констант, вызывает `SetTheme` с единым hex-кодом `"#123456"` и проверяет, что все палитровые константы и производные стили принимают заданный цвет.
-- Тест восстанавливает исходные значения по завершении.
+## Тест
 
-## Ограничения
-
-- API не поддерживает именованную палитру уровней (например, `gbDark2` напрямую) — только семантические роли из `ThemeColors`.
-- `SetTheme` меняет package-level переменные и стили всего процесса, а не отдельного `Warp`.
-- `SetTheme` не синхронизирован с рендерингом; вызывайте его до запуска Bubble Tea и не меняйте тему одновременно с `View`.
-- Поля `Text` и `AccentMuted` пока не используются реализацией `SetTheme`.
-- После вызова последующие рендеры использующих эти стили контролов используют новые цвета без перезапуска.
+`TestSetTheme` вызывает `SetTheme` с одинаковым цветом `#123456`, проверяет обновление палитровых переменных, нескольких производных цветов и ряда атрибутов стилей. Он сохраняет и восстанавливает палитровые переменные. Тест не проверяет каждый стиль и каждый его атрибут, перечисленные выше.

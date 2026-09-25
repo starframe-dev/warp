@@ -70,6 +70,15 @@ go run ./cmd/demo/
 - `docs/guide/` and `docs/api/` — English VitePress pages
 - `docs/ru/guide/` and `docs/ru/api/` — Russian VitePress pages
 
+## Weft pipeline configuration
+
+The installed Weft loader reads `.lore/weft/.env`, so the tracked file is
+kept only for the non-secret `code-check-model` alias. Never put API keys,
+tokens, passwords, or other credentials in it; use your local provider
+credential store instead. `.lore/.gitignore` ignores alternate `.env.*`
+and `secrets.env` files. Those local files are not loaded automatically by
+the pipeline.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
