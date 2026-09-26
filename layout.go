@@ -206,14 +206,34 @@ func (r layoutRect) toBounds() Bounds {
 }
 
 func collectLayoutBorders(layout *layoutNode) []BorderHit {
+	var borders []BorderHit
+	return appendLayoutBorders(borders, layout)
+}
+
+func appendLayoutBorders(borders []BorderHit, layout *layoutNode) []BorderHit {
+	if layout == nil {
+		return borders
+	}
+	borders = append(borders, layout.borders...)
+	for _, child := range layout.children {
+		borders = appendLayoutBorders(borders, child)
+	}
+	return borders
+}
+
+func findFlexLayout(layout *layoutNode, flex *FlexConfig) *layoutNode {
 	if layout == nil {
 		return nil
 	}
-	result := append([]BorderHit(nil), layout.borders...)
-	for _, child := range layout.children {
-		result = append(result, collectLayoutBorders(child)...)
+	if layout.node != nil && layout.node.Flex == flex {
+		return layout
 	}
-	return result
+	for _, child := range layout.children {
+		if found := findFlexLayout(child, flex); found != nil {
+			return found
+		}
+	}
+	return nil
 }
 
 func findLayoutPanel(layout *layoutNode, x, y int) *panelHit {
@@ -243,37 +263,54 @@ func elementsFromLayout(layout *layoutNode) []Element {
 		return nil
 	}
 	if layout.node.IsLeaf() {
-		elems := collectElements(layout.node.Panel, layout.bounds.w, layout.bounds.h)
-		for i := range elems {
-			elems[i].Bounds.X += layout.bounds.x
-			elems[i].Bounds.Y += layout.bounds.y
-			shiftElements(elems[i].Children, layout.bounds.x, layout.bounds.y)
-		}
-		return elems
+		return elementsAtLayout(layout)
 	}
-	var elems []Element
+	var elements []Element
+	return appendElementsFromLayout(elements, layout)
+}
+
+func appendElementsFromLayout(elements []Element, layout *layoutNode) []Element {
+	if layout == nil || layout.node == nil {
+		return elements
+	}
+	if layout.node.IsLeaf() {
+		return append(elements, elementsAtLayout(layout)...)
+	}
 	for _, child := range layout.children {
-		elems = append(elems, elementsFromLayout(child)...)
+		elements = appendElementsFromLayout(elements, child)
 	}
-	return elems
+	return elements
+}
+
+func elementsAtLayout(layout *layoutNode) []Element {
+	elements := collectElements(layout.node.Panel, layout.bounds.w, layout.bounds.h)
+	for i := range elements {
+		elements[i].Bounds.X += layout.bounds.x
+		elements[i].Bounds.Y += layout.bounds.y
+		shiftElements(elements[i].Children, layout.bounds.x, layout.bounds.y)
+	}
+	return elements
 }
 
 func (t *Tab) broadcastLayoutResize(layout *layoutNode) []tea.Cmd {
+	var commands []tea.Cmd
+	t.appendLayoutResize(&commands, layout)
+	return commands
+}
+
+func (t *Tab) appendLayoutResize(commands *[]tea.Cmd, layout *layoutNode) {
 	if layout == nil || layout.node == nil {
-		return nil
+		return
 	}
 	if layout.node.IsLeaf() {
-		if layout.node.Panel == nil {
-			return nil
+		if layout.node.Panel != nil {
+			if cmd := layout.node.Panel.Update(ResizeMsg{Width: layout.bounds.w, Height: layout.bounds.h}); cmd != nil {
+				*commands = append(*commands, cmd)
+			}
 		}
-		if cmd := layout.node.Panel.Update(ResizeMsg{Width: layout.bounds.w, Height: layout.bounds.h}); cmd != nil {
-			return []tea.Cmd{cmd}
-		}
-		return nil
+		return
 	}
-	var cmds []tea.Cmd
 	for _, child := range layout.children {
-		cmds = append(cmds, t.broadcastLayoutResize(child)...)
+		t.appendLayoutResize(commands, child)
 	}
-	return cmds
 }

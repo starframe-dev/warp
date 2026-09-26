@@ -27,8 +27,8 @@ func TestScrollableRequestsOnlyThroughVisibleEnd(t *testing.T) {
 	scrollable.Offset = 3
 
 	got := scrollable.View(1, 4)
-	if content.requestedSize != 7 {
-		t.Fatalf("Content.View requested height %d, want offset+viewport=7", content.requestedSize)
+	if content.requestedSize != 8 {
+		t.Fatalf("Content.View requested height %d, want offset+viewport+probe row=8", content.requestedSize)
 	}
 	if got != "3\n4\n5\n6" {
 		t.Fatalf("view=%q, want rows 3-6", got)

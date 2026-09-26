@@ -19,13 +19,14 @@ const (
 
 // Tab represents a single tab with its panel tree, float panes, and focus state.
 type Tab struct {
-	name    string
-	root    *Node
-	focused Panel
-	floats  []*FloatPane
-	parent  *TabGroup
-	width   int
-	height  int
+	name      string
+	root      *Node
+	focused   Panel
+	floats    []*FloatPane
+	parent    *TabGroup
+	ownership *panelOwnership
+	width     int
+	height    int
 
 	// Drag state
 	dragging     *SplitConfig
@@ -35,26 +36,68 @@ type Tab struct {
 }
 
 func newTab(name string, parent *TabGroup) *Tab {
-	return &Tab{
+	tab := &Tab{
 		name:   name,
 		root:   &Node{Panel: &emptyPanel{}},
 		parent: parent,
 	}
+	if parent != nil {
+		tab.ownership = parent.ensureOwnership()
+	}
+	return tab
 }
 
 // NewTab creates a standalone Tab with no parent TabGroup.
 // Useful for embedding a warp layout inside a Panel.
 func NewTab(name string) *Tab {
-	return &Tab{
+	tab := &Tab{
 		name: name,
 		root: &Node{Panel: &emptyPanel{}},
 	}
+	tab.ownership = newPanelOwnership(tab)
+	return tab
 }
 
 func (t *Tab) ensureRoot() {
 	if t.root == nil {
 		t.root = &Node{Panel: &emptyPanel{}}
 	}
+}
+
+func (t *Tab) resetLayoutState() {
+	if t.dragging != nil {
+		t.dragging.Dragging = false
+	}
+	if t.flexDragging != nil {
+		t.flexDragging.Dragging = false
+	}
+	t.dragging = nil
+	t.flexDragging = nil
+	t.flexDragIdx = 0
+	clear(t.lastBorders)
+	t.lastBorders = nil
+}
+
+func (t *Tab) setLastBorders(layout *layoutNode) {
+	clear(t.lastBorders)
+	t.lastBorders = appendLayoutBorders(t.lastBorders[:0], layout)
+}
+
+func (t *Tab) clearAfterRemoval() {
+	t.resetLayoutState()
+	for _, float := range t.floats {
+		if float != nil {
+			float.Panel = nil
+		}
+	}
+	clear(t.floats)
+	t.floats = nil
+	t.root = nil
+	t.focused = nil
+	t.parent = nil
+	t.ownership = nil
+	t.width = 0
+	t.height = 0
 }
 
 // RootPanel returns the root panel of this tab.
@@ -66,17 +109,23 @@ func (t *Tab) RootPanel() Panel {
 
 // SetRootPanel replaces the root panel of this tab.
 func (t *Tab) SetRootPanel(panel Panel) {
+	ownership := t.ensureOwnership()
+	candidates := collectNodePanelInstances(t.root)
 	if isNilPanel(panel) {
 		panel = &emptyPanel{}
 	}
 	t.setFocus(nil)
 	t.root = &Node{Panel: panel}
+	t.resetLayoutState()
+	attachPanelOwnership(panel, ownership)
+	ownership.unmountRemoved(candidates)
 }
 
 // SplitVertical splits the panel vertically (left/right).
 // fraction is the share for the left panel (0.0–1.0).
 func (t *Tab) SplitVertical(parent Panel, fraction float64, newPanel Panel) {
 	t.ensureRoot()
+	ownership := t.ensureOwnership()
 	if parent == nil {
 		return
 	}
@@ -98,6 +147,8 @@ func (t *Tab) SplitVertical(parent Panel, fraction float64, newPanel Panel) {
 		},
 		Collapse: collapse,
 	}
+	t.resetLayoutState()
+	attachPanelOwnership(newPanel, ownership)
 }
 
 // SetSplitCollapse configures a collapse symbol on the border of a vertical split.
@@ -152,6 +203,7 @@ func (t *Tab) ToggleSplitCollapse(parent Panel) {
 // fraction is the share for the top panel (0.0–1.0).
 func (t *Tab) SplitHorizontal(parent Panel, fraction float64, newPanel Panel) {
 	t.ensureRoot()
+	ownership := t.ensureOwnership()
 	if parent == nil {
 		return
 	}
@@ -173,6 +225,8 @@ func (t *Tab) SplitHorizontal(parent Panel, fraction float64, newPanel Panel) {
 		},
 		Collapse: collapse,
 	}
+	t.resetLayoutState()
+	attachPanelOwnership(newPanel, ownership)
 }
 
 // FlexItemSpec describes a panel and its flex-grow weight.
@@ -184,13 +238,12 @@ type FlexItemSpec struct {
 // FlexRow replaces the parent panel with a horizontal flex layout.
 func (t *Tab) FlexRow(parent Panel, items []FlexItemSpec) {
 	t.ensureRoot()
+	ownership := t.ensureOwnership()
 	node := t.root.findNode(parent)
-	if node == nil {
+	if node == nil || len(items) == 0 {
 		return
 	}
-	if len(items) == 0 {
-		return
-	}
+	candidates := collectNodePanelInstances(node)
 	flexItems := make([]*FlexItem, len(items))
 	for i, spec := range items {
 		grow := spec.Grow
@@ -211,18 +264,25 @@ func (t *Tab) FlexRow(parent Panel, items []FlexItemSpec) {
 		Flex:     &FlexConfig{Direction: Horizontal, Items: flexItems},
 		Collapse: collapse,
 	}
+	t.resetLayoutState()
+	for _, item := range flexItems {
+		attachPanelOwnership(item.Node.Panel, ownership)
+	}
+	if !tabContainsPanel(t, t.focused) {
+		t.setFocus(nil)
+	}
+	ownership.unmountRemoved(candidates)
 }
 
 // FlexColumn replaces the parent panel with a vertical flex layout.
 func (t *Tab) FlexColumn(parent Panel, items []FlexItemSpec) {
 	t.ensureRoot()
+	ownership := t.ensureOwnership()
 	node := t.root.findNode(parent)
-	if node == nil {
+	if node == nil || len(items) == 0 {
 		return
 	}
-	if len(items) == 0 {
-		return
-	}
+	candidates := collectNodePanelInstances(node)
 	flexItems := make([]*FlexItem, len(items))
 	for i, spec := range items {
 		grow := spec.Grow
@@ -243,6 +303,14 @@ func (t *Tab) FlexColumn(parent Panel, items []FlexItemSpec) {
 		Flex:     &FlexConfig{Direction: Vertical, Items: flexItems},
 		Collapse: collapse,
 	}
+	t.resetLayoutState()
+	for _, item := range flexItems {
+		attachPanelOwnership(item.Node.Panel, ownership)
+	}
+	if !tabContainsPanel(t, t.focused) {
+		t.setFocus(nil)
+	}
+	ownership.unmountRemoved(candidates)
 }
 
 // Float makes a panel floating above the layout.
@@ -250,6 +318,7 @@ func (t *Tab) Float(panel Panel, x, y, width, height int) {
 	if isNilPanel(panel) || width <= 0 || height <= 0 {
 		return
 	}
+	ownership := t.ensureOwnership()
 	width = max(floatMinWidth, width)
 	height = max(floatMinHeight, height)
 	fp := &FloatPane{
@@ -264,16 +333,24 @@ func (t *Tab) Float(panel Panel, x, y, width, height int) {
 	}
 	fp.clampPosition(t.width, t.height)
 	t.floats = append(t.floats, fp)
+	attachPanelOwnership(panel, ownership)
 }
 
 // CloseFloat removes a floating pane.
 func (t *Tab) CloseFloat(fp *FloatPane) {
-	for i, f := range t.floats {
-		if f == fp {
-			if samePanel(t.focused, fp.Panel) {
+	if fp == nil {
+		return
+	}
+	for i, current := range t.floats {
+		if current == fp {
+			ownership := t.ensureOwnership()
+			candidates := collectPanelInstances(fp.Panel)
+			t.floats = removeSliceAt(t.floats, i)
+			fp.Panel = nil
+			if !tabContainsPanel(t, t.focused) {
 				t.setFocus(nil)
 			}
-			t.floats = append(t.floats[:i], t.floats[i+1:]...)
+			ownership.unmountRemoved(candidates)
 			return
 		}
 	}
@@ -379,23 +456,18 @@ func (t *Tab) View(width, height int) string {
 func (t *Tab) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		t.width = msg.Width
-		t.height = msg.Height
-		t.clampFloatsToViewport()
-		// Send the panel-specific ResizeMsg to all leaves and collect any
-		// commands they produce (e.g. starting side panels like ai-knowledge).
-		resizeCmds := t.broadcastResize(t.root, 0, 0, t.width, t.height)
+		var commands []tea.Cmd
+		t.appendResizeCommands(&commands, msg.Width, msg.Height)
 		// Keep backward compatibility for panels that still expect WindowSizeMsg.
-		return tea.Batch(append(resizeCmds, t.broadcastMsg(msg)...)...)
+		t.appendBroadcastMsg(&commands, msg)
+		return tea.Batch(commands...)
 	case ResizeMsg:
 		// Container.View sends ResizeMsg to ensure child panels receive their
 		// allocated size. Broadcast it to all leaf panels so they can start
 		// their processes (e.g. ContextPanel starting ai-knowledge).
-		t.width = msg.Width
-		t.height = msg.Height
-		t.clampFloatsToViewport()
-		resizeCmds := t.broadcastResize(t.root, 0, 0, t.width, t.height)
-		return tea.Batch(resizeCmds...)
+		var commands []tea.Cmd
+		t.appendResizeCommands(&commands, msg.Width, msg.Height)
+		return tea.Batch(commands...)
 	default:
 		// Forward unknown messages (PtyOutputMsg, PtyReadyMsg, etc.) to all
 		// leaf panels so emulators can receive them.
@@ -407,7 +479,7 @@ func (t *Tab) Update(msg tea.Msg) tea.Cmd {
 func (t *Tab) renderContent(w, h int) string {
 	t.clampFloats(w, h)
 	layout := newLayout(t.root, layoutRect{w: max(0, w), h: max(0, h)})
-	t.lastBorders = collectLayoutBorders(layout)
+	t.setLastBorders(layout)
 	lines := renderLayout(layout)
 
 	// Render floats on top
@@ -460,7 +532,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 
 	// Refresh the shared layout before processing mouse events so geometry changes are immediate.
 	layout := newLayout(t.root, layoutRect{w: max(0, cw), h: max(0, ch)})
-	t.lastBorders = collectLayoutBorders(layout)
+	t.setLastBorders(layout)
 
 	// Check float panes first (top z-order)
 	hitFloat := false
@@ -537,7 +609,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 				}
 			}
 			// Click on a panel — focus it, toggle collapsible, then forward
-			if hit := t.panelAt(mx, my, cw, ch); hit != nil {
+			if hit := findLayoutPanel(layout, mx, my); hit != nil {
 				t.setFocus(hit.Node.Panel)
 				// Toggle collapsible on title bar click
 				if c, ok := hit.Node.Panel.(*Collapsible); ok {
@@ -562,7 +634,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 			}
 		case tea.MouseActionMotion:
 			if t.dragging != nil || t.flexDragging != nil {
-				t.updateDrag(mx, my, cw, ch)
+				t.updateDragWithLayout(mx, my, cw, ch, layout)
 				return nil
 			}
 		case tea.MouseActionRelease:
@@ -586,7 +658,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 
 	// Forward mouse to panel under cursor (relative coordinates)
 	if msg.Action == tea.MouseActionPress || msg.Action == tea.MouseActionMotion || msg.Action == tea.MouseActionRelease {
-		if hit := t.panelAt(mx, my, cw, ch); hit != nil && hit.Node.Panel != nil {
+		if hit := findLayoutPanel(layout, mx, my); hit != nil && hit.Node.Panel != nil {
 			relMsg := tea.MouseMsg{
 				X:      mx - hit.X,
 				Y:      my - hit.Y,
@@ -827,16 +899,28 @@ func (t *Tab) getSplitFractionNode(parent, target *Node) (float64, bool) {
 
 // broadcastMsg sends a message to all panels in this tab (tree + floats).
 func (t *Tab) broadcastMsg(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-	cmds = append(cmds, t.broadcastNode(t.root, msg)...)
-	for _, fp := range t.floats {
-		if fp.Panel != nil {
-			if cmd := fp.Panel.Update(msg); cmd != nil {
-				cmds = append(cmds, cmd)
+	var commands []tea.Cmd
+	t.appendBroadcastMsg(&commands, msg)
+	return commands
+}
+
+func (t *Tab) appendBroadcastMsg(commands *[]tea.Cmd, msg tea.Msg) {
+	t.appendBroadcastNode(commands, t.root, msg)
+	for _, float := range t.floats {
+		if float != nil && !isNilPanel(float.Panel) {
+			if cmd := float.Panel.Update(msg); cmd != nil {
+				*commands = append(*commands, cmd)
 			}
 		}
 	}
-	return cmds
+}
+
+func (t *Tab) appendResizeCommands(commands *[]tea.Cmd, width, height int) {
+	t.width = width
+	t.height = height
+	t.clampFloatsToViewport()
+	layout := newLayout(t.root, layoutRect{w: max(0, width), h: max(0, height)})
+	t.appendLayoutResize(commands, layout)
 }
 
 func (t *Tab) broadcastResize(node *Node, x, y, w, h int) []tea.Cmd {
@@ -845,26 +929,32 @@ func (t *Tab) broadcastResize(node *Node, x, y, w, h int) []tea.Cmd {
 }
 
 func (t *Tab) broadcastNode(node *Node, msg tea.Msg) []tea.Cmd {
+	var commands []tea.Cmd
+	t.appendBroadcastNode(&commands, node, msg)
+	return commands
+}
+
+func (t *Tab) appendBroadcastNode(commands *[]tea.Cmd, node *Node, msg tea.Msg) {
 	if node == nil {
-		return nil
+		return
 	}
-	if node.IsLeaf() && node.Panel != nil {
+	if node.IsLeaf() && !isNilPanel(node.Panel) {
 		if cmd := node.Panel.Update(msg); cmd != nil {
-			return []tea.Cmd{cmd}
+			*commands = append(*commands, cmd)
 		}
-		return nil
+		return
 	}
-	var cmds []tea.Cmd
 	if node.Split != nil {
-		cmds = append(cmds, t.broadcastNode(node.Split.First, msg)...)
-		cmds = append(cmds, t.broadcastNode(node.Split.Second, msg)...)
+		t.appendBroadcastNode(commands, node.Split.First, msg)
+		t.appendBroadcastNode(commands, node.Split.Second, msg)
 	}
 	if node.Flex != nil {
 		for _, item := range node.Flex.Items {
-			cmds = append(cmds, t.broadcastNode(item.Node, msg)...)
+			if item != nil {
+				t.appendBroadcastNode(commands, item.Node, msg)
+			}
 		}
 	}
-	return cmds
 }
 
 // BroadcastResize sends ResizeMsg with each leaf panel's current content size.
@@ -948,11 +1038,15 @@ func (t *Tab) toggleCollapsibleNode(node *Node, panel Panel) bool {
 }
 
 func (t *Tab) updateDrag(mx, my, cw, ch int) {
+	t.updateDragWithLayout(mx, my, cw, ch, nil)
+}
+
+func (t *Tab) updateDragWithLayout(mx, my, cw, ch int, layout *layoutNode) {
 	if t.dragging != nil {
 		t.updateSplitDrag(mx, my, cw, ch)
 	}
 	if t.flexDragging != nil {
-		t.updateFlexDrag(mx, my, cw, ch)
+		t.updateFlexDrag(mx, my, layout)
 	}
 	// Send live ResizeMsg so panels update while dragging.
 	t.broadcastResize(t.root, 0, 0, cw, ch)
@@ -981,7 +1075,7 @@ func (t *Tab) updateSplitDrag(mx, my, _, _ int) {
 	}
 }
 
-func (t *Tab) updateFlexDrag(mx, my, _, _ int) {
+func (t *Tab) updateFlexDrag(mx, my int, layout *layoutNode) {
 	if t.flexDragging == nil || t.flexDragIdx < 0 || t.flexDragIdx >= len(t.flexDragging.Items)-1 {
 		return
 	}
@@ -998,12 +1092,15 @@ func (t *Tab) updateFlexDrag(mx, my, _, _ int) {
 		return
 	}
 
-	flexLayout := newLayout(&Node{Flex: t.flexDragging}, layoutRect{
-		x: hit.Bounds.X,
-		y: hit.Bounds.Y,
-		w: hit.Bounds.W,
-		h: hit.Bounds.H,
-	})
+	flexLayout := findFlexLayout(layout, t.flexDragging)
+	if flexLayout == nil {
+		flexLayout = newLayout(&Node{Flex: t.flexDragging}, layoutRect{
+			x: hit.Bounds.X,
+			y: hit.Bounds.Y,
+			w: hit.Bounds.W,
+			h: hit.Bounds.H,
+		})
+	}
 	if len(flexLayout.children) != len(t.flexDragging.Items) {
 		return
 	}

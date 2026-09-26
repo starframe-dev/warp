@@ -1,7 +1,6 @@
 package warp
 
 import (
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,6 +31,7 @@ type TabGroup struct {
 	activeTab int
 	width     int
 	height    int
+	ownership *panelOwnership
 
 	tabPosition      TabPosition
 	tabRegions       []tabRegion
@@ -42,14 +42,18 @@ type TabGroup struct {
 // NewTabGroup creates a TabGroup panel with one default tab.
 func NewTabGroup(pos TabPosition) *TabGroup {
 	tg := &TabGroup{tabPosition: pos}
+	tg.ownership = newPanelOwnership(tg)
 	tg.NewTab("main")
 	return tg
 }
 
 // NewTab creates a new tab and switches to it.
 func (tg *TabGroup) NewTab(name string) *Tab {
+	ownership := tg.ensureOwnership()
 	tab := newTab(name, tg)
+	tab.ownership = ownership
 	tg.tabs = append(tg.tabs, tab)
+	attachPanelOwnership(tab, ownership)
 	tg.switchTab(len(tg.tabs) - 1)
 	return tab
 }
@@ -66,10 +70,13 @@ func (tg *TabGroup) closeTab(idx int) {
 	if idx < 0 || idx >= len(tg.tabs) || len(tg.tabs) <= 1 {
 		return
 	}
+	ownership := tg.ensureOwnership()
 	active := tg.activeTab
 	closing := tg.tabs[idx]
+	candidates := collectTabPanels(closing)
 	closing.setFocus(nil)
-	tg.tabs = append(tg.tabs[:idx], tg.tabs[idx+1:]...)
+	tg.tabs = removeSliceAt(tg.tabs, idx)
+	closing.clearAfterRemoval()
 	switch {
 	case idx < active:
 		tg.activeTab = active - 1
@@ -81,6 +88,7 @@ func (tg *TabGroup) closeTab(idx int) {
 			next.resumeFocus()
 		}
 	}
+	ownership.unmountRemoved(candidates)
 }
 
 func (tg *TabGroup) switchTab(idx int) {
@@ -261,7 +269,9 @@ func (tg *TabGroup) Update(msg tea.Msg) tea.Cmd {
 	// to all panels so emulators can receive them.
 	var cmds []tea.Cmd
 	for _, tab := range tg.tabs {
-		cmds = append(cmds, tab.broadcastMsg(msg)...)
+		if tab != nil {
+			tab.appendBroadcastMsg(&cmds, msg)
+		}
 	}
 	return tea.Batch(cmds...)
 }
@@ -385,16 +395,17 @@ func (tg *TabGroup) renderTabBar(width int) string {
 }
 
 func (tg *TabGroup) renderHorizontalTabBar(width int) string {
-	tg.tabRegions = nil
+	tg.tabRegions = tg.tabRegions[:0]
 	activeIdx := tg.activeTab
 
-	var parts []string
+	var contents strings.Builder
+	contents.Grow(len(tg.tabs)*24 + 3)
 	col := 0
 	for i, tab := range tg.tabs {
 		name := ansi.Truncate(tab.name, 20, "...")
-		label := fmt.Sprintf(" %s ", name)
+		label := " " + name + " "
 		if i == activeIdx {
-			label = fmt.Sprintf("▎ %s ×", name)
+			label = "▎ " + name + " ×"
 		}
 
 		labelW := ansi.StringWidth(label)
@@ -412,18 +423,25 @@ func (tg *TabGroup) renderHorizontalTabBar(width int) string {
 		if i == activeIdx {
 			style = activeTabStyle
 		}
-		parts = append(parts, style.Render(label))
+		contents.WriteString(style.Render(label))
 	}
 
 	newLabel := " + "
 	newW := ansi.StringWidth(newLabel)
-	tg.newTabRegion = &tabRegion{startX: col, endX: col + newW}
+	if tg.newTabRegion == nil {
+		tg.newTabRegion = &tabRegion{}
+	}
+	*tg.newTabRegion = tabRegion{startX: col, endX: col + newW}
 	col += newW
-	parts = append(parts, newTabStyle.Render(newLabel))
+	contents.WriteString(newTabStyle.Render(newLabel))
 
-	bar := tabBarStyle.Render(strings.Join(parts, ""))
+	bar := tabBarStyle.Render(contents.String())
 	if padding := width - col; padding > 0 {
-		bar += tabBarStyle.Render(strings.Repeat(" ", padding))
+		var result strings.Builder
+		result.Grow(len(bar) + padding + 16)
+		result.WriteString(bar)
+		result.WriteString(tabBarStyle.Render(strings.Repeat(" ", padding)))
+		return result.String()
 	}
 	return bar
 }
@@ -433,9 +451,9 @@ func (tg *TabGroup) verticalTabLabels() ([]string, int) {
 	naturalWidth := ansi.StringWidth(" + ")
 	for i, tab := range tg.tabs {
 		name := ansi.Truncate(tab.name, 15, "...")
-		label := fmt.Sprintf(" %s ", name)
+		label := " " + name + " "
 		if i == tg.activeTab {
-			label = fmt.Sprintf("▎ %s ×", name)
+			label = "▎ " + name + " ×"
 		}
 		labels[i] = label
 		naturalWidth = max(naturalWidth, ansi.StringWidth(label))
@@ -450,7 +468,7 @@ func (tg *TabGroup) verticalTabBarWidth(maxWidth int) int {
 
 func (tg *TabGroup) renderVerticalTabBar(maxWidth int) string {
 	activeIdx := tg.activeTab
-	tg.tabRegions = nil
+	tg.tabRegions = tg.tabRegions[:0]
 	tg.newTabRegion = nil
 
 	labels, naturalWidth := tg.verticalTabLabels()

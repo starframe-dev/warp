@@ -77,6 +77,17 @@ nested inside another panel or another `Warp`.
 Starts the Bubbletea program (alt-screen + cell mouse motion) and blocks
 until the program exits. The returned error is the program's exit error.
 
+### Panel resource ownership
+
+A root `Warp` owns its complete panel hierarchy, including nested tabs,
+wrappers, and floats. A standalone `TabGroup` or `Tab` owns a separate
+hierarchy until embedded in another owner. Panels implementing `Unmounter`
+are unmounted once after they are detached and no longer reachable from that
+owner. Hiding, collapsing, focus changes, and reparenting do not unmount a
+panel. Pointer-backed panels use instance identity; sharing the same panel
+instance across independent `Warp` roots is unsupported and remains the
+caller's responsibility. Warp does not maintain a global ownership registry.
+
 ### HTTP serving
 
 ```go

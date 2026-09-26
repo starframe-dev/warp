@@ -44,6 +44,10 @@
 
 `BroadcastResize()` возвращает `tea.BatchMsg` команд, полученных от листовых панелей после рассылки resize с текущими размерами вкладки. `broadcastMsg` передаёт сообщение всем листьям дерева и float-панелям.
 
+## Владение ресурсами
+
+Самостоятельная `Tab` создаёт собственный домен владения; если она входит в `TabGroup` или `Warp`, использует домен владельца. При `SetRootPanel`, Flex replacement и `CloseFloat` код сначала собирает кандидатов, отсоединяет прежнюю структуру/float, затем проверяет достижимость оставшихся панелей во всём домене. `Unmount` вызывается только для недостижимых экземпляров, однократно на экземпляр. Reparenting, скрытие, сворачивание и смена focus не освобождают панель. Указательные панели сравниваются по типу и адресу, не через deep equality.
+
 ## Внутренние функции
 
 Внутренние методы включают `renderContent`, `clampFloatsToViewport`, `clampFloats`, `elementsNode`, `elementsFlex`, `panelAt`, `panelAtNode`, `panelAtFlex`, `focusStep`, `setFocusedFocusable`, `setFocus`, `isActive`, `suspendFocus`, `resumeFocus`, `collapseNode`, `expandNode`, `saveCollapse`, `saveFractionForNode`, `restoreCollapse`, `setSplitFractionNode`, `getSplitFractionNode`, `broadcastResize`, `broadcastNode`, `hitBorder`, `updateDrag`, `updateSplitDrag`, `updateFlexDrag`, `updateFlexCollapsed` и `updateFlexCollapsedNode`. `emptyPanel` — пустая реализация `Panel`, возвращающая пустую строку и nil-команду.

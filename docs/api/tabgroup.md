@@ -63,7 +63,10 @@ retaining its focus target, then calls `Focus` on the new active tab's
 retained target. Thus an inactive tab does not report a focused child,
 but its focus target is restored when reactivated. Closing a tab blurs
 and clears its focused panel; closing the active tab restores focus in
-the newly active tab.
+the newly active tab. After removal, panels implementing `Unmounter` are
+unmounted only if no remaining tab or float in the same ownership hierarchy
+references that instance. A standalone `TabGroup` owns its hierarchy; when
+embedded in a `Warp`, the outer `Warp` owns it.
 
 ### Rendering
 

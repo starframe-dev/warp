@@ -49,28 +49,32 @@ func samePanel(a, b Panel) bool {
 
 // collectFocusables returns all focusable panels in the tree, in visual order.
 func collectFocusables(node *Node) []Focusable {
+	var result []Focusable
+	appendFocusables(&result, node)
+	return result
+}
+
+func appendFocusables(result *[]Focusable, node *Node) {
 	if node == nil {
-		return nil
+		return
 	}
 	if node.IsLeaf() {
-		if f, ok := isFocusable(node.Panel); ok {
-			return []Focusable{f}
+		if focusable, ok := isFocusable(node.Panel); ok {
+			*result = append(*result, focusable)
 		}
-		return nil
+		return
 	}
-	var result []Focusable
 	if node.Split != nil {
-		result = append(result, collectFocusables(node.Split.First)...)
-		result = append(result, collectFocusables(node.Split.Second)...)
+		appendFocusables(result, node.Split.First)
+		appendFocusables(result, node.Split.Second)
 	}
 	if node.Flex != nil {
 		for _, item := range node.Flex.Items {
 			if item != nil {
-				result = append(result, collectFocusables(item.Node)...)
+				appendFocusables(result, item.Node)
 			}
 		}
 	}
-	return result
 }
 
 // focusIndex returns the index of the currently focused panel in the list.

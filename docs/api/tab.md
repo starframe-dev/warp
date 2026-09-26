@@ -84,6 +84,10 @@ be queried as an element provider before real panels are attached.
 - **Focus cleanup:** `CloseFloat` blurs and clears the focus target when
   it removes the focused float. An outside click may then focus the panel
   under the click.
+- **Resource lifecycle:** a standalone `Tab` owns its root tree and
+  floating panels; a tab inside a `TabGroup`/`Warp` uses that outer owner.
+  Removing the final reference to a panel calls its optional `Unmount`
+  after detachment. Reparenting and UI visibility changes do not unmount.
 - **Collapse/Expand:** `Collapse` saves the split fraction and shrinks
   the panel to a fixed size; `Expand` restores the saved fraction. Flex
   items and `Collapsible` panels are assigned the requested state
@@ -93,6 +97,9 @@ be queried as an element provider before real panels are attached.
   layouts, computing per-branch sizes (accounting for 1-cell borders)
   and offsetting element bounds so coordinates are relative to the tab
   content area.
+
+Panel instances shared across independent owner roots are unsupported and
+must be managed by the caller; lifecycle tracking is local, not global.
 
 ## Usage
 

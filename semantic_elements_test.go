@@ -143,6 +143,10 @@ func TestNestedWrappersPreserveElementsInInspectorCoordinates(t *testing.T) {
 	})
 	warp := New()
 	warp.SetRoot(wrapped)
+	if err := warp.ServeHTTP("127.0.0.1:0"); err != nil {
+		t.Fatalf("ServeHTTP failed: %v", err)
+	}
+	defer warp.CloseHTTP()
 	warp.Update(tea.WindowSizeMsg{Width: 8, Height: 3})
 
 	view := strings.Split(ansi.Strip(warp.View()), "\n")

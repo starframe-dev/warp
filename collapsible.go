@@ -62,6 +62,22 @@ func (c *Collapsible) Elements(w, h int) []Element {
 	return elements
 }
 
+// ContentHeight adds the persistent title row to a known content height.
+func (c *Collapsible) ContentHeight(width int) (int, bool) {
+	if c.Collapsed {
+		return 1, true
+	}
+	contentHeight, known := panelContentHeight(c.Content, width)
+	if !known {
+		return 0, false
+	}
+	maxInt := int(^uint(0) >> 1)
+	if contentHeight == maxInt {
+		return maxInt, true
+	}
+	return contentHeight + 1, true
+}
+
 // Update forwards visible content events and adjusts coordinates for the title row.
 func (c *Collapsible) Update(msg tea.Msg) tea.Cmd {
 	if isNilPanel(c.Content) {

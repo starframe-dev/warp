@@ -41,6 +41,7 @@ func TestServeHTTPConcurrentElementsRequestsUseSnapshot(t *testing.T) {
 		t.Fatalf("ServeHTTP failed: %v", err)
 	}
 	defer warp.CloseHTTP()
+	warp.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	const workers, requestsPerWorker = 12, 12
@@ -144,6 +145,8 @@ func TestElementsSnapshotAvoidsConcurrentLiveUITreeTraversal(t *testing.T) {
 		t.Fatalf("ServeHTTP failed: %v", err)
 	}
 	defer warp.CloseHTTP()
+	warp.Update(snapshotTick{})
+	warp.View()
 
 	const uiIterations, workers, requestsPerWorker = 1200, 6, 100
 	start := make(chan struct{})

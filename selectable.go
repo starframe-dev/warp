@@ -133,9 +133,10 @@ func (s *Selectable) View(w, h int) string {
 	// Get content first and remember the rendered lines so SelectedText can
 	// extract text using the exact same coordinate system.
 	content := s.Content.View(w, h)
+	lines := strings.Split(content, "\n")
 	s.lastW = w
 	s.lastH = h
-	s.lastLines = strings.Split(content, "\n")
+	s.lastLines = lines
 
 	if s.HasSelection || s.Selecting {
 		s.clampSelection(w, h)
@@ -145,7 +146,6 @@ func (s *Selectable) View(w, h int) string {
 		return content
 	}
 
-	lines := strings.Split(content, "\n")
 	result := make([]string, len(lines))
 
 	sx, sy, ex, ey := s.sortedBounds()
@@ -170,6 +170,11 @@ func (s *Selectable) View(w, h int) string {
 // Elements transparently forwards semantic elements from the wrapped panel.
 func (s *Selectable) Elements(w, h int) []Element {
 	return cloneElements(collectElements(s.Content, max(0, w), max(0, h)))
+}
+
+// ContentHeight forwards a known intrinsic height from the wrapped panel.
+func (s *Selectable) ContentHeight(width int) (int, bool) {
+	return panelContentHeight(s.Content, width)
 }
 
 // Update handles mouse and keyboard for selection.

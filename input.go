@@ -17,6 +17,17 @@ type Input struct {
 	Prompt  string
 	Width   int // desired width (0 = auto from View w)
 	focused bool
+
+	graphemeValue  string
+	graphemes      []inputGrapheme
+	graphemesValid bool
+}
+
+type inputGrapheme struct {
+	byteStart, byteEnd int
+	runeStart, runeEnd int
+	cellStart          int
+	cellWidth          int
 }
 
 // NewInput creates a new empty input with the given prompt.
@@ -31,7 +42,7 @@ func NewInput(prompt string) *Input {
 // SetValue replaces the input value and places the cursor at the end.
 func (in *Input) SetValue(v string) {
 	in.Value = v
-	in.Cursor = utf8.RuneCountInString(v)
+	in.Cursor = in.graphemeRuneCount()
 	in.clampCursor()
 }
 
@@ -119,7 +130,7 @@ func (in *Input) renderLine(maxW int) string {
 		return prefix
 	}
 
-	value, cursor := truncateInputAtCursor(in.Value, maxW-prefixWidth, in.Cursor)
+	value, cursor := truncateInputAtCursor(in.Value, maxW-prefixWidth, in.Cursor, in.graphemeLayout())
 	var result strings.Builder
 	result.WriteString(prefix)
 
@@ -143,35 +154,57 @@ func (in *Input) renderLine(maxW int) string {
 	return result.String()
 }
 
-func truncateInputAtCursor(value string, maxCells, cursor int) (string, int) {
-	if maxCells <= 0 {
-		return "", 0
+func (in *Input) graphemeLayout() []inputGrapheme {
+	if in.graphemesValid && in.graphemeValue == in.Value {
+		return in.graphemes
 	}
-	type cluster struct {
-		text                 string
-		runeStart, runeEnd   int
-		cellStart, cellWidth int
-	}
-	var clusters []cluster
-	runePos, cellPos := 0, 0
-	graphemes := uniseg.NewGraphemes(value)
+
+	in.graphemes = in.graphemes[:0]
+	bytePos, runePos, cellPos := 0, 0, 0
+	graphemes := uniseg.NewGraphemes(in.Value)
 	for graphemes.Next() {
 		text := graphemes.Str()
 		runeCount := utf8.RuneCountInString(text)
 		width := ansi.StringWidth(text)
-		clusters = append(clusters, cluster{
-			text: text, runeStart: runePos, runeEnd: runePos + runeCount,
+		in.graphemes = append(in.graphemes, inputGrapheme{
+			byteStart: bytePos, byteEnd: bytePos + len(text),
+			runeStart: runePos, runeEnd: runePos + runeCount,
 			cellStart: cellPos, cellWidth: width,
 		})
+		bytePos += len(text)
 		runePos += runeCount
 		cellPos += width
 	}
-	cursor = min(max(0, cursor), runePos)
-	if cellPos <= maxCells {
+	in.graphemeValue = in.Value
+	in.graphemesValid = true
+	return in.graphemes
+}
+
+func (in *Input) graphemeRuneCount() int {
+	graphemes := in.graphemeLayout()
+	if len(graphemes) == 0 {
+		return 0
+	}
+	return graphemes[len(graphemes)-1].runeEnd
+}
+
+func truncateInputAtCursor(value string, maxCells, cursor int, clusters []inputGrapheme) (string, int) {
+	if maxCells <= 0 {
+		return "", 0
+	}
+	runeCount := 0
+	cellWidth := 0
+	if len(clusters) > 0 {
+		last := clusters[len(clusters)-1]
+		runeCount = last.runeEnd
+		cellWidth = last.cellStart + last.cellWidth
+	}
+	cursor = min(max(0, cursor), runeCount)
+	if cellWidth <= maxCells {
 		return value, cursor
 	}
 
-	cursorCell := cellPos
+	cursorCell := cellWidth
 	for _, current := range clusters {
 		if cursor <= current.runeStart {
 			cursorCell = current.cellStart
@@ -200,7 +233,7 @@ func truncateInputAtCursor(value string, maxCells, cursor int) (string, int) {
 		}
 		before := resultRunes
 		if start == current.cellStart && end == cellEnd {
-			result.WriteString(current.text)
+			result.WriteString(value[current.byteStart:current.byteEnd])
 			resultRunes += current.runeEnd - current.runeStart
 		} else {
 			result.WriteString(strings.Repeat(" ", end-start))
@@ -238,13 +271,13 @@ func (in *Input) Update(msg tea.Msg) tea.Cmd {
 	case "delete":
 		in.deleteAtCursor()
 	case "left":
-		in.Cursor = previousGraphemeBoundary(in.Value, in.Cursor)
+		in.Cursor = previousGraphemeBoundary(in.graphemeLayout(), in.Cursor)
 	case "right":
-		in.Cursor = nextGraphemeBoundary(in.Value, in.Cursor)
+		in.Cursor = nextGraphemeBoundary(in.graphemeLayout(), in.Cursor)
 	case "home":
 		in.Cursor = 0
 	case "end":
-		in.Cursor = len([]rune(in.Value))
+		in.Cursor = in.graphemeRuneCount()
 	case "tab", "shift+tab":
 		// Handled by parent focus traversal
 	case "enter":
@@ -272,7 +305,7 @@ func (in *Input) insertAtCursor(s string) {
 
 func (in *Input) deleteBeforeCursor() {
 	in.clampCursor()
-	start := previousGraphemeBoundary(in.Value, in.Cursor)
+	start := previousGraphemeBoundary(in.graphemeLayout(), in.Cursor)
 	if start == in.Cursor {
 		return
 	}
@@ -285,7 +318,7 @@ func (in *Input) deleteBeforeCursor() {
 
 func (in *Input) deleteAtCursor() {
 	in.clampCursor()
-	end := nextGraphemeBoundary(in.Value, in.Cursor)
+	end := nextGraphemeBoundary(in.graphemeLayout(), in.Cursor)
 	if end == in.Cursor {
 		return
 	}
@@ -296,54 +329,57 @@ func (in *Input) deleteAtCursor() {
 }
 
 func (in *Input) clampCursor() {
-	in.Cursor = normalizeGraphemeCursor(in.Value, in.Cursor)
+	in.Cursor = normalizeGraphemeCursor(in.graphemeLayout(), in.Cursor)
 }
 
-func normalizeGraphemeCursor(value string, runePos int) int {
-	runePos = max(0, min(runePos, utf8.RuneCountInString(value)))
+func normalizeGraphemeCursor(graphemes []inputGrapheme, runePos int) int {
+	runeCount := 0
+	if len(graphemes) > 0 {
+		runeCount = graphemes[len(graphemes)-1].runeEnd
+	}
+	runePos = max(0, min(runePos, runeCount))
 	if runePos == 0 {
 		return 0
 	}
+	for _, current := range graphemes {
+		if runePos <= current.runeEnd {
+			return current.runeEnd
+		}
+	}
+	return runeCount
+}
 
+func previousGraphemeBoundary(graphemes []inputGrapheme, runePos int) int {
+	runeCount := 0
+	if len(graphemes) > 0 {
+		runeCount = graphemes[len(graphemes)-1].runeEnd
+	}
+	runePos = max(0, min(runePos, runeCount))
 	boundary := 0
-	graphemes := uniseg.NewGraphemes(value)
-	for graphemes.Next() {
-		boundary += utf8.RuneCountInString(graphemes.Str())
+	for _, current := range graphemes {
 		if runePos <= boundary {
 			return boundary
 		}
+		if runePos <= current.runeEnd {
+			return boundary
+		}
+		boundary = current.runeEnd
 	}
 	return boundary
 }
 
-func previousGraphemeBoundary(value string, runePos int) int {
-	runePos = max(0, min(runePos, utf8.RuneCountInString(value)))
-	boundary := 0
-	graphemes := uniseg.NewGraphemes(value)
-	for graphemes.Next() {
-		if runePos <= boundary {
-			return boundary
-		}
-		end := boundary + utf8.RuneCountInString(graphemes.Str())
-		if runePos <= end {
-			return boundary
-		}
-		boundary = end
+func nextGraphemeBoundary(graphemes []inputGrapheme, runePos int) int {
+	runeCount := 0
+	if len(graphemes) > 0 {
+		runeCount = graphemes[len(graphemes)-1].runeEnd
 	}
-	return boundary
-}
-
-func nextGraphemeBoundary(value string, runePos int) int {
-	runePos = max(0, min(runePos, utf8.RuneCountInString(value)))
-	boundary := 0
-	graphemes := uniseg.NewGraphemes(value)
-	for graphemes.Next() {
-		boundary += utf8.RuneCountInString(graphemes.Str())
-		if runePos < boundary {
-			return boundary
+	runePos = max(0, min(runePos, runeCount))
+	for _, current := range graphemes {
+		if runePos < current.runeEnd {
+			return current.runeEnd
 		}
 	}
-	return boundary
+	return runeCount
 }
 
 var (

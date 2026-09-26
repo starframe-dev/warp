@@ -20,6 +20,61 @@ inside warp panes. It exposes two methods:
 | `View(width, height int) string` | Renders the panel content for the given dimensions. |
 | `Update(msg tea.Msg) tea.Cmd` | Handles incoming Bubbletea messages (keys, mouse, etc.) while the panel is focused. |
 
+### Optional ContentHeightProvider
+
+```go
+type ContentHeightProvider interface {
+    ContentHeight(width int) (height int, known bool)
+}
+```
+
+This optional interface reports intrinsic content height at a given width.
+`known == false` means the height cannot be determined reliably; providers
+must not render content to estimate it. Consumers treat a negative known
+height as zero. `Panel` itself is unchanged, so existing implementations
+remain compatible. A known intrinsic extent enables accurate bounded
+scrolling; a padded `View` output alone may not reveal the content end.
+Built-in wrappers preserve the contract: `Selectable` forwards a known
+height, while `Collapsible` includes its title row and reports an expanded
+height only when the inner height is known.
+
+### Optional viewport interfaces
+
+```go
+type ViewportRenderer interface {
+    ViewAt(width, height, offset int) string
+}
+
+type ViewportElementProvider interface {
+    ElementsAt(width, height, offset int) []Element
+}
+```
+
+These optional interfaces let a panel render or inspect only a requested
+content viewport. `Scrollable` uses them only when the same panel reports a
+known intrinsic extent through `ContentHeightProvider`. `ViewAt` returns only
+the requested rows. `ElementsAt` returns visible elements whose bounds remain
+relative to the full content origin, so Scrollable can clip and translate them
+as usual. Panels without these interfaces retain the legacy `View`/`Elements`
+path.
+
+### Optional Unmounter
+
+```go
+type Unmounter interface {
+    Unmount()
+}
+```
+
+Warp calls `Unmount` after the panel is detached and its last reference is
+removed from its owning panel hierarchy. Repeated references within one
+hierarchy are deduplicated by panel instance; hiding, collapsing, focus changes,
+and reparenting do not unmount a panel. Implement `Unmount` on pointer-backed
+panels so instance identity is stable. A `Warp` root owns its full hierarchy;
+a standalone `TabGroup` or `Tab` owns a separate hierarchy. Sharing one panel
+instance across independent owner roots is unsupported and must be managed by
+the caller; Warp does not coordinate ownership globally.
+
 ### BasePanel (struct)
 
 ` type BasePanel struct{} func (BasePanel) View(width, height int) string { return "" } func (BasePanel) Update(msg tea.Msg) tea.Cmd { return nil } `

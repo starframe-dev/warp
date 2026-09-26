@@ -2,12 +2,13 @@ package warp
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -15,15 +16,22 @@ import (
 // Warp is the root Bubbletea model. It holds a root Panel and forwards
 // all messages to it without interception.
 type Warp struct {
-	root         Panel
-	rootRevision uint64
-	width        int
-	height       int
+	root                Panel
+	rootRevision        uint64
+	stateRevision       uint64
+	snapshotRevision    uint64
+	viewSnapshotPending bool
+	width               int
+	height              int
+	ownership           *panelOwnership
+	ownsDomainRoot      bool
+	setRootMu           sync.Mutex
 
 	httpServer         *http.Server
 	httpAddr           string
 	httpClosing        bool
-	elementsSnapshot   []Element
+	inspectorEnabled   bool
+	elementsSnapshot   *elementSnapshot
 	elementsSnapshotMu sync.RWMutex
 	mu                 sync.RWMutex
 }
@@ -31,16 +39,47 @@ type Warp struct {
 // New creates a new Warp with a TabGroup root (one default tab).
 func New() *Warp {
 	tg := NewTabGroup(TabTop)
-	return &Warp{root: tg, elementsSnapshot: []Element{}}
+	ownership := newPanelOwnership(tg)
+	w := &Warp{
+		root:           tg,
+		ownership:      ownership,
+		ownsDomainRoot: true,
+	}
+	attachPanelOwnership(tg, ownership)
+	return w
 }
 
 // SetRoot replaces the root panel. Use this to install custom layouts
 // (splits, flex, nested tab groups, etc.).
 func (w *Warp) SetRoot(panel Panel) {
+	w.setRootMu.Lock()
+	w.mu.Lock()
+	oldRoot := w.root
+	ownership := w.ownership
+	ownsDomainRoot := w.ownsDomainRoot
+	if ownership == nil {
+		ownership = newPanelOwnership(nil)
+		w.ownership = ownership
+		w.ownsDomainRoot = true
+		ownsDomainRoot = true
+	}
+	w.mu.Unlock()
+
+	candidates := collectPanelInstances(oldRoot)
+	attachPanelOwnership(panel, ownership)
+
 	w.mu.Lock()
 	w.root = panel
 	w.rootRevision++
+	w.stateRevision++
+	w.viewSnapshotPending = false
 	w.mu.Unlock()
+	if ownsDomainRoot {
+		ownership.setRoot(panel)
+	}
+	w.setRootMu.Unlock()
+
+	ownership.unmountRemoved(candidates)
 }
 
 // Root returns the current root panel.
@@ -120,34 +159,63 @@ func (w *Warp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		w.width = size.Width
 		w.height = size.Height
 	}
-	root, width, height, rootRevision := w.root, w.width, w.height, w.rootRevision
+	w.stateRevision++
+	root, width, height := w.root, w.width, w.height
+	rootRevision, stateRevision := w.rootRevision, w.stateRevision
+	inspectorEnabled := w.inspectorEnabled
 	w.mu.Unlock()
 
 	var cmd tea.Cmd
 	if !isNilPanel(root) {
 		cmd = root.Update(msg)
 	}
-	w.refreshElementsSnapshot(root, width, height, rootRevision)
+	if inspectorEnabled && w.refreshElementsSnapshot(root, width, height, rootRevision, stateRevision) {
+		w.mu.Lock()
+		if w.inspectorEnabled && w.rootRevision == rootRevision && w.stateRevision == stateRevision {
+			w.viewSnapshotPending = true
+		}
+		w.mu.Unlock()
+	}
 	return w, cmd
 }
 
 // View renders the root panel.
 func (w *Warp) View() string {
 	w.mu.RLock()
-	root, width, height, rootRevision := w.root, w.width, w.height, w.rootRevision
+	root, width, height := w.root, w.width, w.height
+	rootRevision, stateRevision := w.rootRevision, w.stateRevision
+	inspectorEnabled := w.inspectorEnabled
 	w.mu.RUnlock()
 	if isNilPanel(root) {
-		w.refreshElementsSnapshot(nil, width, height, rootRevision)
+		w.refreshSnapshotAfterView(nil, width, height, rootRevision, stateRevision, inspectorEnabled)
 		return ""
 	}
 	if width == 0 || height == 0 {
-		w.refreshElementsSnapshot(root, width, height, rootRevision)
+		w.refreshSnapshotAfterView(root, width, height, rootRevision, stateRevision, inspectorEnabled)
 		return "Loading..."
 	}
 
 	view := root.View(width, height)
-	w.refreshElementsSnapshot(root, width, height, rootRevision)
+	w.refreshSnapshotAfterView(root, width, height, rootRevision, stateRevision, inspectorEnabled)
 	return view
+}
+
+func (w *Warp) refreshSnapshotAfterView(root Panel, width, height int, rootRevision, stateRevision uint64, inspectorEnabled bool) {
+	if !inspectorEnabled {
+		return
+	}
+
+	w.mu.Lock()
+	skip := w.inspectorEnabled && w.rootRevision == rootRevision &&
+		w.stateRevision == stateRevision && w.viewSnapshotPending &&
+		w.snapshotRevision == stateRevision
+	if skip {
+		w.viewSnapshotPending = false
+	}
+	w.mu.Unlock()
+	if !skip {
+		w.refreshElementsSnapshot(root, width, height, rootRevision, stateRevision)
+	}
 }
 
 // AsPanel returns a Panel adapter for this Warp, enabling nested warps.
@@ -184,6 +252,13 @@ func (w *Warp) Run() error {
 	return err
 }
 
+const (
+	httpReadHeaderTimeout = 5 * time.Second
+	httpIdleTimeout       = 60 * time.Second
+	httpWriteTimeout      = 60 * time.Second
+	httpShutdownTimeout   = 5 * time.Second
+)
+
 // ServeHTTP starts an HTTP server exposing the element tree at /elements.
 func (w *Warp) ServeHTTP(addr string) error {
 	w.mu.Lock()
@@ -213,12 +288,18 @@ func (w *Warp) ServeHTTP(addr string) error {
 	if err != nil {
 		return fmt.Errorf("warp http listen: %w", err)
 	}
+	server := &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: httpReadHeaderTimeout,
+		IdleTimeout:       httpIdleTimeout,
+		WriteTimeout:      httpWriteTimeout,
+	}
 	w.httpAddr = ln.Addr().String()
-
-	w.httpServer = &http.Server{Handler: mux}
-	go func(srv *http.Server) {
-		_ = srv.Serve(ln)
-	}(w.httpServer)
+	w.httpServer = server
+	w.inspectorEnabled = true
+	go func() {
+		_ = server.Serve(ln)
+	}()
 	return nil
 }
 
@@ -233,13 +314,31 @@ func (w *Warp) CloseHTTP() error {
 	w.httpServer = nil
 	w.httpAddr = ""
 	w.httpClosing = true
+	w.inspectorEnabled = false
+	w.viewSnapshotPending = false
+	w.elementsSnapshotMu.Lock()
+	w.elementsSnapshot = nil
+	w.elementsSnapshotMu.Unlock()
 	w.mu.Unlock()
 
-	err := server.Shutdown(context.Background())
+	shutdownErr := shutdownHTTPServer(server, httpShutdownTimeout)
+
 	w.mu.Lock()
 	w.httpClosing = false
 	w.mu.Unlock()
-	return err
+	return shutdownErr
+}
+
+func shutdownHTTPServer(server *http.Server, timeout time.Duration) error {
+	if server == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := server.Shutdown(ctx); err != nil {
+		return errors.Join(err, server.Close())
+	}
+	return nil
 }
 
 // HTTPAddr returns the current HTTP listening address, or empty if not serving.
@@ -251,19 +350,28 @@ func (w *Warp) HTTPAddr() string {
 
 func (w *Warp) handleElements(wr http.ResponseWriter, _ *http.Request) {
 	w.elementsSnapshotMu.RLock()
-	elems := w.elementsSnapshot
+	snapshot := w.elementsSnapshot
 	w.elementsSnapshotMu.RUnlock()
-	if elems == nil {
-		elems = []Element{}
-	}
 
+	encoded, err := snapshot.jsonBytes()
+	if err != nil {
+		http.Error(wr, "failed to encode element snapshot", http.StatusInternalServerError)
+		return
+	}
 	wr.Header().Set("Content-Type", "application/json")
 	wr.Header().Set("Access-Control-Allow-Origin", "*")
 	wr.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(wr).Encode(elems)
+	_, _ = wr.Write(encoded)
 }
 
-func (w *Warp) refreshElementsSnapshot(root Panel, width, height int, rootRevision uint64) {
+func (w *Warp) refreshElementsSnapshot(root Panel, width, height int, rootRevision, stateRevision uint64) bool {
+	w.mu.RLock()
+	enabled := w.inspectorEnabled && w.rootRevision == rootRevision && w.stateRevision == stateRevision
+	w.mu.RUnlock()
+	if !enabled {
+		return false
+	}
+
 	if width <= 0 {
 		width = 80
 	}
@@ -275,19 +383,19 @@ func (w *Warp) refreshElementsSnapshot(root Panel, width, height int, rootRevisi
 	if !isNilPanel(root) {
 		elems = cloneElements(collectElements(root, width, height))
 	}
-	if elems == nil {
-		elems = []Element{}
-	}
+	snapshot := newElementSnapshot(elems)
 
-	w.mu.RLock()
-	if rootRevision != w.rootRevision {
-		w.mu.RUnlock()
-		return
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if !w.inspectorEnabled || rootRevision != w.rootRevision || stateRevision != w.stateRevision {
+		return false
 	}
 	w.elementsSnapshotMu.Lock()
-	w.elementsSnapshot = elems
+	w.elementsSnapshot = snapshot
 	w.elementsSnapshotMu.Unlock()
-	w.mu.RUnlock()
+	w.snapshotRevision = stateRevision
+	w.viewSnapshotPending = false
+	return true
 }
 
 func cloneElements(elems []Element) []Element {

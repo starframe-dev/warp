@@ -127,6 +127,25 @@ func TestInputBoxedValueAppearsInOneInteriorRow(t *testing.T) {
 	}
 }
 
+func TestInputRebuildsGraphemeCacheAfterDirectValueAssignment(t *testing.T) {
+	input := NewInput("")
+	input.Focus()
+	input.SetValue("abc")
+	_ = input.View(12, 1)
+
+	input.Value = "e\u0301👩‍💻"
+	input.Cursor = 1
+	input.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if want := len([]rune(input.Value)); input.Cursor != want {
+		t.Fatalf("cursor after direct Unicode value assignment = %d, want %d", input.Cursor, want)
+	}
+
+	input.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	if input.Value != "e\u0301" || input.Cursor != len([]rune(input.Value)) {
+		t.Fatalf("backspace after direct assignment = (%q, %d)", input.Value, input.Cursor)
+	}
+}
+
 func TestInputNarrowPromptAndBoxStayWithinCellBounds(t *testing.T) {
 	input := NewInput("界🙂 ")
 	for width := 0; width <= 8; width++ {

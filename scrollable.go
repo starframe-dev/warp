@@ -11,6 +11,17 @@ import (
 type Scrollable struct {
 	Content Panel
 	Offset  int // scroll offset in lines
+
+	lastWidth, lastHeight int
+	hasViewport           bool
+	hasLocalResize        bool
+}
+
+type scrollableViewport struct {
+	offset int
+	lines  []string
+	probed bool
+	known  bool
 }
 
 // NewScrollable creates a new scrollable wrapper.
@@ -22,9 +33,10 @@ func NewScrollable(content Panel) *Scrollable {
 func (s *Scrollable) View(w, h int) string {
 	w = max(0, w)
 	h = max(0, h)
-	if s.Offset < 0 {
-		s.Offset = 0
-	}
+	s.rememberViewport(w, h)
+
+	viewport := s.effectiveOffset(w, h)
+	s.Offset = viewport.offset
 	if isNilPanel(s.Content) {
 		return emptyView(h)
 	}
@@ -32,19 +44,24 @@ func (s *Scrollable) View(w, h int) string {
 		return ""
 	}
 
-	// Render only through the end of the requested viewport, not an arbitrary height.
-	requestHeight := s.requestedContentHeight(h)
-	fullContent := s.Content.View(w, requestHeight)
-	lines := strings.Split(fullContent, "\n")
-
-	maxOffset := max(0, len(lines)-h)
-	if s.Offset > maxOffset {
-		s.Offset = maxOffset
+	lines := viewport.lines
+	lineOffset := viewport.offset
+	if viewport.known {
+		if renderer, ok := s.Content.(ViewportRenderer); ok {
+			lines = strings.Split(renderer.ViewAt(w, h, viewport.offset), "\n")
+			lineOffset = 0
+		} else if !viewport.probed {
+			content := s.Content.View(w, scrollableRequestHeight(viewport.offset, h))
+			lines = strings.Split(content, "\n")
+		}
+	} else if !viewport.probed {
+		content := s.Content.View(w, scrollableRequestHeight(viewport.offset, h))
+		lines = strings.Split(content, "\n")
 	}
 
 	visible := make([]string, h)
 	for i := range visible {
-		idx := s.Offset + i
+		idx := saturatingAddNonNegative(lineOffset, i)
 		if idx < len(lines) {
 			visible[i] = padLine(lines[idx], w)
 		} else {
@@ -55,79 +72,151 @@ func (s *Scrollable) View(w, h int) string {
 }
 
 // Elements returns semantic elements translated into the visible viewport.
+// It uses the effective offset without changing the stored Offset.
 func (s *Scrollable) Elements(w, h int) []Element {
 	w = max(0, w)
 	h = max(0, h)
-	if s.Offset < 0 {
-		s.Offset = 0
-	}
 	if isNilPanel(s.Content) || w == 0 || h == 0 {
 		return nil
 	}
 
-	requestHeight := s.requestedContentHeight(h)
-	visibleHeight := requestHeight - s.Offset
-	elements := collectElements(s.Content, w, requestHeight)
-	elements = clipElements(elements, Bounds{X: 0, Y: s.Offset, W: w, H: visibleHeight})
-	shiftElements(elements, 0, -s.Offset)
+	viewport := s.effectiveOffset(w, h)
+	requestHeight := scrollableRequestHeight(viewport.offset, h)
+	var sourceElements []Element
+	if viewport.known {
+		if provider, ok := s.Content.(ViewportElementProvider); ok {
+			sourceElements = provider.ElementsAt(w, h, viewport.offset)
+		} else {
+			sourceElements = collectElements(s.Content, w, requestHeight)
+		}
+	} else {
+		sourceElements = collectElements(s.Content, w, requestHeight)
+	}
+	elements := cloneElements(sourceElements)
+	elements = clipElements(elements, Bounds{X: 0, Y: viewport.offset, W: w, H: h})
+	shiftElements(elements, 0, -viewport.offset)
 	return elements
 }
 
-func (s *Scrollable) requestedContentHeight(viewportHeight int) int {
-	requestHeight := s.Offset + viewportHeight
-	if requestHeight < s.Offset {
-		return int(^uint(0) >> 1)
-	}
-	return requestHeight
+// ContentHeight is unknown because a Scrollable viewport is not an intrinsic
+// content extent for a containing Scrollable.
+func (*Scrollable) ContentHeight(int) (int, bool) {
+	return 0, false
 }
 
-// Update handles scroll messages (mouse wheel, keys).
+func (s *Scrollable) effectiveOffset(w, h int) scrollableViewport {
+	w = max(0, w)
+	h = max(0, h)
+	offset := max(0, s.Offset)
+	if isNilPanel(s.Content) {
+		return scrollableViewport{}
+	}
+
+	if contentHeight, known := panelContentHeight(s.Content, w); known {
+		return scrollableViewport{offset: clampScrollableOffset(offset, contentHeight, h), known: true}
+	}
+	if h == 0 {
+		return scrollableViewport{offset: offset}
+	}
+
+	probeHeight := saturatingAddNonNegative(scrollableRequestHeight(offset, h), 1)
+	lines := strings.Split(s.Content.View(w, probeHeight), "\n")
+	if len(lines) < probeHeight {
+		offset = clampScrollableOffset(offset, len(lines), h)
+	}
+	return scrollableViewport{offset: offset, lines: lines, probed: true}
+}
+
+func clampScrollableOffset(offset, contentHeight, viewportHeight int) int {
+	maxOffset := max(0, max(0, contentHeight)-max(0, viewportHeight))
+	return min(max(0, offset), maxOffset)
+}
+
+func scrollableRequestHeight(offset, viewportHeight int) int {
+	return saturatingAddNonNegative(max(0, offset), max(0, viewportHeight))
+}
+
+func saturatingAddNonNegative(a, b int) int {
+	a = max(0, a)
+	b = max(0, b)
+	maxInt := int(^uint(0) >> 1)
+	if a > maxInt-b {
+		return maxInt
+	}
+	return a + b
+}
+
+func (s *Scrollable) rememberViewport(w, h int) {
+	s.lastWidth = max(0, w)
+	s.lastHeight = max(0, h)
+	s.hasViewport = true
+}
+
+// Update handles scroll messages (mouse wheel, keys) and forwards all messages.
 func (s *Scrollable) Update(msg tea.Msg) tea.Cmd {
 	if s.Offset < 0 {
 		s.Offset = 0
 	}
-	scrollBy := func(delta int) {
-		if delta < 0 {
-			if s.Offset < -delta {
-				s.Offset = 0
-			} else {
-				s.Offset += delta
-			}
-			return
-		}
-		maxInt := int(^uint(0) >> 1)
-		if s.Offset > maxInt-delta {
-			s.Offset = maxInt
-		} else {
-			s.Offset += delta
-		}
-	}
 
+	viewportChanged := false
+	scrollChanged := false
 	switch msg := msg.(type) {
+	case ResizeMsg:
+		s.rememberViewport(msg.Width, msg.Height)
+		s.hasLocalResize = true
+		viewportChanged = true
+	case tea.WindowSizeMsg:
+		if !s.hasLocalResize {
+			s.rememberViewport(msg.Width, msg.Height)
+			viewportChanged = true
+		}
 	case tea.MouseMsg:
 		switch msg.Button {
 		case tea.MouseButtonWheelUp:
-			scrollBy(-3)
+			s.scrollBy(-3)
+			scrollChanged = true
 		case tea.MouseButtonWheelDown:
-			scrollBy(3)
+			s.scrollBy(3)
+			scrollChanged = true
 		}
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up":
-			scrollBy(-1)
+			s.scrollBy(-1)
+			scrollChanged = true
 		case "down":
-			scrollBy(1)
+			s.scrollBy(1)
+			scrollChanged = true
 		case "pgup":
-			scrollBy(-10)
+			s.scrollBy(-10)
+			scrollChanged = true
 		case "pgdown":
-			scrollBy(10)
+			s.scrollBy(10)
+			scrollChanged = true
 		}
 	}
 
+	var cmd tea.Cmd
 	if !isNilPanel(s.Content) {
-		return s.Content.Update(msg)
+		cmd = s.Content.Update(msg)
 	}
-	return nil
+	if s.hasViewport && (viewportChanged || scrollChanged) {
+		s.Offset = s.effectiveOffset(s.lastWidth, s.lastHeight).offset
+	}
+	return cmd
+}
+
+func (s *Scrollable) scrollBy(delta int) {
+	if delta < 0 {
+		amount := -delta
+		if s.Offset < amount {
+			s.Offset = 0
+		} else {
+			s.Offset -= amount
+		}
+		return
+	}
+	s.Offset = saturatingAddNonNegative(s.Offset, delta)
 }
 
 func padLine(line string, w int) string {

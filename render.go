@@ -210,28 +210,18 @@ func computeFlexSizes(avail int, items []*FlexItem) []int {
 	}
 	avail = max(0, avail)
 	sizes := make([]int, len(items))
-	bases := make([]float64, len(items))
 	baseTotal := float64(0)
 	growTotal := float64(0)
-	eligible := make([]int, 0, len(items))
-	growWeights := make([]float64, len(items))
+	eligibleCount := 0
 
-	for i, item := range items {
+	for _, item := range items {
+		baseTotal += flexItemBasis(item)
 		if flexItemCollapsed(item) {
-			bases[i] = 1
-			baseTotal++
 			continue
 		}
-		basis := item.Basis
-		if basis <= 0 {
-			basis = MinPanelSize
-		}
-		bases[i] = float64(basis)
-		baseTotal += bases[i]
-		eligible = append(eligible, i)
+		eligibleCount++
 		if item.Grow > 0 {
-			growWeights[i] = float64(item.Grow)
-			growTotal += growWeights[i]
+			growTotal += float64(item.Grow)
 		}
 	}
 
@@ -239,58 +229,45 @@ func computeFlexSizes(avail int, items []*FlexItem) []int {
 		return sizes
 	}
 	if baseTotal > float64(avail) {
-		weights := make([]float64, len(items))
-		copy(weights, bases)
-		distributeSizes(avail, sizes, weights, allIndices(len(items)))
+		distributeFlexBases(avail, sizes, items, baseTotal)
 		return sizes
 	}
 
 	used := 0
-	for i, basis := range bases {
-		sizes[i] = int(basis)
+	for i, item := range items {
+		sizes[i] = int(flexItemBasis(item))
 		used += sizes[i]
 	}
 	remaining := avail - used
-	if remaining <= 0 || len(eligible) == 0 {
+	if remaining <= 0 || eligibleCount == 0 {
 		return sizes
 	}
 
-	weights := growWeights
-	if growTotal <= 0 {
-		weights = make([]float64, len(items))
-		for _, i := range eligible {
-			weights[i] = 1
-		}
-	}
-	distributeSizes(remaining, sizes, weights, eligible)
+	distributeFlexGrow(remaining, sizes, items, eligibleCount, growTotal)
 	return sizes
 }
 
-func allIndices(n int) []int {
-	indices := make([]int, n)
-	for i := range indices {
-		indices[i] = i
+func flexItemBasis(item *FlexItem) float64 {
+	if flexItemCollapsed(item) {
+		return 1
 	}
-	return indices
+	basis := item.Basis
+	if basis <= 0 {
+		basis = MinPanelSize
+	}
+	return float64(basis)
 }
 
-func distributeSizes(amount int, sizes []int, weights []float64, indices []int) {
-	if amount <= 0 || len(indices) == 0 {
+func distributeFlexBases(amount int, sizes []int, items []*FlexItem, totalWeight float64) {
+	if amount <= 0 || len(items) == 0 || totalWeight <= 0 || math.IsInf(totalWeight, 0) || math.IsNaN(totalWeight) {
 		return
 	}
-	totalWeight := float64(0)
-	for _, i := range indices {
-		totalWeight += weights[i]
-	}
-	if totalWeight <= 0 || math.IsInf(totalWeight, 0) || math.IsNaN(totalWeight) {
-		return
-	}
-
 	remaining := amount
-	for position, index := range indices {
+	for index, item := range items {
+		weight := flexItemBasis(item)
 		share := remaining
-		if position < len(indices)-1 {
-			share = int(math.Floor(float64(amount) * weights[index] / totalWeight))
+		if index < len(items)-1 {
+			share = int(math.Floor(float64(amount) * weight / totalWeight))
 			if share > remaining {
 				share = remaining
 			}
@@ -300,6 +277,45 @@ func distributeSizes(amount int, sizes []int, weights []float64, indices []int) 
 		}
 		sizes[index] += share
 		remaining -= share
+	}
+}
+
+func distributeFlexGrow(amount int, sizes []int, items []*FlexItem, eligibleCount int, growTotal float64) {
+	if amount <= 0 || eligibleCount == 0 {
+		return
+	}
+	uniform := growTotal <= 0
+	totalWeight := growTotal
+	if uniform {
+		totalWeight = float64(eligibleCount)
+	}
+	if totalWeight <= 0 || math.IsInf(totalWeight, 0) || math.IsNaN(totalWeight) {
+		return
+	}
+
+	remaining := amount
+	position := 0
+	for index, item := range items {
+		if flexItemCollapsed(item) {
+			continue
+		}
+		weight := float64(max(0, item.Grow))
+		if uniform {
+			weight = 1
+		}
+		share := remaining
+		if position < eligibleCount-1 {
+			share = int(math.Floor(float64(amount) * weight / totalWeight))
+			if share > remaining {
+				share = remaining
+			}
+			if share < 0 {
+				share = 0
+			}
+		}
+		sizes[index] += share
+		remaining -= share
+		position++
 	}
 }
 

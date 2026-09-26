@@ -216,6 +216,7 @@ func TestHTTPElementsEndpoint(t *testing.T) {
 		t.Fatalf("ServeHTTP: %v", err)
 	}
 	defer w.CloseHTTP()
+	_ = w.View()
 
 	addr := w.HTTPAddr()
 	resp, err := http.Get("http://" + addr + "/elements")
@@ -246,13 +247,17 @@ func TestElementsDefaultsTo80x24(t *testing.T) {
 	panel := &dimensionElementsPanel{}
 	w.SetRoot(panel)
 	w.View()
-	if panel.width != 80 || panel.height != 24 {
-		t.Fatalf("snapshot size=%dx%d, want 80x24", panel.width, panel.height)
+	if panel.width != 0 || panel.height != 0 {
+		t.Fatalf("ElementProvider called before inspector start with size=%dx%d", panel.width, panel.height)
 	}
 	if err := w.ServeHTTP(":0"); err != nil {
 		t.Fatalf("ServeHTTP: %v", err)
 	}
 	defer w.CloseHTTP()
+	w.View()
+	if panel.width != 80 || panel.height != 24 {
+		t.Fatalf("snapshot size=%dx%d, want 80x24", panel.width, panel.height)
+	}
 
 	resp, err := http.Get("http://" + w.HTTPAddr() + "/elements")
 	if err != nil {
@@ -274,6 +279,7 @@ func TestHTTPCORSEnabled(t *testing.T) {
 		t.Fatalf("ServeHTTP: %v", err)
 	}
 	defer w.CloseHTTP()
+	w.View()
 
 	resp, err := http.Get("http://" + w.HTTPAddr() + "/elements")
 	if err != nil {

@@ -1,5 +1,10 @@
 package warp
 
+import (
+	"encoding/json"
+	"sync"
+)
+
 // Element describes a semantic UI element with its screen bounds.
 type Element struct {
 	Role     string    `json:"role"`
@@ -17,6 +22,35 @@ type Bounds struct {
 	H int `json:"h"`
 }
 
+type elementSnapshot struct {
+	elements []Element
+	jsonOnce sync.Once
+	json     []byte
+	jsonErr  error
+}
+
+func newElementSnapshot(elements []Element) *elementSnapshot {
+	if elements == nil {
+		elements = []Element{}
+	}
+	return &elementSnapshot{elements: elements}
+}
+
+func (snapshot *elementSnapshot) jsonBytes() ([]byte, error) {
+	if snapshot == nil {
+		return []byte("[]\n"), nil
+	}
+	snapshot.jsonOnce.Do(func() {
+		encoded, err := json.Marshal(snapshot.elements)
+		if err != nil {
+			snapshot.jsonErr = err
+			return
+		}
+		snapshot.json = append(encoded, '\n')
+	})
+	return snapshot.json, snapshot.jsonErr
+}
+
 // Center returns the center cell of the bounds.
 func (b Bounds) Center() (int, int) {
 	return b.X + b.W/2, b.Y + b.H/2
@@ -25,6 +59,12 @@ func (b Bounds) Center() (int, int) {
 // ElementProvider is implemented by panels that can expose their UI elements.
 type ElementProvider interface {
 	Elements(width, height int) []Element
+}
+
+// ViewportElementProvider returns semantic elements intersecting the requested
+// content viewport. Returned bounds remain relative to the full content origin.
+type ViewportElementProvider interface {
+	ElementsAt(width, height, offset int) []Element
 }
 
 // collectElements returns elements from a panel if it implements ElementProvider.
