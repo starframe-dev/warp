@@ -2,11 +2,13 @@ package warp
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -204,18 +206,7 @@ func (w *Warp) refreshSnapshotAfterView(root Panel, width, height int, rootRevis
 	if !inspectorEnabled {
 		return
 	}
-
-	w.mu.Lock()
-	skip := w.inspectorEnabled && w.rootRevision == rootRevision &&
-		w.stateRevision == stateRevision && w.viewSnapshotPending &&
-		w.snapshotRevision == stateRevision
-	if skip {
-		w.viewSnapshotPending = false
-	}
-	w.mu.Unlock()
-	if !skip {
-		w.refreshElementsSnapshot(root, width, height, rootRevision, stateRevision)
-	}
+	w.refreshElementsSnapshot(root, width, height, rootRevision, stateRevision)
 }
 
 // AsPanel returns a Panel adapter for this Warp, enabling nested warps.
@@ -241,6 +232,20 @@ func (wp *warpPanel) Update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+// Close releases resources owned by a root Warp and stops its HTTP inspector.
+// Embedded Warps participate in their outer ownership domain and therefore do
+// not unmount their root when Close is called.
+func (w *Warp) Close() error {
+	httpErr := w.CloseHTTP()
+	w.mu.RLock()
+	ownsDomainRoot := w.ownsDomainRoot
+	w.mu.RUnlock()
+	if ownsDomainRoot {
+		w.SetRoot(nil)
+	}
+	return httpErr
+}
+
 // Run starts the Bubbletea program.
 func (w *Warp) Run() error {
 	p := tea.NewProgram(
@@ -259,8 +264,22 @@ const (
 	httpShutdownTimeout   = 5 * time.Second
 )
 
+// InspectorOptions configures optional HTTP inspector access controls.
+// Cross-origin access is disabled by default. Set AllowedOrigin to an exact
+// origin (or "*" explicitly) to opt in. BearerToken protects /elements when set.
+type InspectorOptions struct {
+	AllowedOrigin string
+	BearerToken   string
+}
+
 // ServeHTTP starts an HTTP server exposing the element tree at /elements.
+// It uses secure defaults: no cross-origin access and no authentication token.
 func (w *Warp) ServeHTTP(addr string) error {
+	return w.ServeHTTPWithOptions(addr, InspectorOptions{})
+}
+
+// ServeHTTPWithOptions starts the inspector with explicit access controls.
+func (w *Warp) ServeHTTPWithOptions(addr string, options InspectorOptions) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -277,7 +296,9 @@ func (w *Warp) ServeHTTP(addr string) error {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/elements", w.handleElements)
+	mux.HandleFunc("/elements", func(wr http.ResponseWriter, request *http.Request) {
+		w.handleElementsRequest(wr, request, options)
+	})
 	mux.HandleFunc("/healthz", func(wr http.ResponseWriter, _ *http.Request) {
 		wr.Header().Set("Content-Type", "text/plain")
 		wr.WriteHeader(http.StatusOK)
@@ -364,6 +385,50 @@ func (w *Warp) HTTPAddr() string {
 	return w.httpAddr
 }
 
+func (w *Warp) handleElementsRequest(wr http.ResponseWriter, request *http.Request, options InspectorOptions) {
+	origin := request.Header.Get("Origin")
+	if options.AllowedOrigin != "" && origin != "" &&
+		(options.AllowedOrigin == "*" || options.AllowedOrigin == origin) {
+		allowedOrigin := origin
+		if options.AllowedOrigin == "*" {
+			allowedOrigin = "*"
+		}
+		wr.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+		wr.Header().Add("Vary", "Origin")
+	}
+	if request.Method == http.MethodOptions {
+		wr.Header().Set("Access-Control-Allow-Methods", http.MethodGet)
+		wr.Header().Set("Access-Control-Allow-Headers", "Authorization")
+		wr.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if request.Method != http.MethodGet {
+		http.Error(wr, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !inspectorBearerAuthorized(request.Header.Get("Authorization"), options.BearerToken) {
+		wr.Header().Set("WWW-Authenticate", "Bearer")
+		http.Error(wr, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	w.handleElements(wr, request)
+}
+
+func inspectorBearerAuthorized(header, token string) bool {
+	if token == "" {
+		return true
+	}
+	const prefix = "Bearer "
+	if !strings.HasPrefix(header, prefix) {
+		return false
+	}
+	candidate := strings.TrimPrefix(header, prefix)
+	if len(candidate) != len(token) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(candidate), []byte(token)) == 1
+}
+
 func (w *Warp) handleElements(wr http.ResponseWriter, _ *http.Request) {
 	w.elementsSnapshotMu.RLock()
 	snapshot := w.elementsSnapshot
@@ -375,7 +440,6 @@ func (w *Warp) handleElements(wr http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	wr.Header().Set("Content-Type", "application/json")
-	wr.Header().Set("Access-Control-Allow-Origin", "*")
 	wr.WriteHeader(http.StatusOK)
 	_, _ = wr.Write(encoded)
 }

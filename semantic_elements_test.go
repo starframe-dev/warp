@@ -191,3 +191,29 @@ func TestTabElementsDoesNotMutateProviderOwnedBounds(t *testing.T) {
 		t.Fatalf("Tab.Elements mutated provider-owned bounds: got=%+v want=%+v", panel.elements, original)
 	}
 }
+
+
+func TestTabElementsIncludeFloatsTopmostFirst(t *testing.T) {
+	root := &semanticElementPanel{elements: []Element{{Role: "root", Name: "root", Bounds: Bounds{W: 1, H: 1}}}}
+	lower := &semanticElementPanel{elements: []Element{{Role: "button", Name: "lower", Bounds: Bounds{W: 1, H: 1}}}}
+	upper := &semanticElementPanel{elements: []Element{{Role: "button", Name: "upper", Bounds: Bounds{W: 1, H: 1}}}}
+
+	tab := NewTab("float-elements")
+	tab.SetRootPanel(root)
+	tab.Float(lower, 2, 1, 10, 4)
+	tab.Float(upper, 4, 2, 10, 4)
+
+	elements := tab.Elements(30, 10)
+	if len(elements) != 3 {
+		t.Fatalf("Tab.Elements returned %d elements, want 3: %+v", len(elements), elements)
+	}
+	if elements[0].Name != "upper" || elements[0].Bounds.X != 5 || elements[0].Bounds.Y != 3 {
+		t.Fatalf("topmost float element = %+v, want upper at (5,3)", elements[0])
+	}
+	if elements[1].Name != "lower" || elements[1].Bounds.X != 3 || elements[1].Bounds.Y != 2 {
+		t.Fatalf("lower float element = %+v, want lower at (3,2)", elements[1])
+	}
+	if elements[2].Name != "root" {
+		t.Fatalf("root element order = %+v, want root last after floats", elements[2])
+	}
+}

@@ -229,3 +229,33 @@ func TestRemovedContainersReleaseOwnershipDomainReferences(t *testing.T) {
 		t.Fatalf("removed nested Warp ownership=(%p, owns=%v), want nil and standalone ownership on next use", nestedOwnership, nestedOwnsDomain)
 	}
 }
+
+
+func TestWarpCloseUnmountsOwnedRootAndStopsInspector(t *testing.T) {
+	panel := &lifecyclePanel{name: "root"}
+	w := New()
+	w.SetRoot(panel)
+	if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
+		t.Fatalf("ServeHTTP failed: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+	if panel.unmounts != 1 {
+		t.Fatalf("root Unmount calls=%d, want 1", panel.unmounts)
+	}
+	if w.Root() != nil {
+		t.Fatalf("Root after Close = %T, want nil", w.Root())
+	}
+	if w.HTTPAddr() != "" {
+		t.Fatalf("HTTPAddr after Close = %q, want empty", w.HTTPAddr())
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("second Close failed: %v", err)
+	}
+	if panel.unmounts != 1 {
+		t.Fatalf("second Close changed Unmount calls=%d, want 1", panel.unmounts)
+	}
+}

@@ -189,8 +189,7 @@ func (m *Modal) HandleMouse(msg tea.MouseMsg) bool {
 	// Tree.handleMouse adjusts screen Y → lines Y before calling HandleMouse.
 	titleY := startY + 1 // draggable padding strip
 	xBtnY := startY + 2  // ✕ on title line / also draggable
-	btnY := startY + 4   // buttons line (first row)
-	btnY2 := startY + 5  // buttons line (second row, when wrap)
+	btnY := startY + 4 // buttons line
 
 	// ✕ is at innerWidth-1 within content area, content starts at startX+2 padding left
 	// innerWidth = boxWidth - 6
@@ -213,8 +212,10 @@ func (m *Modal) HandleMouse(msg tea.MouseMsg) bool {
 				return true
 			}
 
-			// Buttons: content area starts at startX+3 (border(1) + padding(2))
-			btnLine := m.buildButtonLine()
+			// Buttons: only fully rendered bracket pairs on the visible button
+			// line are interactive. Truncated/hidden buttons have no hit box.
+			innerWidth := max(0, boxWidth-6)
+			btnLine := ansi.Truncate(m.buildButtonLine(), innerWidth, "")
 			offset := 0
 			for _, btn := range m.Buttons {
 				btnStart, btnEnd := findBracketPair(btnLine, offset)
@@ -224,7 +225,7 @@ func (m *Modal) HandleMouse(msg tea.MouseMsg) bool {
 				// content starts at startX+3 (1 border + 2 padding)
 				btnX1 := startX + 3 + ansi.StringWidth(btnLine[:btnStart])
 				btnX2 := startX + 3 + ansi.StringWidth(btnLine[:btnEnd])
-				if (int(msg.Y) == btnY || int(msg.Y) == btnY2) && int(msg.X) >= btnX1 && int(msg.X) < btnX2 {
+				if int(msg.Y) == btnY && int(msg.X) >= btnX1 && int(msg.X) < btnX2 {
 					if btn.Action != nil {
 						btn.Action()
 					}

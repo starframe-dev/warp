@@ -956,3 +956,44 @@ func TestTabToggleSplitCollapse(t *testing.T) {
 		t.Fatal("expected first child to be expanded after second toggle")
 	}
 }
+
+
+func TestTabFocusTraversalIncludesFloats(t *testing.T) {
+	tab := NewTab("focus-floats")
+	root := &tabFocusablePanel{id: 1}
+	lower := &tabFocusablePanel{id: 2}
+	upper := &tabFocusablePanel{id: 3}
+	tab.SetRootPanel(root)
+	tab.Float(lower, 0, 0, 10, 4)
+	tab.Float(upper, 2, 1, 10, 4)
+
+	tab.FocusFirst()
+	if tab.Focus() != root {
+		t.Fatalf("FocusFirst = %v, want root", tab.Focus())
+	}
+	tab.FocusNext()
+	if tab.Focus() != lower {
+		t.Fatalf("first FocusNext = %v, want lower float", tab.Focus())
+	}
+	tab.FocusNext()
+	if tab.Focus() != upper {
+		t.Fatalf("second FocusNext = %v, want upper float", tab.Focus())
+	}
+	tab.FocusPrev()
+	if tab.Focus() != lower {
+		t.Fatalf("FocusPrev = %v, want lower float", tab.Focus())
+	}
+}
+
+func TestTabFocusTraversalDeduplicatesSharedFloatPanel(t *testing.T) {
+	tab := NewTab("focus-shared")
+	shared := &tabFocusablePanel{id: 1}
+	tab.SetRootPanel(shared)
+	tab.Float(shared, 0, 0, 10, 4)
+
+	tab.FocusFirst()
+	tab.FocusNext()
+	if tab.Focus() != shared {
+		t.Fatalf("shared panel focus changed unexpectedly: %v", tab.Focus())
+	}
+}

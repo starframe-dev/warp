@@ -269,7 +269,7 @@ func TestElementsDefaultsTo80x24(t *testing.T) {
 	}
 }
 
-func TestHTTPCORSEnabled(t *testing.T) {
+func TestHTTPCORSDisabledByDefault(t *testing.T) {
 	w := New()
 	w.width = 80
 	w.height = 24
@@ -281,12 +281,63 @@ func TestHTTPCORSEnabled(t *testing.T) {
 	defer w.CloseHTTP()
 	w.View()
 
-	resp, err := http.Get("http://" + w.HTTPAddr() + "/elements")
+	request, err := http.NewRequest(http.MethodGet, "http://"+w.HTTPAddr()+"/elements", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	request.Header.Set("Origin", "https://example.test")
+	resp, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("get elements: %v", err)
 	}
 	defer resp.Body.Close()
-	if !strings.Contains(resp.Header.Get("Access-Control-Allow-Origin"), "*") {
-		t.Fatalf("expected CORS header, got %q", resp.Header.Get("Access-Control-Allow-Origin"))
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("default inspector CORS header = %q, want empty", got)
+	}
+}
+
+func TestHTTPInspectorOptionsCORSAndBearerToken(t *testing.T) {
+	w := New()
+	w.width = 80
+	w.height = 24
+	w.SetRoot(testElementPanel{elems: []Element{{Role: "status", Name: "ready"}}})
+	if err := w.ServeHTTPWithOptions("127.0.0.1:0", InspectorOptions{
+		AllowedOrigin: "https://example.test",
+		BearerToken:   "secret-token",
+	}); err != nil {
+		t.Fatalf("ServeHTTPWithOptions: %v", err)
+	}
+	defer func() { _ = w.CloseHTTP() }()
+	_ = w.View()
+
+	unauthorized, err := http.NewRequest(http.MethodGet, "http://"+w.HTTPAddr()+"/elements", nil)
+	if err != nil {
+		t.Fatalf("new unauthorized request: %v", err)
+	}
+	if response, err := http.DefaultClient.Do(unauthorized); err != nil {
+		t.Fatalf("unauthorized request: %v", err)
+	} else {
+		_ = response.Body.Close()
+		if response.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("unauthorized status=%d, want 401", response.StatusCode)
+		}
+	}
+
+	authorized, err := http.NewRequest(http.MethodGet, "http://"+w.HTTPAddr()+"/elements", nil)
+	if err != nil {
+		t.Fatalf("new authorized request: %v", err)
+	}
+	authorized.Header.Set("Authorization", "Bearer secret-token")
+	authorized.Header.Set("Origin", "https://example.test")
+	response, err := http.DefaultClient.Do(authorized)
+	if err != nil {
+		t.Fatalf("authorized request: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("authorized status=%d, want 200", response.StatusCode)
+	}
+	if got := response.Header.Get("Access-Control-Allow-Origin"); got != "https://example.test" {
+		t.Fatalf("allowed origin header=%q, want exact configured origin", got)
 	}
 }

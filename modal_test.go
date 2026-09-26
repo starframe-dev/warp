@@ -215,6 +215,48 @@ func TestModalHandleMouse(t *testing.T) {
 		}
 	})
 
+	t.Run("padding below buttons is not clickable", func(t *testing.T) {
+		clicked := false
+		modal := NewModal("T", "C", []ModalButton{{Label: "OK", Action: func() { clicked = true }}}, nil)
+		modal.EnsureDimensions(80, 24)
+		modal.Overlay([]string{strings.Repeat(" ", 80), strings.Repeat(" ", 80), strings.Repeat(" ", 80), strings.Repeat(" ", 80), strings.Repeat(" ", 80), strings.Repeat(" ", 80), strings.Repeat(" ", 80), strings.Repeat(" ", 80), strings.Repeat(" ", 80), strings.Repeat(" ", 80)}, 80, 10)
+
+		consumed := modal.HandleMouse(tea.MouseMsg{
+			Action: tea.MouseActionPress,
+			Button: tea.MouseButtonLeft,
+			X:      modal.StartX() + 4,
+			Y:      modal.StartY() + 5,
+		})
+		if consumed {
+			t.Fatal("padding row click should not be consumed as a button")
+		}
+		if clicked {
+			t.Fatal("padding row click triggered button action")
+		}
+	})
+
+	t.Run("truncated hidden button has no hitbox", func(t *testing.T) {
+		hiddenClicked := false
+		modal := NewModal("T", "C", []ModalButton{
+			{Label: "A"},
+			{Label: "B"},
+			{Label: "DESTRUCTIVE", Action: func() { hiddenClicked = true }},
+		}, nil)
+		modal.Width = 20
+		modal.EnsureDimensions(20, 10)
+		modal.Overlay([]string{strings.Repeat(" ", 20), strings.Repeat(" ", 20), strings.Repeat(" ", 20), strings.Repeat(" ", 20), strings.Repeat(" ", 20), strings.Repeat(" ", 20), strings.Repeat(" ", 20), strings.Repeat(" ", 20), strings.Repeat(" ", 20), strings.Repeat(" ", 20)}, 20, 10)
+
+		_ = modal.HandleMouse(tea.MouseMsg{
+			Action: tea.MouseActionPress,
+			Button: tea.MouseButtonLeft,
+			X:      modal.StartX() + 14,
+			Y:      modal.StartY() + 4,
+		})
+		if hiddenClicked {
+			t.Fatal("truncated hidden button received a click")
+		}
+	})
+
 	t.Run("drag and release", func(t *testing.T) {
 		modal := NewModal("T", "C", nil, nil)
 		modal.EnsureDimensions(80, 24)

@@ -2,9 +2,12 @@ package warp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -24,7 +27,7 @@ func (p *countingElementPanel) Elements(_, _ int) []Element {
 	return []Element{{Role: "status", Name: "ready"}}
 }
 
-func TestInspectorDemandAndUpdateViewSnapshotDeduplication(t *testing.T) {
+func TestInspectorDemandAndPostViewSnapshotRefresh(t *testing.T) {
 	w := New()
 	panel := &countingElementPanel{}
 	w.SetRoot(panel)
@@ -47,12 +50,12 @@ func TestInspectorDemandAndUpdateViewSnapshotDeduplication(t *testing.T) {
 		t.Fatalf("ElementProvider calls after Update = %d, want 1", panel.calls)
 	}
 	w.View()
-	if panel.calls != 1 {
-		t.Fatalf("same-cycle View repeated semantic traversal: calls=%d, want 1", panel.calls)
+	if panel.calls != 2 {
+		t.Fatalf("View did not refresh post-render semantic state: calls=%d, want 2", panel.calls)
 	}
 	w.View()
-	if panel.calls != 2 {
-		t.Fatalf("later View calls=%d, want one fresh snapshot", panel.calls)
+	if panel.calls != 3 {
+		t.Fatalf("later View calls=%d, want one fresh snapshot per render", panel.calls)
 	}
 }
 
@@ -194,4 +197,43 @@ func TestUnexpectedHTTPServeExitClearsRegisteredServerState(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatal("Serve exit left stale HTTP/inspector state registered")
+}
+
+
+type viewMutatingElementPanel struct {
+	views int
+}
+
+func (p *viewMutatingElementPanel) View(_, _ int) string {
+	p.views++
+	return ""
+}
+
+func (*viewMutatingElementPanel) Update(tea.Msg) tea.Cmd { return nil }
+
+func (p *viewMutatingElementPanel) Elements(_, _ int) []Element {
+	return []Element{{Role: "state", Name: strconv.Itoa(p.views)}}
+}
+
+func TestInspectorSnapshotReflectsViewSideEffects(t *testing.T) {
+	w := New()
+	panel := &viewMutatingElementPanel{}
+	w.SetRoot(panel)
+	if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
+		t.Fatalf("ServeHTTP failed: %v", err)
+	}
+	defer func() { _ = w.CloseHTTP() }()
+
+	w.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	_ = w.View()
+
+	recorder := httptest.NewRecorder()
+	w.handleElements(recorder, httptest.NewRequest(http.MethodGet, "/elements", nil))
+	var elements []Element
+	if err := json.NewDecoder(recorder.Body).Decode(&elements); err != nil {
+		t.Fatalf("decode snapshot: %v", err)
+	}
+	if len(elements) != 1 || elements[0].Name != "1" {
+		t.Fatalf("snapshot after View = %+v, want semantic state 1", elements)
+	}
 }

@@ -380,7 +380,7 @@ func (t *Tab) FocusPrev() {
 
 // FocusFirst moves focus to the first focusable panel.
 func (t *Tab) FocusFirst() {
-	focusables := collectFocusables(t.root)
+	focusables := t.focusables()
 	if len(focusables) == 0 {
 		return
 	}
@@ -395,7 +395,7 @@ func (t *Tab) FocusPanel(panel Panel) {
 }
 
 func (t *Tab) focusStep(delta int) {
-	focusables := collectFocusables(t.root)
+	focusables := t.focusables()
 	if len(focusables) == 0 {
 		return
 	}
@@ -407,6 +407,21 @@ func (t *Tab) focusStep(delta int) {
 		idx = 0
 	}
 	t.setFocusedFocusable(focusables[idx])
+}
+
+func (t *Tab) focusables() []Focusable {
+	focusables := collectFocusables(t.root)
+	for _, float := range t.floats {
+		if float == nil {
+			continue
+		}
+		focusable, ok := isFocusable(float.Panel)
+		if !ok || focusIndex(focusables, focusable) >= 0 {
+			continue
+		}
+		focusables = append(focusables, focusable)
+	}
+	return focusables
 }
 
 func (t *Tab) setFocusedFocusable(next Focusable) {
@@ -503,8 +518,57 @@ func (t *Tab) clampFloats(width, height int) {
 }
 
 func (t *Tab) Elements(w, h int) []Element {
-	layout := newLayout(t.root, layoutRect{w: max(0, w), h: max(0, h)})
-	return elementsFromLayout(layout)
+	w = max(0, w)
+	h = max(0, h)
+	layout := newLayout(t.root, layoutRect{w: w, h: h})
+	rootElements := elementsFromLayout(layout)
+
+	var elements []Element
+	for i := len(t.floats) - 1; i >= 0; i-- {
+		elements = append(elements, t.floatElements(t.floats[i], w, h)...)
+	}
+	return append(elements, rootElements...)
+}
+
+func (t *Tab) floatElements(float *FloatPane, totalW, totalH int) []Element {
+	if float == nil || isNilPanel(float.Panel) {
+		return nil
+	}
+	x, y, width, height := floatBoundsForViewport(float, totalW, totalH)
+	contentW := max(0, width-2)
+	contentH := max(0, height-2)
+	if contentW == 0 || contentH == 0 {
+		return nil
+	}
+	elements := cloneElements(collectElements(float.Panel, contentW, contentH))
+	elements = clipElements(elements, Bounds{X: 0, Y: 0, W: contentW, H: contentH})
+	shiftElements(elements, x+1, y+1)
+	return elements
+}
+
+func floatBoundsForViewport(float *FloatPane, totalW, totalH int) (x, y, width, height int) {
+	if float == nil {
+		return 0, 0, 0, 0
+	}
+	width = float.preferredWidth
+	if width <= 0 {
+		width = max(floatMinWidth, float.Width)
+	}
+	height = float.preferredHeight
+	if height <= 0 {
+		height = max(floatMinHeight, float.Height)
+	}
+	x = max(0, float.X)
+	y = max(0, float.Y)
+	if totalW > 0 {
+		width = min(width, totalW)
+		x = min(x, max(0, totalW-width))
+	}
+	if totalH > 0 {
+		height = min(height, totalH)
+		y = min(y, max(0, totalH-height))
+	}
+	return x, y, width, height
 }
 
 func (t *Tab) elementsNode(node *Node, x, y, w, h int) []Element {
