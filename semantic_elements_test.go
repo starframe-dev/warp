@@ -175,3 +175,19 @@ func TestCollectElementsTypedNilPanel(t *testing.T) {
 		t.Fatalf("collectElements(typed nil) = %+v, want nil", got)
 	}
 }
+
+func TestTabElementsDoesNotMutateProviderOwnedBounds(t *testing.T) {
+	panel, original := newSemanticElementPanel()
+	tab := NewTab("semantic-provider")
+	left := tab.RootPanel()
+	tab.SplitVertical(left, 0.5, panel)
+
+	first := tab.Elements(20, 8)
+	second := tab.Elements(20, 8)
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("repeated Tab.Elements drifted: first=%+v second=%+v", first, second)
+	}
+	if !reflect.DeepEqual(panel.elements, original) {
+		t.Fatalf("Tab.Elements mutated provider-owned bounds: got=%+v want=%+v", panel.elements, original)
+	}
+}

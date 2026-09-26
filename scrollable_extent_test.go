@@ -432,3 +432,30 @@ func rowElementsAt(start, count int) []Element {
 func rowName(index int) string {
 	return fmt.Sprintf("row%d", index)
 }
+
+func TestScrollableCachesDiscoveredFallbackExtentAcrossUpdateElementsAndView(t *testing.T) {
+	panel := &naturalHeightPanel{rows: []string{"0", "1", "2", "3"}}
+	scrollable := NewScrollable(panel)
+	scrollable.rememberViewport(1, 3)
+	scrollable.Offset = 10
+
+	scrollable.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	if scrollable.Offset != 1 {
+		t.Fatalf("Offset after finite fallback discovery = %d, want 1", scrollable.Offset)
+	}
+	if got := len(panel.viewRequests); got != 1 {
+		t.Fatalf("fallback probe calls after Update = %d, want 1", got)
+	}
+
+	_ = scrollable.Elements(1, 3)
+	if got := len(panel.viewRequests); got != 1 {
+		t.Fatalf("Elements repeated fallback probe: calls=%d, want 1", got)
+	}
+
+	if got := scrollable.View(1, 3); got != "1\n2\n3" {
+		t.Fatalf("View after cached fallback extent = %q, want %q", got, "1\n2\n3")
+	}
+	if got := len(panel.viewRequests); got != 2 {
+		t.Fatalf("View calls with cached fallback extent = %d, want probe + render = 2", got)
+	}
+}

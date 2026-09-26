@@ -57,6 +57,9 @@ func renderSplitLayout(layout *layoutNode) []string {
 		lines := make([]string, bounds.h)
 		for y := range lines {
 			var row strings.Builder
+			if bounds.w >= 32 {
+				row.Grow(bounds.w + 16)
+			}
 			row.WriteString(lineAt(first, y))
 			if borderVisible {
 				if collapseBorder != "" && y == split.CollapseRow {
@@ -105,6 +108,9 @@ func renderFlexLayout(layout *layoutNode) []string {
 		border := renderVerticalBorder(flex.Dragging)
 		for y := range lines {
 			var row strings.Builder
+			if layout.bounds.w >= 32 {
+				row.Grow(layout.bounds.w + 16)
+			}
 			for i, child := range children {
 				if i > 0 && visible[i-1] {
 					row.WriteString(border)

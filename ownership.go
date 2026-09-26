@@ -67,6 +67,30 @@ func (o *panelOwnership) unmountRemoved(candidates []Panel) {
 		if unmounter, ok := panel.(Unmounter); ok {
 			unmounter.Unmount()
 		}
+		detachPanelOwnership(panel, o)
+	}
+}
+
+func detachPanelOwnership(panel Panel, ownership *panelOwnership) {
+	switch current := panel.(type) {
+	case *TabGroup:
+		if current.ownership == ownership {
+			current.ownership = nil
+		}
+	case *Tab:
+		if current.ownership == ownership {
+			current.ownership = nil
+		}
+	case *warpPanel:
+		if current.warp == nil {
+			return
+		}
+		current.warp.mu.Lock()
+		if current.warp.ownership == ownership {
+			current.warp.ownership = nil
+			current.warp.ownsDomainRoot = true
+		}
+		current.warp.mu.Unlock()
 	}
 }
 

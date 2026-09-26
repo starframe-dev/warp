@@ -165,3 +165,33 @@ func TestHTTPServerTimeoutsAndBoundedShutdown(t *testing.T) {
 		t.Fatal("HTTP server did not stop after forced close")
 	}
 }
+
+func TestUnexpectedHTTPServeExitClearsRegisteredServerState(t *testing.T) {
+	w := New()
+	if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
+		t.Fatalf("ServeHTTP failed: %v", err)
+	}
+	w.mu.RLock()
+	server := w.httpServer
+	w.mu.RUnlock()
+	if server == nil {
+		t.Fatal("ServeHTTP did not register a server")
+	}
+	if err := server.Close(); err != nil {
+		t.Fatalf("external server close failed: %v", err)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		w.mu.RLock()
+		registered := w.httpServer
+		enabled := w.inspectorEnabled
+		addr := w.httpAddr
+		w.mu.RUnlock()
+		if registered == nil && !enabled && addr == "" {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("Serve exit left stale HTTP/inspector state registered")
+}

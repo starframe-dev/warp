@@ -198,3 +198,34 @@ func TestUnmountRunsAfterPanelIsDetached(t *testing.T) {
 		t.Fatalf("Unmount calls = %d, want 1", panel.unmounts)
 	}
 }
+
+func TestRemovedContainersReleaseOwnershipDomainReferences(t *testing.T) {
+	warp := New()
+	oldGroup := NewTabGroup(TabTop)
+	oldGroup.ActiveTab().SetRootPanel(&lifecyclePanel{name: "old"})
+	oldTabs := append([]*Tab(nil), oldGroup.tabs...)
+	warp.SetRoot(oldGroup)
+
+	warp.SetRoot(NewTabGroup(TabTop))
+	if oldGroup.ownership != nil {
+		t.Fatal("removed TabGroup still retains the old ownership domain")
+	}
+	for i, tab := range oldTabs {
+		if tab.ownership != nil {
+			t.Fatalf("removed Tab %d still retains the old ownership domain", i)
+		}
+	}
+
+	nested := New()
+	nestedPanel := nested.AsPanel()
+	warp.SetRoot(nestedPanel)
+	warp.SetRoot(NewTabGroup(TabTop))
+
+	nested.mu.RLock()
+	nestedOwnership := nested.ownership
+	nestedOwnsDomain := nested.ownsDomainRoot
+	nested.mu.RUnlock()
+	if nestedOwnership != nil || !nestedOwnsDomain {
+		t.Fatalf("removed nested Warp ownership=(%p, owns=%v), want nil and standalone ownership on next use", nestedOwnership, nestedOwnsDomain)
+	}
+}

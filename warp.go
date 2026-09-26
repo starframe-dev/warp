@@ -297,10 +297,26 @@ func (w *Warp) ServeHTTP(addr string) error {
 	w.httpAddr = ln.Addr().String()
 	w.httpServer = server
 	w.inspectorEnabled = true
-	go func() {
-		_ = server.Serve(ln)
-	}()
+	go w.serveHTTP(server, ln)
 	return nil
+}
+
+func (w *Warp) serveHTTP(server *http.Server, listener net.Listener) {
+	_ = server.Serve(listener)
+
+	w.mu.Lock()
+	if w.httpServer != server || w.httpClosing {
+		w.mu.Unlock()
+		return
+	}
+	w.httpServer = nil
+	w.httpAddr = ""
+	w.inspectorEnabled = false
+	w.viewSnapshotPending = false
+	w.elementsSnapshotMu.Lock()
+	w.elementsSnapshot = nil
+	w.elementsSnapshotMu.Unlock()
+	w.mu.Unlock()
 }
 
 // CloseHTTP stops the HTTP server.
