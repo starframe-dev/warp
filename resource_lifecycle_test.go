@@ -230,7 +230,6 @@ func TestRemovedContainersReleaseOwnershipDomainReferences(t *testing.T) {
 	}
 }
 
-
 func TestWarpCloseUnmountsOwnedRootAndStopsInspector(t *testing.T) {
 	panel := &lifecyclePanel{name: "root"}
 	w := New()

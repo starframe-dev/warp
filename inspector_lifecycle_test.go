@@ -199,7 +199,6 @@ func TestUnexpectedHTTPServeExitClearsRegisteredServerState(t *testing.T) {
 	t.Fatal("Serve exit left stale HTTP/inspector state registered")
 }
 
-
 type viewMutatingElementPanel struct {
 	views int
 }

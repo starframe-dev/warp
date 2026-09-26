@@ -957,7 +957,6 @@ func TestTabToggleSplitCollapse(t *testing.T) {
 	}
 }
 
-
 func TestTabFocusTraversalIncludesFloats(t *testing.T) {
 	tab := NewTab("focus-floats")
 	root := &tabFocusablePanel{id: 1}

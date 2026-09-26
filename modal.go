@@ -189,7 +189,7 @@ func (m *Modal) HandleMouse(msg tea.MouseMsg) bool {
 	// Tree.handleMouse adjusts screen Y → lines Y before calling HandleMouse.
 	titleY := startY + 1 // draggable padding strip
 	xBtnY := startY + 2  // ✕ on title line / also draggable
-	btnY := startY + 4 // buttons line
+	btnY   := startY + 4 // buttons line
 
 	// ✕ is at innerWidth-1 within content area, content starts at startX+2 padding left
 	// innerWidth = boxWidth - 6

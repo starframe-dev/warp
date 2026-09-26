@@ -192,7 +192,6 @@ func TestTabElementsDoesNotMutateProviderOwnedBounds(t *testing.T) {
 	}
 }
 
-
 func TestTabElementsIncludeFloatsTopmostFirst(t *testing.T) {
 	root := &semanticElementPanel{elements: []Element{{Role: "root", Name: "root", Bounds: Bounds{W: 1, H: 1}}}}
 	lower := &semanticElementPanel{elements: []Element{{Role: "button", Name: "lower", Bounds: Bounds{W: 1, H: 1}}}}
