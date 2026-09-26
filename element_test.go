@@ -3,7 +3,6 @@ package warp
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
