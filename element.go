@@ -51,6 +51,12 @@ func (snapshot *elementSnapshot) jsonBytes() ([]byte, error) {
 		return []byte("[]\n"), nil
 	}
 	snapshot.jsonOnce.Do(func() {
+		defer func() {
+			// Once JSON is cached, the deep element tree is no longer needed.
+			// Releasing it avoids retaining both representations until the next
+			// UI snapshot.
+			snapshot.elements = nil
+		}()
 		encoded, err := json.Marshal(snapshot.elements)
 		if err != nil {
 			snapshot.jsonErr = err

@@ -102,6 +102,9 @@ func TestElementSnapshotCachesEncodedJSON(t *testing.T) {
 	if len(first) == 0 || &first[0] != &second[0] {
 		t.Fatal("snapshot did not reuse its encoded JSON bytes")
 	}
+	if snapshot.elements != nil {
+		t.Fatal("snapshot retained its element tree after JSON was cached")
+	}
 }
 
 func TestHTTPServerTimeoutsAndBoundedShutdown(t *testing.T) {
