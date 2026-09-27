@@ -3,6 +3,7 @@ package warp
 import (
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -1342,6 +1343,9 @@ func TestCloseHTTP(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("non-TTY Run error path is Unix-specific; Bubble Tea may attach to the Windows console")
+	}
 	if term.IsTerminal(os.Stdin.Fd()) || term.IsTerminal(os.Stdout.Fd()) || term.IsTerminal(os.Stderr.Fd()) {
 		t.Skip("Run non-TTY error path requires a non-interactive process")
 	}
