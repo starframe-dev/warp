@@ -109,8 +109,7 @@ if el, ok := FindElement(panel.Elems, "", "submit", ""); ok {
 - The tree is *ordered*: `FindElement` returns the *first* match in a
   depth-first pre-order traversal, so the caller is responsible for
   disambiguating by role/name/action.
-- `collectElements` is the only path through which the warp runtime
-  gathers elements. It treats "no provider" and "nil panel" identically
-  (both yield `nil`).
-- Bounds are in cell coordinates, not pixels — the warp runtime scales
-  them to pixels at draw time.
+- Semantic traversal is bounded to 128 levels and 100,000 nodes. Warp truncates deeper/larger provider output when cloning snapshots or searching with `FindElement`, preventing malformed trees from exhausting the stack or allocating without limit.
+- Warp clones provider-owned semantic data before translating or clipping it; wrappers must not rely on Warp mutating the slice returned by `ElementProvider`.
+- `collectElements` treats "no provider" and "nil panel" identically (both yield `nil`).
+- Bounds are terminal **cell coordinates**, not pixels. The layout/inspector layer does not convert them to pixels.
