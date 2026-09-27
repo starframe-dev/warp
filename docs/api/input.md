@@ -40,6 +40,7 @@ Creates a new empty input with the given prompt.
 | `Blur()` | Removes focus from the input. |
 | `View(w, h int) string` | Renders a bordered box when `w >= 3` and `h >= 3`; otherwise renders an inline line. |
 | `Update(msg tea.Msg) tea.Cmd` | Handles grapheme-aware editing while focused. |
+| `Elements(w, h int) []Element` | Exposes a `textbox` semantic element covering the visible input. |
 
 ## Behavior
 
@@ -100,3 +101,8 @@ Package-level lipgloss styles are defined at the bottom of the file:
 `inputStyle` (light foreground), `inputBorderStyle` (dark border), and
 `inputFocusBorderStyle` (blue border when focused). These styles are
 shared by both the boxed and inline rendering paths.
+
+
+### Semantic element
+
+`Elements` exposes one `textbox` element with action `focus`. Its name is the trimmed prompt (falling back to `Input` when the prompt is blank), and its bounds cover the visible component rectangle. Zero width or height returns no semantic element.
