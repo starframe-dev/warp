@@ -370,12 +370,13 @@ func padContent(content string, w, h int) []string {
 	}
 	lines := strings.Split(content, "\n")
 	result := make([]string, h)
+	blank := strings.Repeat(" ", w) + ansi.ResetStyle
 	for y := 0; y < h; y++ {
-		line := ""
-		if y < len(lines) {
-			line = lines[y]
+		if y >= len(lines) || lines[y] == "" {
+			result[y] = blank
+			continue
 		}
-		result[y] = padVisualLine(line, w) + ansi.ResetStyle
+		result[y] = padVisualLine(lines[y], w) + ansi.ResetStyle
 	}
 	return result
 }
