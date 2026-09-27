@@ -7,24 +7,23 @@ import (
 )
 
 func TestSetTheme(t *testing.T) {
-	originals := []lipgloss.Color{
-		gbDark0, gbDark1, gbDark2, gbDark3, gbDark4, gbGray,
-		gbLight1, gbRed, gbGreen, gbYellow, gbBlue,
-	}
-
-	defer func() {
-		gbDark0 = originals[0]
-		gbDark1 = originals[1]
-		gbDark2 = originals[2]
-		gbDark3 = originals[3]
-		gbDark4 = originals[4]
-		gbGray = originals[5]
-		gbLight1 = originals[6]
-		gbRed = originals[7]
-		gbGreen = originals[8]
-		gbYellow = originals[9]
-		gbBlue = originals[10]
-	}()
+	defer SetTheme(ThemeColors{
+		Background:          "#282828",
+		Surface:             "#3c3836",
+		Raised:              "#504945",
+		Border:              "#7c6f64",
+		BorderMuted:         "#665c54",
+		Text:                "#ebdbb2",
+		TextMuted:           "#928374",
+		TextStrong:          "#ebdbb2",
+		Accent:              "#83a598",
+		AccentMuted:         "#83a598",
+		Error:               "#fb4934",
+		Success:             "#b8bb26",
+		Warning:             "#fabd2f",
+		SelectionBackground: "#504945",
+		SelectionForeground: "#ebdbb2",
+	})
 
 	c := lipgloss.Color("#123456")
 	SetTheme(ThemeColors{
