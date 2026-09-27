@@ -56,20 +56,17 @@ func renderSplitLayout(layout *layoutNode) []string {
 		}
 		lines := make([]string, bounds.h)
 		for y := range lines {
-			var row strings.Builder
-			if bounds.w >= 32 {
-				row.Grow(bounds.w + 16)
+			firstLine := lineAt(first, y)
+			secondLine := lineAt(second, y)
+			if !borderVisible {
+				lines[y] = firstLine + secondLine
+				continue
 			}
-			row.WriteString(lineAt(first, y))
-			if borderVisible {
-				if collapseBorder != "" && y == split.CollapseRow {
-					row.WriteString(collapseBorder)
-				} else {
-					row.WriteString(border)
-				}
+			middle := border
+			if collapseBorder != "" && y == split.CollapseRow {
+				middle = collapseBorder
 			}
-			row.WriteString(lineAt(second, y))
-			lines[y] = row.String()
+			lines[y] = firstLine + middle + secondLine
 		}
 		return lines
 	case Horizontal:
