@@ -300,3 +300,42 @@ func TestSemanticStableMessageKeepsPublishedSnapshotReadable(t *testing.T) {
 		t.Fatalf("stable Update changed published snapshot: before=%+v after=%+v", before, after)
 	}
 }
+
+func TestSetRootInvalidatesPublishedSnapshotUntilNextUICycle(t *testing.T) {
+	w := New()
+	oldPanel := &viewMutatingElementPanel{}
+	w.SetRoot(oldPanel)
+	if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
+		t.Fatalf("ServeHTTP failed: %v", err)
+	}
+	defer func() { _ = w.CloseHTTP() }()
+	_, _ = w.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	_ = w.View()
+
+	newPanel := &viewMutatingElementPanel{}
+	w.SetRoot(newPanel)
+
+	recorder := httptest.NewRecorder()
+	w.handleElements(recorder, httptest.NewRequest(http.MethodGet, "/elements", nil))
+	var invalidated []Element
+	if err := json.NewDecoder(recorder.Body).Decode(&invalidated); err != nil {
+		t.Fatalf("decode invalidated snapshot: %v", err)
+	}
+	if len(invalidated) != 0 {
+		t.Fatalf("snapshot after SetRoot still exposes old UI: %+v", invalidated)
+	}
+	if newPanel.views != 0 {
+		t.Fatalf("SetRoot rendered new panel outside UI cycle: views=%d", newPanel.views)
+	}
+
+	_ = w.View()
+	recorder = httptest.NewRecorder()
+	w.handleElements(recorder, httptest.NewRequest(http.MethodGet, "/elements", nil))
+	var refreshed []Element
+	if err := json.NewDecoder(recorder.Body).Decode(&refreshed); err != nil {
+		t.Fatalf("decode refreshed snapshot: %v", err)
+	}
+	if len(refreshed) != 1 || refreshed[0].Name != "1" {
+		t.Fatalf("snapshot after next View = %+v, want new root semantic state", refreshed)
+	}
+}

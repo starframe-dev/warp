@@ -72,7 +72,13 @@ func (w *Warp) SetRoot(panel Panel) {
 	w.root = panel
 	w.rootRevision++
 	w.stateRevision++
+	inspectorEnabled := w.inspectorEnabled
 	w.mu.Unlock()
+	if inspectorEnabled {
+		w.elementsSnapshotMu.Lock()
+		w.elementsSnapshot = nil
+		w.elementsSnapshotMu.Unlock()
+	}
 	if ownsDomainRoot {
 		ownership.setRoot(panel)
 	}
