@@ -18,7 +18,7 @@ func (c *Collapsible) Update(msg tea.Msg) tea.Cmd
 func (c *Collapsible) Toggle()
 ```
 
-`NewCollapsible` starts expanded. `Toggle` flips `Collapsed`; a nil `Content` does not prevent state changes.
+`NewCollapsible` starts expanded. `Toggle` flips `Collapsed`; a nil `Content` does not prevent state changes. A left click on the persistent title row is handled by `Collapsible.Update` itself, so the component remains interactive even outside a `Tab`.
 
 ## Rendering
 
@@ -28,10 +28,7 @@ A nil `Content` still renders the title when `h > 0`; the remaining expanded row
 
 ## Semantic Elements
 
-`Elements(w, h)` returns no child elements while collapsed. When expanded,
-it requests content elements at height `max(0, h-1)`, clips them to the
-content viewport, and adds one to each visible Y coordinate. The title row
-is not reported as an element.
+`Elements(w, h)` always exposes the persistent title row as a `button` with action `toggle-collapse` when geometry is non-zero. When expanded, visible child elements follow it, clipped to the content viewport and translated by one row. When collapsed, the title toggle is the only semantic element.
 
 ## Messages and mouse coordinates
 

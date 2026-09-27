@@ -80,6 +80,10 @@ var inputBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(gbDark4))
 var inputFocusBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(gbBlue))
 ```
 
+## Семантический элемент
+
+`Elements(w, h)` возвращает один `textbox` с action `focus`, именем из trimmed prompt (fallback `Input`) и bounds всего видимого компонента.
+
 ## Основные свойства реализации
 
 - Фокус хранится в самом компоненте до `Blur` или прямого изменения состояния недоступного извне поля.

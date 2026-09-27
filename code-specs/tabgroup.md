@@ -93,6 +93,10 @@ func (tg *TabGroup) Elements(w, h int) []Element
 
 Standalone `TabGroup` владеет своими вкладками и их панелями; вложенный в `Warp` `TabGroup` использует домен внешнего корня. Совместное использование панели независимыми корнями не отслеживается и должно контролироваться вызывающим кодом.
 
+## Semantic tab chrome
+
+`Elements` публикует framework-owned элементы таббара: `tab` / `activate-tab`, дочерний `button` / `close-tab` для активной вкладки и `button` / `new-tab`. Их bounds соответствуют render/hit-test geometry и доступны даже до первого `View`.
+
 ## Стили
 
 - `inactiveTabStyle` — неактивные вкладки.

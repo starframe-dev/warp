@@ -98,11 +98,7 @@
   сохранённую долю. Состояния flex-элемента и `Collapsible` задаются
   явно, поэтому повторные вызовы Collapse/Expand идемпотентны. Nil в
   `SetSplitCollapse` callback не отключает внутреннее переключение.
-- **Сбор элементов:** `Elements` рекурсивно обходит сплиты и
-  flex-компоновки, затем добавляет semantic elements float-панелей со
-  сдвигом в координаты viewport. Float elements возвращаются сверху вниз
-  перед элементами root layout, чтобы automation сначала видел overlays,
-  а не перекрытый фон.
+- **Сбор элементов:** `Elements` рекурсивно обходит split/flex layout, затем добавляет framework chrome и float content в координатах viewport. Каждый float публикует `titlebar` / `move-float` и `button` / `close-float`; настроенные split-collapse glyphs публикуются как `button` / `toggle-collapse`. Float chrome/content идут сверху вниз перед root layout, чтобы automation сначала видел overlays.
 
 Совместное использование экземпляра панели независимыми корнями не
 поддерживается и контролируется вызывающим кодом; учёт владения локальный,

@@ -121,6 +121,10 @@ callback is invoked.
   the selected style.
 - Mouse motion updates hover state and mouse press handles open/close or selection; other mouse actions are ignored. `Update` always returns `nil` because the dropdown does not schedule follow-up commands.
 
+## Semantic elements
+
+`Elements(w, h)` always exposes the visible dropdown button as a `combobox` with action `toggle`. While open it additionally exposes only option rows that fit into the current height as `option` elements with action `select`. Clipped options are intentionally absent from the semantic tree, matching mouse and keyboard visibility rules.
+
 ## Integration with bubbletea
 
 The component is composed into a larger model: the host model must call

@@ -79,6 +79,10 @@ with an ellipsis. The active tab label shows a `▎` prefix and `×` close
 glyph. If `ActiveTab()` is nil, `View` returns exactly `h` blank lines
 (`""` when `h == 0`; otherwise `h-1` newline characters).
 
+### Semantic tab chrome
+
+`Elements` exposes framework-owned tab-bar controls in addition to active-tab content. Tab labels use role `tab` with action `activate-tab`; the active close cell is a child `button` with action `close-tab`; the `+` cell is a `button` with action `new-tab`. Their bounds are computed from the same label geometry as mouse hit regions and do not require a prior `View` call.
+
 ### Mouse interaction
 
 Tab bar hit regions (`tabRegion`) are recomputed each frame during

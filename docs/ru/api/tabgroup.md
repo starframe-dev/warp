@@ -83,6 +83,10 @@ type TabGroup struct {
 равен nil, `View` возвращает ровно `h` пустых строк (`""` при `h == 0`,
 иначе `h-1` символов перевода строки).
 
+### Semantic tab chrome
+
+`Elements` публикует framework-owned controls таббара вместе с содержимым активной вкладки. Метки вкладок имеют role `tab` и action `activate-tab`; ячейка `×` активной вкладки — дочерний `button` с action `close-tab`; `+` — `button` с action `new-tab`. Bounds вычисляются по той же геометрии, что mouse hit regions, и не требуют предварительного `View`.
+
 ### Взаимодействие с мышью
 
 Область срабатывания строки вкладок (`tabRegion`) вычисляется заново

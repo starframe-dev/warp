@@ -95,10 +95,7 @@ be queried as an element provider before real panels are attached.
   items and `Collapsible` panels are assigned the requested state
   explicitly, making repeated Collapse/Expand calls idempotent. A nil
   `SetSplitCollapse` callback does not disable the internal state toggle.
-- **Element collection:** `Elements` recursively walks splits and flex
-  layouts, then includes float content elements translated into viewport
-  coordinates. Float elements are returned topmost-first before root-layout
-  elements so automation sees overlays before covered background content.
+- **Element collection:** `Elements` recursively walks splits and flex layouts, then includes framework chrome and float content in viewport coordinates. Each float exposes a `titlebar` / `move-float` region and `button` / `close-float`; configured split-collapse glyphs expose `button` / `toggle-collapse`. Float chrome/content is returned topmost-first before root-layout elements so automation sees overlays before covered background content.
 
 Panel instances shared across independent owner roots are unsupported and
 must be managed by the caller; lifecycle tracking is local, not global.
