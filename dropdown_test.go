@@ -362,3 +362,31 @@ func TestDropdownMenu_KeyboardBounds(t *testing.T) {
 		t.Errorf("down at last item Hovered = %d, want 0", d.Hovered)
 	}
 }
+
+func TestDropdownMenuElementsFollowVisibleMenu(t *testing.T) {
+	dropdown := NewDropdownMenu("Choose", []DropdownItem{
+		{Label: "One"},
+		{Label: "Two"},
+		{Label: "Three"},
+	})
+
+	closed := dropdown.Elements(20, 3)
+	if len(closed) != 1 || closed[0].Role != "combobox" || closed[0].Action != "toggle" {
+		t.Fatalf("closed Dropdown Elements=%+v", closed)
+	}
+
+	dropdown.Open = true
+	open := dropdown.Elements(20, 3)
+	if len(open) != 3 {
+		t.Fatalf("open Dropdown Elements=%d, want button + 2 visible options: %+v", len(open), open)
+	}
+	if open[1].Role != "option" || open[1].Name != "One" || open[1].Bounds.Y != 1 {
+		t.Fatalf("first option=%+v", open[1])
+	}
+	if open[2].Name != "Two" || open[2].Bounds.Y != 2 {
+		t.Fatalf("second option=%+v", open[2])
+	}
+	if _, ok := FindElement(open, "option", "Three", "select"); ok {
+		t.Fatal("clipped third option should not be exposed semantically")
+	}
+}

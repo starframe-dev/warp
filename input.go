@@ -53,6 +53,25 @@ func (in *Input) SetCursor(pos int) {
 	in.clampCursor()
 }
 
+// Elements exposes the input as a focusable semantic textbox.
+func (in *Input) Elements(w, h int) []Element {
+	w = max(0, w)
+	h = max(0, h)
+	if w == 0 || h == 0 {
+		return nil
+	}
+	name := strings.TrimSpace(in.Prompt)
+	if name == "" {
+		name = "Input"
+	}
+	return []Element{{
+		Role:   "textbox",
+		Name:   name,
+		Action: "focus",
+		Bounds: Bounds{W: w, H: h},
+	}}
+}
+
 // Focused reports whether the input has focus.
 func (in *Input) Focused() bool {
 	return in.focused

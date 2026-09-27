@@ -44,22 +44,29 @@ func (c *Collapsible) View(w, h int) string {
 	return strings.Join(append([]string{title}, lines...), "\n")
 }
 
-// Elements returns visible content elements below the persistent title row.
+// Elements returns the persistent title control plus visible content elements.
 func (c *Collapsible) Elements(w, h int) []Element {
-	if c.Collapsed || isNilPanel(c.Content) {
-		return nil
-	}
 	w = max(0, w)
 	h = max(0, h)
-	if w == 0 || h <= 1 {
+	if w == 0 || h == 0 {
 		return nil
 	}
 
+	elements := []Element{{
+		Role:   "button",
+		Name:   c.Title,
+		Action: "toggle-collapse",
+		Bounds: Bounds{W: w, H: 1},
+	}}
+	if c.Collapsed || isNilPanel(c.Content) || h <= 1 {
+		return elements
+	}
+
 	contentHeight := h - 1
-	elements := cloneElements(collectElements(c.Content, w, contentHeight))
-	elements = clipElements(elements, Bounds{W: w, H: contentHeight})
-	shiftElements(elements, 0, 1)
-	return elements
+	contentElements := cloneElements(collectElements(c.Content, w, contentHeight))
+	contentElements = clipElements(contentElements, Bounds{W: w, H: contentHeight})
+	shiftElements(contentElements, 0, 1)
+	return append(elements, contentElements...)
 }
 
 // ContentHeight adds the persistent title row to a known content height.
@@ -80,11 +87,11 @@ func (c *Collapsible) ContentHeight(width int) (int, bool) {
 
 // Update forwards visible content events and adjusts coordinates for the title row.
 func (c *Collapsible) Update(msg tea.Msg) tea.Cmd {
-	if isNilPanel(c.Content) {
-		return nil
-	}
 	switch msg := msg.(type) {
 	case ResizeMsg:
+		if isNilPanel(c.Content) {
+			return nil
+		}
 		contentHeight := msg.Height
 		if c.Collapsed {
 			contentHeight = 0
@@ -94,12 +101,19 @@ func (c *Collapsible) Update(msg tea.Msg) tea.Cmd {
 		msg.Height = contentHeight
 		return c.Content.Update(msg)
 	case tea.MouseMsg:
-		if c.Collapsed || msg.Y <= 0 {
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && msg.Y == 0 {
+			c.Toggle()
+			return nil
+		}
+		if isNilPanel(c.Content) || c.Collapsed || msg.Y <= 0 {
 			return nil
 		}
 		msg.Y--
 		return c.Content.Update(msg)
 	default:
+		if isNilPanel(c.Content) {
+			return nil
+		}
 		return c.Content.Update(msg)
 	}
 }

@@ -224,7 +224,120 @@ func (tg *TabGroup) Elements(w, h int) []Element {
 		elems[i].Bounds.Y += offY
 		shiftElements(elems[i].Children, offX, offY)
 	}
-	return elems
+	return append(tg.tabBarElements(w, h), elems...)
+}
+
+func (tg *TabGroup) tabBarElements(w, h int) []Element {
+	if w <= 0 || h <= 0 || tg.tabPosition == TabNone {
+		return nil
+	}
+	if tg.tabPosition == TabLeft || tg.tabPosition == TabRight {
+		return tg.verticalTabBarElements(w, h)
+	}
+	return tg.horizontalTabBarElements(w, h)
+}
+
+func (tg *TabGroup) horizontalTabBarElements(w, h int) []Element {
+	y := 0
+	if tg.tabPosition == TabBottom {
+		y = h - 1
+	}
+	viewport := Bounds{W: w, H: h}
+	col := 0
+	var elements []Element
+	for i, tab := range tg.tabs {
+		name := ansi.Truncate(tab.name, 20, "...")
+		label := " " + name + " "
+		if i == tg.activeTab {
+			label = "▎ " + name + " ×"
+		}
+		labelW := ansi.StringWidth(label)
+		element := Element{
+			Role:   "tab",
+			Name:   tab.name,
+			Action: "activate-tab",
+			Bounds: Bounds{X: col, Y: y, W: labelW, H: 1},
+		}
+		if i == tg.activeTab && labelW > 0 {
+			element.Children = []Element{{
+				Role:   "button",
+				Name:   "Close " + tab.name,
+				Action: "close-tab",
+				Bounds: Bounds{X: col + labelW - 1, Y: y, W: 1, H: 1},
+			}}
+		}
+		if clipped := clipElements([]Element{element}, viewport); len(clipped) > 0 {
+			elements = append(elements, clipped[0])
+		}
+		col += labelW
+	}
+
+	newLabelW := ansi.StringWidth(" + ")
+	newTab := Element{
+		Role:   "button",
+		Name:   "New tab",
+		Action: "new-tab",
+		Bounds: Bounds{X: col, Y: y, W: newLabelW, H: 1},
+	}
+	if clipped := clipElements([]Element{newTab}, viewport); len(clipped) > 0 {
+		elements = append(elements, clipped[0])
+	}
+	return elements
+}
+
+func (tg *TabGroup) verticalTabBarElements(w, h int) []Element {
+	labels, naturalWidth := tg.verticalTabLabels()
+	barWidth := min(naturalWidth, max(0, w))
+	if barWidth <= 0 {
+		return nil
+	}
+	barX := 0
+	if tg.tabPosition == TabRight {
+		barX = w - barWidth
+	}
+	var elements []Element
+	for i, label := range labels {
+		if i >= h {
+			break
+		}
+		if ansi.StringWidth(label) > barWidth {
+			label = ansi.Truncate(label, barWidth, "")
+		}
+		labelW := ansi.StringWidth(label)
+		if labelW <= 0 {
+			continue
+		}
+		element := Element{
+			Role:   "tab",
+			Name:   tg.tabs[i].name,
+			Action: "activate-tab",
+			Bounds: Bounds{X: barX, Y: i, W: labelW, H: 1},
+		}
+		if i == tg.activeTab && strings.HasSuffix(label, "×") {
+			element.Children = []Element{{
+				Role:   "button",
+				Name:   "Close " + tg.tabs[i].name,
+				Action: "close-tab",
+				Bounds: Bounds{X: barX + labelW - 1, Y: i, W: 1, H: 1},
+			}}
+		}
+		elements = append(elements, element)
+	}
+
+	newRow := len(labels)
+	if newRow < h {
+		newLabel := ansi.Truncate(" + ", barWidth, "")
+		newW := ansi.StringWidth(newLabel)
+		if newW > 0 {
+			elements = append(elements, Element{
+				Role:   "button",
+				Name:   "New tab",
+				Action: "new-tab",
+				Bounds: Bounds{X: barX, Y: newRow, W: newW, H: 1},
+			})
+		}
+	}
+	return elements
 }
 
 func shiftElements(elems []Element, dx, dy int) {

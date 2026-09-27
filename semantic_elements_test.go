@@ -118,6 +118,7 @@ func TestCollapsibleElementsFollowVisibleContent(t *testing.T) {
 
 	got := collectElements(collapsible, 8, 4)
 	want := []Element{
+		{Role: "button", Name: "Section", Action: "toggle-collapse", Bounds: Bounds{W: 8, H: 1}},
 		{Role: "text", Name: "top", Bounds: Bounds{X: 1, Y: 1, W: 2, H: 1}},
 		{Role: "text", Name: "left-clipped", Bounds: Bounds{X: 0, Y: 2, W: 2, H: 1}},
 		{Role: "group", Name: "group", Bounds: Bounds{X: 1, Y: 3, W: 5, H: 1}},
@@ -130,8 +131,9 @@ func TestCollapsibleElementsFollowVisibleContent(t *testing.T) {
 	}
 
 	collapsible.Collapsed = true
-	if got := collectElements(collapsible, 8, 4); len(got) != 0 {
-		t.Fatalf("collapsed Collapsible exposed hidden elements: %+v", got)
+	collapsed := collectElements(collapsible, 8, 4)
+	if len(collapsed) != 1 || collapsed[0].Action != "toggle-collapse" {
+		t.Fatalf("collapsed Collapsible semantic controls = %+v, want title toggle only", collapsed)
 	}
 }
 
@@ -161,6 +163,7 @@ func TestNestedWrappersPreserveElementsInInspectorCoordinates(t *testing.T) {
 		t.Fatalf("decode /elements snapshot: %v", err)
 	}
 	want := []Element{
+		{Role: "button", Name: "Section", Action: "toggle-collapse", Bounds: Bounds{W: 8, H: 1}},
 		{Role: "text", Name: "left-clipped", Bounds: Bounds{X: 0, Y: 1, W: 2, H: 1}},
 		{Role: "group", Name: "group", Bounds: Bounds{X: 1, Y: 2, W: 5, H: 1}},
 	}
@@ -200,20 +203,68 @@ func TestTabElementsIncludeFloatsTopmostFirst(t *testing.T) {
 	tab := NewTab("float-elements")
 	tab.SetRootPanel(root)
 	tab.Float(lower, 2, 1, 10, 4)
+	tab.floats[0].Title = "Lower"
 	tab.Float(upper, 4, 2, 10, 4)
+	tab.floats[1].Title = "Upper"
 
 	elements := tab.Elements(30, 10)
-	if len(elements) != 3 {
-		t.Fatalf("Tab.Elements returned %d elements, want 3: %+v", len(elements), elements)
+	if len(elements) != 7 {
+		t.Fatalf("Tab.Elements returned %d elements, want 7: %+v", len(elements), elements)
 	}
-	if elements[0].Name != "upper" || elements[0].Bounds.X != 5 || elements[0].Bounds.Y != 3 {
-		t.Fatalf("topmost float element = %+v, want upper at (5,3)", elements[0])
+	want := []struct {
+		role, name, action string
+		bounds             Bounds
+	}{
+		{"button", "Close Upper", "close-float", Bounds{X: 12, Y: 2, W: 1, H: 1}},
+		{"titlebar", "Upper", "move-float", Bounds{X: 5, Y: 2, W: 7, H: 1}},
+		{"button", "upper", "", Bounds{X: 5, Y: 3, W: 1, H: 1}},
+		{"button", "Close Lower", "close-float", Bounds{X: 10, Y: 1, W: 1, H: 1}},
+		{"titlebar", "Lower", "move-float", Bounds{X: 3, Y: 1, W: 7, H: 1}},
+		{"button", "lower", "", Bounds{X: 3, Y: 2, W: 1, H: 1}},
+		{"root", "root", "", Bounds{W: 1, H: 1}},
 	}
-	if elements[1].Name != "lower" || elements[1].Bounds.X != 3 || elements[1].Bounds.Y != 2 {
-		t.Fatalf("lower float element = %+v, want lower at (3,2)", elements[1])
+	for i, expected := range want {
+		got := elements[i]
+		if got.Role != expected.role || got.Name != expected.name || got.Action != expected.action || got.Bounds != expected.bounds {
+			t.Fatalf("element[%d]=%+v, want role=%q name=%q action=%q bounds=%+v", i, got, expected.role, expected.name, expected.action, expected.bounds)
+		}
 	}
-	if elements[2].Name != "root" {
-		t.Fatalf("root element order = %+v, want root last after floats", elements[2])
+}
+
+func TestTabElementsExposeSplitCollapseControl(t *testing.T) {
+	tab := NewTab("split-control")
+	left := &semanticElementPanel{}
+	right := &semanticElementPanel{}
+	tab.SetRootPanel(left)
+	tab.SplitVertical(left, 0.5, right)
+	tab.SetSplitCollapse(left, 2, nil)
+
+	const width, height = 20, 8
+	layout := newLayout(tab.root, layoutRect{w: width, h: height})
+	borders := collectLayoutBorders(layout)
+	if len(borders) == 0 {
+		t.Fatal("test setup did not create a split border")
+	}
+	expected := Bounds{X: borders[0].X, Y: borders[0].Y + 2, W: 1, H: 1}
+
+	elements := tab.Elements(width, height)
+	control, ok := FindElement(elements, "button", "Toggle split", "toggle-collapse")
+	if !ok {
+		t.Fatalf("split collapse semantic control missing: %+v", elements)
+	}
+	if control.Bounds != expected {
+		t.Fatalf("split collapse bounds=%+v, want %+v", control.Bounds, expected)
+	}
+}
+
+func TestCollapsibleTitleMouseToggleIsSelfContained(t *testing.T) {
+	collapsible := NewCollapsible("Section", nil)
+	if collapsible.Collapsed {
+		t.Fatal("new Collapsible unexpectedly collapsed")
+	}
+	collapsible.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, Y: 0})
+	if !collapsible.Collapsed {
+		t.Fatal("title click did not collapse a standalone/wrapped Collapsible")
 	}
 }
 

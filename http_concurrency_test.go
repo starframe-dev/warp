@@ -194,13 +194,14 @@ func TestElementsSnapshotAvoidsConcurrentLiveUITreeTraversal(t *testing.T) {
 					errs <- closeErr
 					return
 				}
-				if len(elems) != 1 {
-					errs <- fmt.Errorf("snapshot has %d elements, want 1", len(elems))
+				state, ok := FindElement(elems, "state", "", "")
+				if !ok {
+					errs <- fmt.Errorf("state element missing from snapshot: %+v", elems)
 					return
 				}
-				parts := strings.Split(elems[0].Name, ":")
+				parts := strings.Split(state.Name, ":")
 				if len(parts) != 2 || parts[0] != parts[1] {
-					errs <- fmt.Errorf("incoherent element snapshot: %q", elems[0].Name)
+					errs <- fmt.Errorf("incoherent element snapshot: %q", state.Name)
 					return
 				}
 			}

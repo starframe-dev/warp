@@ -159,16 +159,17 @@ func TestTabGroupElements(t *testing.T) {
 		mock := tgTestElementPanel{}
 		tg.ActiveTab().SetRootPanel(mock)
 		elems := tg.Elements(30, 6)
-		if len(elems) != 1 {
-			t.Fatalf("position %d: expected 1 element, got %d", pos, len(elems))
+		content, ok := FindElement(elems, "test", "", "")
+		if !ok {
+			t.Fatalf("position %d: content element missing from %+v", pos, elems)
 		}
-		if elems[0].Bounds.X == 0 && elems[0].Bounds.Y == 0 {
-			t.Fatalf("position %d: expected element to be offset", pos)
+		if content.Bounds.X == 0 && content.Bounds.Y == 0 {
+			t.Fatalf("position %d: expected content element to be offset", pos)
 		}
-		if len(elems[0].Children) != 1 {
-			t.Fatalf("position %d: expected 1 child, got %d", pos, len(elems[0].Children))
+		if len(content.Children) != 1 {
+			t.Fatalf("position %d: expected 1 child, got %d", pos, len(content.Children))
 		}
-		if elems[0].Children[0].Bounds.X != elems[0].Bounds.X || elems[0].Children[0].Bounds.Y != elems[0].Bounds.Y {
+		if content.Children[0].Bounds.X != content.Bounds.X || content.Children[0].Bounds.Y != content.Bounds.Y {
 			t.Fatalf("position %d: child not shifted with parent", pos)
 		}
 	}
@@ -556,5 +557,64 @@ func TestPadRight(t *testing.T) {
 	}
 	if got := padRight("abcd", 2); got != "abcd" {
 		t.Fatalf("expected unchanged, got %q", got)
+	}
+}
+
+func TestTabGroupSemanticChromeMatchesHorizontalHitRegions(t *testing.T) {
+	tg := NewTabGroup(TabTop)
+	tg.NewTab("second")
+	const width, height = 40, 6
+	_ = tg.View(width, height)
+
+	elements := tg.Elements(width, height)
+	for i, region := range tg.tabRegions {
+		if region.idx < 0 {
+			continue
+		}
+		tab := tg.tabs[region.idx]
+		element, ok := FindElement(elements, "tab", tab.name, "activate-tab")
+		if !ok {
+			t.Fatalf("tab %d semantic element missing", i)
+		}
+		want := Bounds{X: region.startX, Y: 0, W: region.endX - region.startX, H: 1}
+		if element.Bounds != want {
+			t.Fatalf("tab %q bounds=%+v, want %+v", tab.name, element.Bounds, want)
+		}
+		if region.idx == tg.activeTab {
+			closeElement, ok := FindElement(element.Children, "button", "Close "+tab.name, "close-tab")
+			if !ok {
+				t.Fatalf("active tab close semantic element missing: %+v", element)
+			}
+			if closeElement.Bounds != (Bounds{X: region.closeX, Y: 0, W: 1, H: 1}) {
+				t.Fatalf("close bounds=%+v, region closeX=%d", closeElement.Bounds, region.closeX)
+			}
+		}
+	}
+	newTab, ok := FindElement(elements, "button", "New tab", "new-tab")
+	if !ok || tg.newTabRegion == nil {
+		t.Fatalf("new-tab semantic/hit region missing: element=%+v region=%+v", newTab, tg.newTabRegion)
+	}
+	if newTab.Bounds != (Bounds{X: tg.newTabRegion.startX, Y: 0, W: tg.newTabRegion.endX - tg.newTabRegion.startX, H: 1}) {
+		t.Fatalf("new-tab bounds=%+v region=%+v", newTab.Bounds, tg.newTabRegion)
+	}
+}
+
+func TestTabGroupSemanticChromeWorksBeforeViewAndOnRight(t *testing.T) {
+	tg := NewTabGroup(TabRight)
+	tg.NewTab("second")
+	const width, height = 30, 6
+
+	elements := tg.Elements(width, height)
+	active, ok := FindElement(elements, "tab", "second", "activate-tab")
+	if !ok {
+		t.Fatalf("active right tab missing before View: %+v", elements)
+	}
+	_, naturalWidth := tg.verticalTabLabels()
+	barWidth := min(naturalWidth, width)
+	if active.Bounds.X != width-barWidth || active.Bounds.Y != tg.activeTab {
+		t.Fatalf("right tab bounds=%+v, want x=%d y=%d", active.Bounds, width-barWidth, tg.activeTab)
+	}
+	if _, ok := FindElement(elements, "button", "New tab", "new-tab"); !ok {
+		t.Fatal("right-side new-tab semantic element missing before View")
 	}
 }

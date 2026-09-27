@@ -373,3 +373,18 @@ func TestInputClampCursorOnSetCursor(t *testing.T) {
 		t.Errorf("expected cursor clamped to 0, got %d", in.Cursor)
 	}
 }
+
+func TestInputElements(t *testing.T) {
+	input := NewInput("> ")
+	elements := input.Elements(12, 3)
+	if len(elements) != 1 {
+		t.Fatalf("Input.Elements=%d, want 1", len(elements))
+	}
+	got := elements[0]
+	if got.Role != "textbox" || got.Name != ">" || got.Action != "focus" || got.Bounds != (Bounds{W: 12, H: 3}) {
+		t.Fatalf("Input element=%+v", got)
+	}
+	if got := input.Elements(0, 3); got != nil {
+		t.Fatalf("zero-width Input.Elements=%+v, want nil", got)
+	}
+}

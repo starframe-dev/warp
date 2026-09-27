@@ -95,8 +95,9 @@ func TestVerticalTabGeometryIsReadyOnFirstRender(t *testing.T) {
 		t.Fatalf("first rendered content offset=%d, vertical width=%d", got, tg.verticalTabWidth)
 	}
 	elements := tg.Elements(40, 6)
-	if len(elements) != 1 || elements[0].Bounds.X != tg.verticalTabWidth {
-		t.Fatalf("elements=%+v, vertical width=%d", elements, tg.verticalTabWidth)
+	panelElement, ok := FindElement(elements, "panel", panel.name, "")
+	if !ok || panelElement.Bounds.X != tg.verticalTabWidth {
+		t.Fatalf("panel element=%+v ok=%v, all elements=%+v, vertical width=%d", panelElement, ok, elements, tg.verticalTabWidth)
 	}
 }
 

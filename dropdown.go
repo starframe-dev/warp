@@ -92,6 +92,36 @@ func (d *DropdownMenu) renderMenu(w, h int) string {
 	return strings.Join(lines, "\n")
 }
 
+// Elements exposes the dropdown button and currently visible options.
+func (d *DropdownMenu) Elements(w, h int) []Element {
+	w = max(0, w)
+	h = max(0, h)
+	if w == 0 || h == 0 {
+		return nil
+	}
+
+	elements := []Element{{
+		Role:   "combobox",
+		Name:   d.Label,
+		Action: "toggle",
+		Bounds: Bounds{W: w, H: 1},
+	}}
+	if !d.Open {
+		return elements
+	}
+
+	visible := min(len(d.Items), max(0, h-1))
+	for i := 0; i < visible; i++ {
+		elements = append(elements, Element{
+			Role:   "option",
+			Name:   d.Items[i].Label,
+			Action: "select",
+			Bounds: Bounds{Y: i + 1, W: w, H: 1},
+		})
+	}
+	return elements
+}
+
 // Update handles mouse and keyboard for the dropdown.
 func (d *DropdownMenu) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {

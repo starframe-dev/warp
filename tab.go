@@ -525,9 +525,71 @@ func (t *Tab) Elements(w, h int) []Element {
 
 	var elements []Element
 	for i := len(t.floats) - 1; i >= 0; i-- {
+		elements = append(elements, t.floatChromeElements(t.floats[i], w, h)...)
 		elements = append(elements, t.floatElements(t.floats[i], w, h)...)
 	}
+	elements = append(elements, layoutControlElements(layout, w, h)...)
 	return append(elements, rootElements...)
+}
+
+func (t *Tab) floatChromeElements(float *FloatPane, totalW, totalH int) []Element {
+	if float == nil {
+		return nil
+	}
+	x, y, width, height := floatBoundsForViewport(float, totalW, totalH)
+	if width <= 0 || height <= 0 {
+		return nil
+	}
+	name := float.Title
+	if name == "" {
+		name = "Float"
+	}
+
+	var elements []Element
+	if width >= 3 {
+		elements = append(elements, Element{
+			Role:   "button",
+			Name:   "Close " + name,
+			Action: "close-float",
+			Bounds: Bounds{X: x + width - 2, Y: y, W: 1, H: 1},
+		})
+	}
+	if width >= 4 {
+		elements = append(elements, Element{
+			Role:   "titlebar",
+			Name:   name,
+			Action: "move-float",
+			Bounds: Bounds{X: x + 1, Y: y, W: width - 3, H: 1},
+		})
+	}
+	return elements
+}
+
+func layoutControlElements(layout *layoutNode, totalW, totalH int) []Element {
+	if layout == nil || totalW <= 0 || totalH <= 0 {
+		return nil
+	}
+	viewport := Bounds{W: totalW, H: totalH}
+	var elements []Element
+	for _, border := range collectLayoutBorders(layout) {
+		if border.Split == nil || border.Split.OnCollapse == nil || border.Split.CollapseRow < 0 {
+			continue
+		}
+		bounds, visible := intersectBounds(
+			Bounds{X: border.X, Y: border.Y + border.Split.CollapseRow, W: 1, H: 1},
+			viewport,
+		)
+		if !visible {
+			continue
+		}
+		elements = append(elements, Element{
+			Role:   "button",
+			Name:   "Toggle split",
+			Action: "toggle-collapse",
+			Bounds: bounds,
+		})
+	}
+	return elements
 }
 
 func (t *Tab) floatElements(float *FloatPane, totalW, totalH int) []Element {
