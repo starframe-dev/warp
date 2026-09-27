@@ -22,10 +22,11 @@ type renderHorizontalBorderKey struct {
 }
 
 type renderContext struct {
-	blankLines        map[renderBlankKey][]string
-	verticalBorders   map[bool]string
-	horizontalBorders map[renderHorizontalBorderKey]string
-	collapseBorder    string
+	blankLines             map[renderBlankKey][]string
+	verticalBorderNormal   string
+	verticalBorderDragging string
+	horizontalBorders      map[renderHorizontalBorderKey]string
+	collapseBorder         string
 }
 
 func renderNode(node *Node, w, h int) []string {
@@ -187,16 +188,16 @@ func (context *renderContext) renderBlankLines(w, h int) []string {
 }
 
 func (context *renderContext) renderVerticalBorder(dragging bool) string {
-	if context.verticalBorders != nil {
-		if border, ok := context.verticalBorders[dragging]; ok {
-			return border
+	if dragging {
+		if context.verticalBorderDragging == "" {
+			context.verticalBorderDragging = renderVerticalBorder(true)
 		}
-	} else {
-		context.verticalBorders = make(map[bool]string, 2)
+		return context.verticalBorderDragging
 	}
-	border := renderVerticalBorder(dragging)
-	context.verticalBorders[dragging] = border
-	return border
+	if context.verticalBorderNormal == "" {
+		context.verticalBorderNormal = renderVerticalBorder(false)
+	}
+	return context.verticalBorderNormal
 }
 
 func (context *renderContext) renderHorizontalBorder(width int, dragging bool) string {

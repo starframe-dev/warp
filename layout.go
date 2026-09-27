@@ -121,23 +121,31 @@ func layoutFlex(layout *layoutNode, flex *FlexConfig) {
 	if vertical {
 		axisSize = bounds.h
 	}
-	visible := make([]bool, max(0, count-1))
 	visibleCount := 0
-	for i := range visible {
-		if !flexItemCollapsed(flex.Items[i]) && !flexItemCollapsed(flex.Items[i+1]) && visibleCount < axisSize {
-			visible[i] = true
+	for i := 0; i+1 < count && visibleCount < axisSize; i++ {
+		if !flexItemCollapsed(flex.Items[i]) && !flexItemCollapsed(flex.Items[i+1]) {
 			visibleCount++
 		}
 	}
 
 	avail := max(0, axisSize-visibleCount)
 	sizes := computeFlexSizes(avail, flex.Items)
+	layout.children = make([]*layoutNode, 0, count)
+	if visibleCount > 0 {
+		layout.borders = make([]BorderHit, 0, visibleCount)
+	}
 	cursor := bounds.x
 	if vertical {
 		cursor = bounds.y
 	}
+	seenVisible := 0
 	for i, item := range flex.Items {
-		if i > 0 && visible[i-1] {
+		borderVisible := i > 0 &&
+			seenVisible < axisSize &&
+			!flexItemCollapsed(flex.Items[i-1]) &&
+			!flexItemCollapsed(item)
+		if borderVisible {
+			seenVisible++
 			if vertical {
 				layout.borders = append(layout.borders, BorderHit{
 					Flex:      flex,
