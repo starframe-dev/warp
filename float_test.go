@@ -171,13 +171,16 @@ func TestFloatPaneHandleMouseInsidePanel(t *testing.T) {
 		Width:  10,
 		Height: 10,
 	}
-	press := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 2, Y: 2}
+	press := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 2, Y: 2, Alt: true}
 	cmd := fp.handleMouse(press, 2, 2)
 	if rec.last == nil {
 		t.Fatal("expected panel Update to be called")
 	}
 	if rec.last.X != 1 || rec.last.Y != 1 {
 		t.Errorf("expected inner coords (1,1), got (%d,%d)", rec.last.X, rec.last.Y)
+	}
+	if !rec.last.Alt {
+		t.Error("expected mouse modifiers to be preserved")
 	}
 	if cmd == nil {
 		t.Error("expected panel command to be returned")

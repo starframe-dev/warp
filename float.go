@@ -127,12 +127,9 @@ func (fp *FloatPane) handleMouseWithin(msg tea.MouseMsg, mx, my, totalW, totalH 
 				return nil
 			}
 			if !isNilPanel(fp.Panel) && relY > 0 && relY < fp.Height-1 {
-				innerMsg := tea.MouseMsg{
-					Action: msg.Action,
-					Button: msg.Button,
-					X:      relX - 1,
-					Y:      relY - 1,
-				}
+				innerMsg := msg
+				innerMsg.X = relX - 1
+				innerMsg.Y = relY - 1
 				return fp.Panel.Update(innerMsg)
 			}
 
