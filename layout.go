@@ -283,10 +283,7 @@ func appendElementsFromLayout(elements []Element, layout *layoutNode) []Element 
 }
 
 func elementsAtLayout(layout *layoutNode) []Element {
-	elements := collectElements(layout.node.Panel, layout.bounds.w, layout.bounds.h)
-	if layout.bounds.x != 0 || layout.bounds.y != 0 {
-		elements = cloneElements(elements)
-	}
+	elements := cloneElements(collectElements(layout.node.Panel, layout.bounds.w, layout.bounds.h))
 	for i := range elements {
 		elements[i].Bounds.X += layout.bounds.x
 		elements[i].Bounds.Y += layout.bounds.y

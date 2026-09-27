@@ -216,3 +216,31 @@ func TestTabElementsIncludeFloatsTopmostFirst(t *testing.T) {
 		t.Fatalf("root element order = %+v, want root last after floats", elements[2])
 	}
 }
+
+func TestTabRootElementsDoNotExposeProviderStorage(t *testing.T) {
+	panel, original := newSemanticElementPanel()
+	tab := NewTab("root-provider")
+	tab.SetRootPanel(panel)
+
+	got := tab.Elements(8, 4)
+	if len(got) == 0 {
+		t.Fatal("Tab.Elements returned no root elements")
+	}
+	got[0].Bounds.X += 100
+	if !reflect.DeepEqual(panel.elements, original) {
+		t.Fatalf("Tab.Elements exposed provider storage: got=%+v want=%+v", panel.elements, original)
+	}
+}
+
+func TestCollapsibleElementsDoNotMutateProviderStorage(t *testing.T) {
+	panel, original := newSemanticElementPanel()
+	collapsible := NewCollapsible("Section", panel)
+
+	got := collapsible.Elements(8, 4)
+	if len(got) == 0 {
+		t.Fatal("Collapsible.Elements returned no visible elements")
+	}
+	if !reflect.DeepEqual(panel.elements, original) {
+		t.Fatalf("Collapsible.Elements mutated provider storage: got=%+v want=%+v", panel.elements, original)
+	}
+}

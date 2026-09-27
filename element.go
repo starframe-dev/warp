@@ -5,6 +5,14 @@ import (
 	"sync"
 )
 
+const (
+	// Semantic trees are bounded before Warp copies or searches them. This
+	// prevents malformed ElementProvider output from exhausting the stack or
+	// allocating without limit while leaving ample room for real TUI trees.
+	maxElementTreeDepth = 128
+	maxElementTreeNodes = 100_000
+)
+
 // Element describes a semantic UI element with its screen bounds.
 type Element struct {
 	Role     string    `json:"role"`
@@ -130,16 +138,32 @@ func (f ElementProviderFunc) Elements(width, height int) []Element {
 	return f(width, height)
 }
 
-// FindElement recursively searches elements for the first matching role/name/action.
+// FindElement searches elements for the first matching role/name/action.
+// Traversal uses the same safety limits as snapshot cloning.
 func FindElement(elems []Element, role, name, action string) (Element, bool) {
-	for _, el := range elems {
+	remaining := maxElementTreeNodes
+	return findElementBounded(elems, role, name, action, 0, &remaining)
+}
+
+func findElementBounded(elems []Element, role, name, action string, depth int, remaining *int) (Element, bool) {
+	if depth >= maxElementTreeDepth || remaining == nil || *remaining <= 0 {
+		return Element{}, false
+	}
+	for i := range elems {
+		if *remaining <= 0 {
+			return Element{}, false
+		}
+		*remaining--
+		el := elems[i]
 		if (role == "" || el.Role == role) &&
 			(name == "" || el.Name == name) &&
 			(action == "" || el.Action == action) {
 			return el, true
 		}
-		if found, ok := FindElement(el.Children, role, name, action); ok {
-			return found, true
+		if len(el.Children) > 0 {
+			if found, ok := findElementBounded(el.Children, role, name, action, depth+1, remaining); ok {
+				return found, true
+			}
 		}
 	}
 	return Element{}, false

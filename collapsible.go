@@ -56,7 +56,7 @@ func (c *Collapsible) Elements(w, h int) []Element {
 	}
 
 	contentHeight := h - 1
-	elements := collectElements(c.Content, w, contentHeight)
+	elements := cloneElements(collectElements(c.Content, w, contentHeight))
 	elements = clipElements(elements, Bounds{W: w, H: contentHeight})
 	shiftElements(elements, 0, 1)
 	return elements

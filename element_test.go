@@ -340,3 +340,38 @@ func TestHTTPInspectorOptionsCORSAndBearerToken(t *testing.T) {
 		t.Fatalf("allowed origin header=%q, want exact configured origin", got)
 	}
 }
+
+func TestElementTraversalBoundsPathologicalCycles(t *testing.T) {
+	cyclic := make([]Element, 1)
+	cyclic[0] = Element{Role: "group", Name: "cycle", Bounds: Bounds{W: 1, H: 1}}
+	cyclic[0].Children = cyclic
+
+	cloned := cloneElements(cyclic)
+	if len(cloned) != 1 {
+		t.Fatalf("cloneElements(cycle) roots=%d, want 1", len(cloned))
+	}
+	depth := 0
+	current := cloned
+	for len(current) > 0 {
+		depth++
+		if depth > maxElementTreeDepth {
+			t.Fatalf("clone depth exceeded safety limit: %d", depth)
+		}
+		current = current[0].Children
+	}
+	if depth != maxElementTreeDepth {
+		t.Fatalf("bounded clone depth=%d, want %d", depth, maxElementTreeDepth)
+	}
+
+	if _, ok := FindElement(cyclic, "missing", "", ""); ok {
+		t.Fatal("FindElement unexpectedly matched missing role in cyclic tree")
+	}
+}
+
+func TestElementCloneCapsTopLevelNodeCount(t *testing.T) {
+	elements := make([]Element, maxElementTreeNodes+1)
+	cloned := cloneElements(elements)
+	if len(cloned) != maxElementTreeNodes {
+		t.Fatalf("cloneElements node cap=%d, want %d", len(cloned), maxElementTreeNodes)
+	}
+}

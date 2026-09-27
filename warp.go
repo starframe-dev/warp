@@ -479,13 +479,26 @@ func (w *Warp) refreshElementsSnapshot(root Panel, width, height int, rootRevisi
 }
 
 func cloneElements(elems []Element) []Element {
+	remaining := maxElementTreeNodes
+	return cloneElementsBounded(elems, 0, &remaining)
+}
+
+func cloneElementsBounded(elems []Element, depth int, remaining *int) []Element {
 	if elems == nil {
 		return nil
 	}
-	cloned := make([]Element, len(elems))
-	for i, elem := range elems {
-		cloned[i] = elem
-		cloned[i].Children = cloneElements(elem.Children)
+	if depth >= maxElementTreeDepth || remaining == nil || *remaining <= 0 {
+		return nil
+	}
+
+	count := min(len(elems), *remaining)
+	*remaining -= count
+	cloned := make([]Element, count)
+	for i := 0; i < count; i++ {
+		cloned[i] = elems[i]
+		if len(elems[i].Children) > 0 {
+			cloned[i].Children = cloneElementsBounded(elems[i].Children, depth+1, remaining)
+		}
 	}
 	return cloned
 }
