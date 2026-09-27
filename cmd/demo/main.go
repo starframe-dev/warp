@@ -105,29 +105,6 @@ func (p *textPanel) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// --- statusPanel ---
-
-type statusPanel struct {
-	msg string
-}
-
-func (p *statusPanel) View(w, h int) string {
-	line := padRight(p.msg, w)
-	lines := make([]string, h)
-	for i := range lines {
-		lines[i] = line
-	}
-	return strings.Join(lines, "\n")
-}
-
-func (p *statusPanel) Update(msg tea.Msg) tea.Cmd {
-	return nil
-}
-
-func (p *statusPanel) Set(msg string) {
-	p.msg = msg
-}
-
 func main() {
 	w := warp.New()
 
