@@ -86,7 +86,9 @@ this avoids boilerplate while keeping the interface contract satisfied.
 ## Usage
 
 Implement `Panel` directly, or embed `BasePanel` for partial overrides.
-The panel receives only messages that arrived while it was focused.
+Keyboard input is normally delivered to the focused panel, while resize,
+framework, and custom/unknown messages may also be broadcast to unfocused
+leaf panels and floats.
 
 ``` go
 
@@ -107,8 +109,11 @@ func (p *MyPanel) Update(msg tea.Msg) tea.Cmd {
 
 ## Implementation Notes
 
-- **Message routing** — only focused panels receive `Update` calls;
-  unfocused panels are not disturbed by incoming messages.
+- **Message routing** — keyboard input follows focus. `ResizeMsg`,
+  `tea.WindowSizeMsg`, and custom/unknown messages can be broadcast through
+  a `Tab`/`TabGroup` to unfocused leaf panels and floats so background
+  integrations such as PTYs can receive asynchronous events. Panel
+  implementations should tolerate non-key `Update` calls while unfocused.
 - **Dimension-aware rendering** — `View` receives explicit `width` and
   `height`, so panels can adapt their layout to the available space
   without inspecting global state.

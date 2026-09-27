@@ -103,9 +103,11 @@ incoming panel.
 
 ## Behavioral Notes
 
-- Focus traversal respects the *visual order* of the layout tree: for
-  split nodes, the first child is always visited before the second; for
-  flex nodes, items are visited in their declared slice order.
+- `collectFocusables` respects the *visual order* of the root layout tree:
+  split nodes visit the first child before the second and flex items keep
+  slice order. `Tab.FocusFirst/Next/Prev` extend that list with focusable
+  floats in z-order and deduplicate a panel instance already present in the
+  root layout.
 - Wrap-around is intentional: pressing "next" at the last panel wraps to
   the first, and "previous" at the first wraps to the last.
 - `applyFocus` suppresses the `Blur` call when the outgoing panel is

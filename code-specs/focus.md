@@ -91,3 +91,8 @@ func applyFocus(current, next Focusable)
 ## Структура дерева и порядок обхода
 
 Дерево представлено узлами `*Node`. В листе проверяется `Node.Panel`; внутренний узел может содержать `Split` с `First` и `Second`, а также `Flex` со списком `Items`. Обход следует порядку, реализованному в коде: сначала две ветви `Split`, затем дочерние узлы элементов `Flex`.
+
+
+## Использование в Tab
+
+`collectFocusables` собирает только root layout. `Tab.FocusFirst`, `FocusNext` и `FocusPrev` расширяют этот список focusable float-панелями в z-порядке и дедуплицируют экземпляр, если он уже присутствует в root layout.

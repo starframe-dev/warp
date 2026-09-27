@@ -80,7 +80,9 @@ be queried as an element provider before real panels are attached.
   Dragging live-broadcasts resizes so panels update while dragging.
 - **Keyboard:** `handleKeys` forwards only to the focused panel; warp
   never intercepts Tab/Shift+Tab automatically — use the explicit
-  `FocusNext`/`FocusPrev` methods.
+  `FocusNext`/`FocusPrev` methods. Focus traversal walks the root layout
+  first and then focusable floats in z-order, deduplicating a panel instance
+  shared between the root and a float.
 - **Focus cleanup:** `CloseFloat` blurs and clears the focus target when
   it removes the focused float. An outside click may then focus the panel
   under the click.
@@ -94,9 +96,9 @@ be queried as an element provider before real panels are attached.
   explicitly, making repeated Collapse/Expand calls idempotent. A nil
   `SetSplitCollapse` callback does not disable the internal state toggle.
 - **Element collection:** `Elements` recursively walks splits and flex
-  layouts, computing per-branch sizes (accounting for 1-cell borders)
-  and offsetting element bounds so coordinates are relative to the tab
-  content area.
+  layouts, then includes float content elements translated into viewport
+  coordinates. Float elements are returned topmost-first before root-layout
+  elements so automation sees overlays before covered background content.
 
 Panel instances shared across independent owner roots are unsupported and
 must be managed by the caller; lifecycle tracking is local, not global.

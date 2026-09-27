@@ -30,6 +30,7 @@
 - `Update(msg tea.Msg) (tea.Model, tea.Cmd)` сохраняет размеры при `tea.WindowSizeMsg`, передаёт сообщение корню (если он не nil) и обновляет snapshot. Возвращает сам `Warp` и команду корневой панели.
 - `View() string` возвращает пустую строку при nil-корне. При нулевой ширине или высоте возвращает `Loading...`; иначе рендерит корень. Во всех случаях обновляет snapshot.
 - `Run() error` запускает Bubbletea-программу с `WithAltScreen` и `WithMouseCellMotion` и возвращает ошибку `Program.Run`.
+- `Close() error` останавливает HTTP inspector и, если Warp является корнем ownership domain, заменяет корень на nil, вызывая lifecycle cleanup уникальных `Unmounter` панелей. Для embedded Warp внешним lifecycle владеет родитель.
 
 ### Вложенная панель
 
@@ -42,15 +43,16 @@
 
 ### Методы
 
-- `ServeHTTP(addr string) error` запускает сервер с маршрутами `/elements` и `/healthz`. Если сервер уже запущен или закрывается, метод ничего не делает и возвращает `nil`. При пустом адресе использует `127.0.0.1:<WARP_HTTP_PORT>`, а если переменная окружения пуста — порт `0`. Ошибка `net.Listen` возвращается с обёрткой `warp http listen: %w`. Адрес фактического listener сохраняется в `httpAddr`; `Serve` запускается в отдельной горутине, и его ошибка игнорируется.
-- `CloseHTTP() error` возвращает `nil`, если сервер не запущен. Иначе очищает `httpServer` и `httpAddr`, устанавливает флаг закрытия, вызывает `Shutdown(context.Background())` без удержания mutex, затем сбрасывает флаг и возвращает ошибку `Shutdown`.
+- `ServeHTTP(addr string) error` использует безопасные defaults и делегирует `ServeHTTPWithOptions(addr, InspectorOptions{})`.
+- `ServeHTTPWithOptions(addr, options) error` запускает сервер с маршрутами `/elements` и `/healthz`. При пустом адресе используется loopback `127.0.0.1` и `WARP_HTTP_PORT` либо порт 0. `InspectorOptions.AllowedOrigin` явно разрешает точный CORS origin или `"*"`; по умолчанию CORS не добавляется. `BearerToken` при непустом значении требует `Authorization: Bearer ...` для `/elements`.
+- `CloseHTTP() error` отключает inspector demand, очищает snapshot и выполняет bounded `http.Server.Shutdown` с timeout; при timeout выполняется `server.Close()`. Mutex Warp не удерживается во время ожидания shutdown.
 - `HTTPAddr() string` возвращает сохранённый адрес или пустую строку.
 
 ### `/elements`
 
-Возвращает HTTP 200 с JSON-массивом текущего snapshot элементов. Если snapshot равен nil, отдаёт пустой массив. Устанавливает заголовки `Content-Type: application/json` и `Access-Control-Allow-Origin: *`. Ошибка JSON-кодирования игнорируется. Обработчик читает только snapshot и не обходит живое дерево.
+GET возвращает HTTP 200 с JSON-массивом immutable snapshot элементов. При включённом bearer token неавторизованный запрос получает 401. Другие методы, кроме GET/OPTIONS, отклоняются. CORS-заголовок появляется только при явной настройке origin.
 
-При построении snapshot размеры меньше или равные нулю заменяются на 80×24. Если корень не nil, элементы собираются через `collectElements` и глубоко копируются через `cloneElements`. Обновления snapshot выполняются после `Update` и `View`; HTTP-запрос может получить предыдущее завершённое состояние.
+При построении snapshot неизвестные размеры заменяются на 80×24. Snapshot обновляется после `Update` и повторно после каждого завершённого `View`, потому что пользовательская реализация `Panel.View` может менять semantic state. HTTP handler читает только опубликованный snapshot и не обходит живое дерево.
 
 ### `/healthz`
 

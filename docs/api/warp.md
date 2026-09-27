@@ -72,10 +72,15 @@ nested inside another panel or another `Warp`.
 
 ### Lifecycle
 
-` func (w *Warp) Run() error `
+```go
+func (w *Warp) Run() error
+func (w *Warp) Close() error
+```
 
-Starts the Bubbletea program (alt-screen + cell mouse motion) and blocks
-until the program exits. The returned error is the program's exit error.
+`Run` starts the Bubbletea program (alt-screen + cell mouse motion) and blocks
+until the program exits. `Close` stops the HTTP inspector and, for a root Warp,
+detaches the owned panel hierarchy so unique `Unmounter` panels are released.
+`Close` is idempotent and is recommended for embedded or long-lived processes.
 
 ### Panel resource ownership
 
@@ -91,7 +96,13 @@ caller's responsibility. Warp does not maintain a global ownership registry.
 ### HTTP serving
 
 ```go
+type InspectorOptions struct {
+    AllowedOrigin string
+    BearerToken   string
+}
+
 func (w *Warp) ServeHTTP(addr string) error
+func (w *Warp) ServeHTTPWithOptions(addr string, options InspectorOptions) error
 func (w *Warp) CloseHTTP() error
 func (w *Warp) HTTPAddr() string
 ```
@@ -99,7 +110,9 @@ func (w *Warp) HTTPAddr() string
 `ServeHTTP` starts an HTTP server on `addr` and exposes two endpoints.
 If `addr` is empty, it binds to `127.0.0.1` on `WARP_HTTP_PORT`, or on an
 automatically assigned port when that variable is unset. A non-empty
-address is used as supplied.
+address is used as supplied. Cross-origin access is disabled by default.
+`ServeHTTPWithOptions` can opt into an exact CORS origin (or `"*"` explicitly)
+and can require a bearer token for `/elements`.
 
 | Path | Description |
 |----|----|
@@ -144,7 +157,7 @@ parent.SetRoot(inner.AsPanel()) // inner Warp embedded in parent
 
 ## Implementation notes
 
-- After `Update` and `View`, the UI thread collects elements and deep-copies their `Children` before publishing the immutable snapshot. Element collection invokes `Panel.Elements` without holding Warp's mutex.
+- After `Update` and after every completed `View`, the UI thread collects elements and deep-copies their `Children` before publishing the immutable snapshot. The post-View refresh is intentional because custom panels may update semantic state while rendering. Element collection invokes `Panel.Elements` without holding Warp's mutex.
 - `/elements` reads only the most recently completed snapshot. It never traverses the live panel tree or invokes `Panel.Elements`, `Panel.View`, or `Panel.Update`; a response may be one UI operation behind, but cannot observe partially updated tree data.
 - A root revision prevents a snapshot collected for an old root from being published after `SetRoot`. A nil root is serialized as an empty JSON array, not `null`.
 - If dimensions are unknown while building a snapshot, the inspector uses 80×24.
