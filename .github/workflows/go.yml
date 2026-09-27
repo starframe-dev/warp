@@ -39,6 +39,14 @@ jobs:
       - name: Test
         run: go test ./...
 
+      - name: Core coverage floor
+        if: matrix.go == '1.27.x'
+        run: |
+          go test -coverprofile=coverage.out .
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%","",$3); print $3}')
+          echo "Core coverage: ${total}%"
+          awk -v total="$total" 'BEGIN { if (total+0 < 90) { print "core coverage below 90%"; exit 1 } }'
+
       - name: Shuffle/repeat tests
         if: matrix.go == '1.27.x'
         run: go test -shuffle=on -count=2 ./...
