@@ -69,7 +69,7 @@ func renderSplitLayout(layout *layoutNode) []string {
 				}
 			}
 			row.WriteString(lineAt(second, y))
-			lines[y] = padVisualLine(row.String(), bounds.w)
+			lines[y] = row.String()
 		}
 		return lines
 	case Horizontal:
@@ -79,7 +79,7 @@ func renderSplitLayout(layout *layoutNode) []string {
 			lines = append(lines, renderHorizontalBorder(bounds.w, split.Dragging))
 		}
 		lines = append(lines, second...)
-		return padLayoutLines(lines, bounds.w, bounds.h)
+		return lines
 	default:
 		return renderBlankLines(bounds.w, bounds.h)
 	}
@@ -117,7 +117,7 @@ func renderFlexLayout(layout *layoutNode) []string {
 				}
 				row.WriteString(lineAt(child, y))
 			}
-			lines[y] = padVisualLine(row.String(), layout.bounds.w)
+			lines[y] = row.String()
 		}
 		return lines
 	case Vertical:
@@ -128,7 +128,7 @@ func renderFlexLayout(layout *layoutNode) []string {
 			}
 			lines = append(lines, renderLayout(child)...)
 		}
-		return padLayoutLines(lines, layout.bounds.w, layout.bounds.h)
+		return lines
 	default:
 		return renderBlankLines(layout.bounds.w, layout.bounds.h)
 	}
@@ -153,21 +153,6 @@ func renderBlankLines(w, h int) []string {
 		}
 	}
 	return lines
-}
-
-func padLayoutLines(lines []string, w, h int) []string {
-	if h <= 0 {
-		return nil
-	}
-	result := make([]string, h)
-	for i := 0; i < h; i++ {
-		if i < len(lines) {
-			result[i] = padVisualLine(lines[i], w)
-		} else if w > 0 {
-			result[i] = strings.Repeat(" ", w)
-		}
-	}
-	return result
 }
 
 func renderVerticalBorder(dragging bool) string {

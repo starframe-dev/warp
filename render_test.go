@@ -612,3 +612,53 @@ func TestFindFlexBorders(t *testing.T) {
 		t.Errorf("expected 2 borders from nested flex+split, got %d", len(borders))
 	}
 }
+
+type styledWideRenderPanel struct{}
+
+func (styledWideRenderPanel) View(width, height int) string {
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+	line := "\x1b[31m界🙂abcdef\x1b[0m"
+	lines := make([]string, height)
+	for i := range lines {
+		lines[i] = line
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (styledWideRenderPanel) Update(tea.Msg) tea.Cmd { return nil }
+
+func TestNestedRenderInternalRowsStayNormalized(t *testing.T) {
+	leaf := func() *Node { return &Node{Panel: styledWideRenderPanel{}} }
+	tree := &Node{Split: &SplitConfig{
+		Direction: Vertical,
+		Fraction:  0.45,
+		First: &Node{Flex: &FlexConfig{
+			Direction: Horizontal,
+			Items: []*FlexItem{
+				{Node: leaf(), Grow: 1},
+				{Node: leaf(), Grow: 2},
+			},
+		}},
+		Second: &Node{Split: &SplitConfig{
+			Direction: Horizontal,
+			Fraction:  0.4,
+			First:     leaf(),
+			Second:    leaf(),
+		}},
+	}}
+	for width := 0; width <= 32; width++ {
+		for height := 0; height <= 10; height++ {
+			lines := renderNode(tree, width, height)
+			if len(lines) != height {
+				t.Fatalf("size %dx%d rendered %d lines, want %d", width, height, len(lines), height)
+			}
+			for y, line := range lines {
+				if got := ansi.StringWidth(line); got != width {
+					t.Fatalf("size %dx%d line %d width=%d, want %d: %q", width, height, y, got, width, line)
+				}
+			}
+		}
+	}
+}
