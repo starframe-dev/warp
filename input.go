@@ -42,8 +42,8 @@ func NewInput(prompt string) *Input {
 // SetValue replaces the input value and places the cursor at the end.
 func (in *Input) SetValue(v string) {
 	in.Value = v
-	in.Cursor = in.graphemeRuneCount()
-	in.clampCursor()
+	in.Cursor = utf8.RuneCountInString(v)
+	in.invalidateGraphemeLayout()
 }
 
 // SetCursor sets the cursor position in runes. Positions inside a grapheme cluster
@@ -180,19 +180,43 @@ func (in *Input) graphemeLayout() []inputGrapheme {
 
 	in.graphemes = in.graphemes[:0]
 	bytePos, runePos, cellPos := 0, 0, 0
-	graphemes := uniseg.NewGraphemes(in.Value)
-	for graphemes.Next() {
-		text := graphemes.Str()
-		runeCount := utf8.RuneCountInString(text)
-		width := ansi.StringWidth(text)
-		in.graphemes = append(in.graphemes, inputGrapheme{
-			byteStart: bytePos, byteEnd: bytePos + len(text),
-			runeStart: runePos, runeEnd: runePos + runeCount,
-			cellStart: cellPos, cellWidth: width,
-		})
-		bytePos += len(text)
-		runePos += runeCount
-		cellPos += width
+	if !strings.ContainsRune(in.Value, '') {
+		rest := in.Value
+		state := -1
+		for len(rest) > 0 {
+			text, next, width, nextState := uniseg.FirstGraphemeClusterInString(rest, state)
+			if text == "" {
+				break
+			}
+			runeCount := utf8.RuneCountInString(text)
+			in.graphemes = append(in.graphemes, inputGrapheme{
+				byteStart: bytePos, byteEnd: bytePos + len(text),
+				runeStart: runePos, runeEnd: runePos + runeCount,
+				cellStart: cellPos, cellWidth: width,
+			})
+			bytePos += len(text)
+			runePos += runeCount
+			cellPos += width
+			rest = next
+			state = nextState
+		}
+	} else {
+		// ANSI-bearing values are unusual for an editable input, but preserve
+		// the historical width semantics by parsing terminal escapes here.
+		graphemes := uniseg.NewGraphemes(in.Value)
+		for graphemes.Next() {
+			text := graphemes.Str()
+			runeCount := utf8.RuneCountInString(text)
+			width := ansi.StringWidth(text)
+			in.graphemes = append(in.graphemes, inputGrapheme{
+				byteStart: bytePos, byteEnd: bytePos + len(text),
+				runeStart: runePos, runeEnd: runePos + runeCount,
+				cellStart: cellPos, cellWidth: width,
+			})
+			bytePos += len(text)
+			runePos += runeCount
+			cellPos += width
+		}
 	}
 	in.graphemeValue = in.Value
 	in.graphemesValid = true
@@ -205,6 +229,40 @@ func (in *Input) graphemeRuneCount() int {
 		return 0
 	}
 	return graphemes[len(graphemes)-1].runeEnd
+}
+
+func (in *Input) invalidateGraphemeLayout() {
+	in.graphemesValid = false
+	in.graphemeValue = ""
+}
+
+func inputByteOffsetAtRune(graphemes []inputGrapheme, runePos, valueLen int) int {
+	if runePos <= 0 || len(graphemes) == 0 {
+		return 0
+	}
+	if runePos >= graphemes[len(graphemes)-1].runeEnd {
+		return valueLen
+	}
+	for _, current := range graphemes {
+		if runePos <= current.runeStart {
+			return current.byteStart
+		}
+		if runePos <= current.runeEnd {
+			return current.byteEnd
+		}
+	}
+	return valueLen
+}
+
+func spliceInputValue(value string, startByte, endByte int, replacement string) string {
+	startByte = min(max(0, startByte), len(value))
+	endByte = min(max(startByte, endByte), len(value))
+	var result strings.Builder
+	result.Grow(len(value) - (endByte - startByte) + len(replacement))
+	result.WriteString(value[:startByte])
+	result.WriteString(replacement)
+	result.WriteString(value[endByte:])
+	return result.String()
 }
 
 func truncateInputAtCursor(value string, maxCells, cursor int, clusters []inputGrapheme) (string, int) {
@@ -315,35 +373,40 @@ func (in *Input) insertAtCursor(s string) {
 		return
 	}
 	in.clampCursor()
-	runes := []rune(in.Value)
-	runes = append(runes[:in.Cursor], append([]rune(s), runes[in.Cursor:]...)...)
-	in.Value = string(runes)
+	layout := in.graphemeLayout()
+	bytePos := inputByteOffsetAtRune(layout, in.Cursor, len(in.Value))
+	in.Value = spliceInputValue(in.Value, bytePos, bytePos, s)
 	in.Cursor += utf8.RuneCountInString(s)
+	in.invalidateGraphemeLayout()
 	in.clampCursor()
 }
 
 func (in *Input) deleteBeforeCursor() {
 	in.clampCursor()
-	start := previousGraphemeBoundary(in.graphemeLayout(), in.Cursor)
+	layout := in.graphemeLayout()
+	start := previousGraphemeBoundary(layout, in.Cursor)
 	if start == in.Cursor {
 		return
 	}
-	runes := []rune(in.Value)
-	runes = append(runes[:start], runes[in.Cursor:]...)
-	in.Value = string(runes)
+	startByte := inputByteOffsetAtRune(layout, start, len(in.Value))
+	endByte := inputByteOffsetAtRune(layout, in.Cursor, len(in.Value))
+	in.Value = spliceInputValue(in.Value, startByte, endByte, "")
 	in.Cursor = start
+	in.invalidateGraphemeLayout()
 	in.clampCursor()
 }
 
 func (in *Input) deleteAtCursor() {
 	in.clampCursor()
-	end := nextGraphemeBoundary(in.graphemeLayout(), in.Cursor)
+	layout := in.graphemeLayout()
+	end := nextGraphemeBoundary(layout, in.Cursor)
 	if end == in.Cursor {
 		return
 	}
-	runes := []rune(in.Value)
-	runes = append(runes[:in.Cursor], runes[end:]...)
-	in.Value = string(runes)
+	startByte := inputByteOffsetAtRune(layout, in.Cursor, len(in.Value))
+	endByte := inputByteOffsetAtRune(layout, end, len(in.Value))
+	in.Value = spliceInputValue(in.Value, startByte, endByte, "")
+	in.invalidateGraphemeLayout()
 	in.clampCursor()
 }
 

@@ -168,3 +168,22 @@ func TestInputNarrowPromptAndBoxStayWithinCellBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestInputInsertionRenormalizesMergedGraphemeClusters(t *testing.T) {
+	input := NewInput("")
+	input.Focus()
+
+	input.SetValue("e")
+	input.SetCursor(1)
+	input.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\u0301'}})
+	if input.Value != "e\u0301" || input.Cursor != 2 {
+		t.Fatalf("combining mark insertion = (%q, %d), want (%q, 2)", input.Value, input.Cursor, "e\u0301")
+	}
+
+	input.SetValue("\u0301Z")
+	input.SetCursor(0)
+	input.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+	if input.Value != "X\u0301Z" || input.Cursor != 2 {
+		t.Fatalf("insert before leading combining mark = (%q, %d), want (%q, 2)", input.Value, input.Cursor, "X\u0301Z")
+	}
+}
