@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"sync"
 	"testing"
@@ -234,5 +235,68 @@ func TestInspectorSnapshotReflectsViewSideEffects(t *testing.T) {
 	}
 	if len(elements) != 1 || elements[0].Name != "1" {
 		t.Fatalf("snapshot after View = %+v, want semantic state 1", elements)
+	}
+}
+
+type semanticStableTestMsg struct {
+	stable bool
+}
+
+func (msg semanticStableTestMsg) SemanticStateUnchanged() bool { return msg.stable }
+
+func TestSemanticStableMessageSkipsUpdateSnapshot(t *testing.T) {
+	w := New()
+	panel := &countingElementPanel{}
+	w.SetRoot(panel)
+	if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
+		t.Fatalf("ServeHTTP failed: %v", err)
+	}
+	defer func() { _ = w.CloseHTTP() }()
+
+	_ = w.View()
+	baseline := panel.calls
+
+	_, _ = w.Update(semanticStableTestMsg{stable: true})
+	if panel.calls != baseline {
+		t.Fatalf("stable Update rebuilt semantic snapshot: calls=%d baseline=%d", panel.calls, baseline)
+	}
+
+	_ = w.View()
+	if panel.calls != baseline+1 {
+		t.Fatalf("View after stable Update calls=%d, want %d", panel.calls, baseline+1)
+	}
+
+	_, _ = w.Update(semanticStableTestMsg{stable: false})
+	if panel.calls != baseline+2 {
+		t.Fatalf("non-stable Update calls=%d, want %d", panel.calls, baseline+2)
+	}
+}
+
+func TestSemanticStableMessageKeepsPublishedSnapshotReadable(t *testing.T) {
+	w := New()
+	panel := &viewMutatingElementPanel{}
+	w.SetRoot(panel)
+	if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
+		t.Fatalf("ServeHTTP failed: %v", err)
+	}
+	defer func() { _ = w.CloseHTTP() }()
+
+	_ = w.View()
+	recorder := httptest.NewRecorder()
+	w.handleElements(recorder, httptest.NewRequest(http.MethodGet, "/elements", nil))
+	var before []Element
+	if err := json.NewDecoder(recorder.Body).Decode(&before); err != nil {
+		t.Fatalf("decode before: %v", err)
+	}
+
+	_, _ = w.Update(semanticStableTestMsg{stable: true})
+	recorder = httptest.NewRecorder()
+	w.handleElements(recorder, httptest.NewRequest(http.MethodGet, "/elements", nil))
+	var after []Element
+	if err := json.NewDecoder(recorder.Body).Decode(&after); err != nil {
+		t.Fatalf("decode after: %v", err)
+	}
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("stable Update changed published snapshot: before=%+v after=%+v", before, after)
 	}
 }

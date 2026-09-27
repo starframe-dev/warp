@@ -40,6 +40,10 @@ func (p *performancePanel) ContentHeight(int) (int, bool) {
 
 type performanceMessage struct{}
 
+type performanceStableMessage struct{}
+
+func (performanceStableMessage) SemanticStateUnchanged() bool { return true }
+
 type performanceRowsPanel struct {
 	rows int
 }
@@ -317,6 +321,19 @@ func BenchmarkInspector(b *testing.B) {
 			_, _ = w.Update(performanceMessage{})
 		}
 	})
+	b.Run("update-with-http-stable", func(b *testing.B) {
+		w := New()
+		w.SetRoot(&performancePanel{elements: benchmarkElements(128)})
+		if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
+			b.Fatal(err)
+		}
+		defer func() { _ = w.CloseHTTP() }()
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _ = w.Update(performanceStableMessage{})
+		}
+	})
 	b.Run("elements-json", func(b *testing.B) {
 		w := New()
 		w.SetRoot(&performancePanel{elements: benchmarkElements(128)})
@@ -459,6 +476,20 @@ func BenchmarkInspectorScale(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				_, _ = w.Update(performanceMessage{})
+			}
+		})
+		b.Run(fmt.Sprintf("stable-%d", count), func(b *testing.B) {
+			w := New()
+			w.SetRoot(&performancePanel{elements: benchmarkElements(count)})
+			if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
+				b.Fatal(err)
+			}
+			defer func() { _ = w.CloseHTTP() }()
+			_ = w.View()
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _ = w.Update(performanceStableMessage{})
 			}
 		})
 	}

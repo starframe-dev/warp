@@ -3,6 +3,8 @@ package warp
 import (
 	"encoding/json"
 	"sync"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 const (
@@ -73,6 +75,22 @@ type ElementProvider interface {
 // content viewport. Returned bounds remain relative to the full content origin.
 type ViewportElementProvider interface {
 	ElementsAt(width, height, offset int) []Element
+}
+
+// SemanticStableMsg may be implemented by high-frequency messages that are
+// guaranteed not to change the semantic element tree. When the HTTP inspector
+// is enabled, Warp can keep publishing the previous immutable snapshot after
+// such an Update and defer rebuilding elements until the next View.
+//
+// Returning true is an explicit correctness promise by the message producer.
+// Ordinary messages remain conservative and rebuild the Update snapshot.
+type SemanticStableMsg interface {
+	SemanticStateUnchanged() bool
+}
+
+func semanticStateUnchanged(msg tea.Msg) bool {
+	stable, ok := msg.(SemanticStableMsg)
+	return ok && stable.SemanticStateUnchanged()
 }
 
 // collectElements returns elements from a panel if it implements ElementProvider.

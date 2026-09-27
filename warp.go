@@ -18,16 +18,14 @@ import (
 // Warp is the root Bubbletea model. It holds a root Panel and forwards
 // all messages to it without interception.
 type Warp struct {
-	root                Panel
-	rootRevision        uint64
-	stateRevision       uint64
-	snapshotRevision    uint64
-	viewSnapshotPending bool
-	width               int
-	height              int
-	ownership           *panelOwnership
-	ownsDomainRoot      bool
-	setRootMu           sync.Mutex
+	root           Panel
+	rootRevision   uint64
+	stateRevision  uint64
+	width          int
+	height         int
+	ownership      *panelOwnership
+	ownsDomainRoot bool
+	setRootMu      sync.Mutex
 
 	httpServer         *http.Server
 	httpAddr           string
@@ -74,7 +72,6 @@ func (w *Warp) SetRoot(panel Panel) {
 	w.root = panel
 	w.rootRevision++
 	w.stateRevision++
-	w.viewSnapshotPending = false
 	w.mu.Unlock()
 	if ownsDomainRoot {
 		ownership.setRoot(panel)
@@ -165,18 +162,15 @@ func (w *Warp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	root, width, height := w.root, w.width, w.height
 	rootRevision, stateRevision := w.rootRevision, w.stateRevision
 	inspectorEnabled := w.inspectorEnabled
+	skipUpdateSnapshot := semanticStateUnchanged(msg)
 	w.mu.Unlock()
 
 	var cmd tea.Cmd
 	if !isNilPanel(root) {
 		cmd = root.Update(msg)
 	}
-	if inspectorEnabled && w.refreshElementsSnapshot(root, width, height, rootRevision, stateRevision) {
-		w.mu.Lock()
-		if w.inspectorEnabled && w.rootRevision == rootRevision && w.stateRevision == stateRevision {
-			w.viewSnapshotPending = true
-		}
-		w.mu.Unlock()
+	if inspectorEnabled && !skipUpdateSnapshot {
+		w.refreshElementsSnapshot(root, width, height, rootRevision, stateRevision)
 	}
 	return w, cmd
 }
@@ -333,7 +327,6 @@ func (w *Warp) serveHTTP(server *http.Server, listener net.Listener) {
 	w.httpServer = nil
 	w.httpAddr = ""
 	w.inspectorEnabled = false
-	w.viewSnapshotPending = false
 	w.elementsSnapshotMu.Lock()
 	w.elementsSnapshot = nil
 	w.elementsSnapshotMu.Unlock()
@@ -352,7 +345,6 @@ func (w *Warp) CloseHTTP() error {
 	w.httpAddr = ""
 	w.httpClosing = true
 	w.inspectorEnabled = false
-	w.viewSnapshotPending = false
 	w.elementsSnapshotMu.Lock()
 	w.elementsSnapshot = nil
 	w.elementsSnapshotMu.Unlock()
@@ -473,8 +465,6 @@ func (w *Warp) refreshElementsSnapshot(root Panel, width, height int, rootRevisi
 	w.elementsSnapshotMu.Lock()
 	w.elementsSnapshot = snapshot
 	w.elementsSnapshotMu.Unlock()
-	w.snapshotRevision = stateRevision
-	w.viewSnapshotPending = false
 	return true
 }
 
