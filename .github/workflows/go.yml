@@ -113,3 +113,39 @@ jobs:
 
       - name: Scan reachable vulnerabilities
         run: govulncheck ./...
+
+
+  release:
+    name: release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, portability, lint, vulnerability-scan]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Publish version once
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(tr -d '[:space:]' < VERSION)
+          tag="v${version}"
+          notes=".github/releases/${tag}.md"
+
+          if [ ! -s "$notes" ]; then
+            echo "missing release notes: $notes"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "$tag already exists; nothing to publish"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" "$GITHUB_SHA" -m "Warp $tag"
+          git push origin "$tag"
+          gh release create "$tag"             --repo "$GITHUB_REPOSITORY"             --title "Warp $tag"             --notes-file "$notes"             --verify-tag
