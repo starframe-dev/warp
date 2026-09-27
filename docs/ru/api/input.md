@@ -62,3 +62,8 @@ func NewInput(prompt string) *Input
 ## Стилизация
 
 В конце файла определены стили lipgloss: `inputStyle` (светлый текст), `inputBorderStyle` (тёмная рамка) и `inputFocusBorderStyle` (синяя рамка при фокусе). Стили используются в обоих режимах рендеринга.
+
+
+## Семантический элемент
+
+`Elements(w, h)` публикует один элемент `textbox` с action `focus`. Имя берётся из trimmed `Prompt`, а при пустом prompt используется `Input`. Bounds покрывают видимый прямоугольник компонента; при нулевой ширине или высоте semantic element отсутствует.
