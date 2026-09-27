@@ -33,27 +33,36 @@ func renderNode(node *Node, w, h int) []string {
 	return renderLayout(newLayout(node, layoutRect{w: max(0, w), h: max(0, h)}))
 }
 
+type renderResult struct {
+	lines  []string
+	shared bool
+}
+
 func renderLayout(layout *layoutNode) []string {
 	var context renderContext
-	return context.renderLayout(layout)
+	return context.renderLayoutResult(layout).lines
 }
 
 func (context *renderContext) renderLayout(layout *layoutNode) []string {
+	return context.renderLayoutResult(layout).lines
+}
+
+func (context *renderContext) renderLayoutResult(layout *layoutNode) renderResult {
 	if layout == nil {
-		return nil
+		return renderResult{}
 	}
 	bounds := layout.bounds
 	if bounds.h <= 0 {
-		return nil
+		return renderResult{}
 	}
 	if layout.node == nil {
-		return context.renderBlankLines(bounds.w, bounds.h)
+		return renderResult{lines: context.renderBlankLines(bounds.w, bounds.h), shared: true}
 	}
 	if layout.node.IsLeaf() {
 		if bounds.w <= 0 || layout.node.Panel == nil {
-			return context.renderBlankLines(bounds.w, bounds.h)
+			return renderResult{lines: context.renderBlankLines(bounds.w, bounds.h), shared: true}
 		}
-		return padContent(layout.node.Panel.View(bounds.w, bounds.h), bounds.w, bounds.h)
+		return renderResult{lines: padContent(layout.node.Panel.View(bounds.w, bounds.h), bounds.w, bounds.h)}
 	}
 	if layout.node.Split != nil {
 		return context.renderSplitLayout(layout)
@@ -61,16 +70,16 @@ func (context *renderContext) renderLayout(layout *layoutNode) []string {
 	if layout.node.Flex != nil {
 		return context.renderFlexLayout(layout)
 	}
-	return context.renderBlankLines(bounds.w, bounds.h)
+	return renderResult{lines: context.renderBlankLines(bounds.w, bounds.h), shared: true}
 }
 
-func (context *renderContext) renderSplitLayout(layout *layoutNode) []string {
+func (context *renderContext) renderSplitLayout(layout *layoutNode) renderResult {
 	if len(layout.children) < 2 {
-		return context.renderBlankLines(layout.bounds.w, layout.bounds.h)
+		return renderResult{lines: context.renderBlankLines(layout.bounds.w, layout.bounds.h), shared: true}
 	}
 	split := layout.node.Split
-	first := context.renderLayout(layout.children[0])
-	second := context.renderLayout(layout.children[1])
+	first := context.renderLayoutResult(layout.children[0])
+	second := context.renderLayoutResult(layout.children[1])
 	borderVisible := len(layout.borders) > 0
 	bounds := layout.bounds
 
@@ -81,10 +90,18 @@ func (context *renderContext) renderSplitLayout(layout *layoutNode) []string {
 		if split.OnCollapse != nil && split.CollapseRow >= 0 {
 			collapseBorder = context.renderCollapseBorder()
 		}
-		lines := make([]string, bounds.h)
+		lines := first.lines
+		if first.shared || len(lines) != bounds.h {
+			if !second.shared && len(second.lines) == bounds.h {
+				lines = second.lines
+			} else {
+				lines = make([]string, bounds.h)
+				copy(lines, first.lines)
+			}
+		}
 		for y := range lines {
-			firstLine := lineAt(first, y)
-			secondLine := lineAt(second, y)
+			firstLine := lineAt(first.lines, y)
+			secondLine := lineAt(second.lines, y)
 			if !borderVisible {
 				lines[y] = firstLine + secondLine
 				continue
@@ -95,24 +112,24 @@ func (context *renderContext) renderSplitLayout(layout *layoutNode) []string {
 			}
 			lines[y] = firstLine + middle + secondLine
 		}
-		return lines
+		return renderResult{lines: lines}
 	case Horizontal:
 		lines := make([]string, 0, bounds.h)
-		lines = append(lines, first...)
+		lines = append(lines, first.lines...)
 		if borderVisible {
 			lines = append(lines, context.renderHorizontalBorder(bounds.w, split.Dragging))
 		}
-		lines = append(lines, second...)
-		return lines
+		lines = append(lines, second.lines...)
+		return renderResult{lines: lines}
 	default:
-		return context.renderBlankLines(bounds.w, bounds.h)
+		return renderResult{lines: context.renderBlankLines(bounds.w, bounds.h), shared: true}
 	}
 }
 
-func (context *renderContext) renderFlexLayout(layout *layoutNode) []string {
+func (context *renderContext) renderFlexLayout(layout *layoutNode) renderResult {
 	flex := layout.node.Flex
 	if flex == nil || len(layout.children) == 0 {
-		return context.renderBlankLines(layout.bounds.w, layout.bounds.h)
+		return renderResult{lines: context.renderBlankLines(layout.bounds.w, layout.bounds.h), shared: true}
 	}
 
 	visible := make([]bool, max(0, len(layout.children)-1))
@@ -126,7 +143,7 @@ func (context *renderContext) renderFlexLayout(layout *layoutNode) []string {
 	case Horizontal:
 		children := make([][]string, len(layout.children))
 		for i, child := range layout.children {
-			children[i] = context.renderLayout(child)
+			children[i] = context.renderLayoutResult(child).lines
 		}
 		lines := make([]string, layout.bounds.h)
 		border := context.renderVerticalBorder(flex.Dragging)
@@ -148,18 +165,18 @@ func (context *renderContext) renderFlexLayout(layout *layoutNode) []string {
 			}
 			lines[y] = row.String()
 		}
-		return lines
+		return renderResult{lines: lines}
 	case Vertical:
 		lines := make([]string, 0, layout.bounds.h)
 		for i, child := range layout.children {
 			if i > 0 && visible[i-1] {
 				lines = append(lines, context.renderHorizontalBorder(layout.bounds.w, flex.Dragging))
 			}
-			lines = append(lines, context.renderLayout(child)...)
+			lines = append(lines, context.renderLayoutResult(child).lines...)
 		}
-		return lines
+		return renderResult{lines: lines}
 	default:
-		return context.renderBlankLines(layout.bounds.w, layout.bounds.h)
+		return renderResult{lines: context.renderBlankLines(layout.bounds.w, layout.bounds.h), shared: true}
 	}
 }
 

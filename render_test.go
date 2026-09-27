@@ -716,3 +716,29 @@ func TestNormalizeTerminalTextReplacesLayoutControls(t *testing.T) {
 		t.Fatalf("normalizeTerminalText terminal controls=%q, want %q", got, "abc")
 	}
 }
+
+func TestRenderSplitCopyOnWritePreservesSharedBlankCache(t *testing.T) {
+	tab := NewTab("blank-cache")
+	left := tab.RootPanel()
+	for i := 0; i < 12; i++ {
+		next := &emptyPanel{}
+		tab.SplitVertical(left, 0.5, next)
+		left = next
+	}
+
+	layout := newLayout(tab.root, layoutRect{w: 1, h: 4})
+	var context renderContext
+	got := context.renderLayout(layout)
+	if len(got) != 4 {
+		t.Fatalf("rendered %d lines, want 4", len(got))
+	}
+
+	for key, lines := range context.blankLines {
+		want := strings.Repeat(" ", key.width)
+		for i, line := range lines {
+			if line != want {
+				t.Fatalf("blank cache key=%+v line[%d]=%q, want %q", key, i, line, want)
+			}
+		}
+	}
+}
