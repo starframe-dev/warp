@@ -43,6 +43,13 @@ jobs:
         if: matrix.go == '1.27.x'
         run: go test -shuffle=on -count=2 ./...
 
+      - name: Fuzz smoke
+        if: matrix.go == '1.27.x'
+        run: |
+          for target in FuzzPadVisualLine FuzzInputEditing FuzzSplitGeometry FuzzFrameworkLabels FuzzModalContent; do
+            go test . -run='^$' -fuzz="^$target$" -fuzztime=2s
+          done
+
       - name: Race test
         if: matrix.go == '1.27.x'
         run: go test -race ./...
