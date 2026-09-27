@@ -14,6 +14,10 @@
 - `SetRoot(panel Panel)` собирает панели старого корня, обновляет и ревизирует корень, затем вызывает `Unmount` лишь для экземпляров, недостижимых из нового дерева владельца.
 - `Root() Panel` возвращает текущий корень под блокировкой чтения.
 
+### Безопасность framework labels
+
+Текст, встроенный самим Warp в UI chrome, не является произвольным terminal stream. Перед компоновкой tab names, float/collapsible titles, dropdown labels/options, input prompts, modal titles/button labels и popover item names проходят plain-text sanitization: invalid UTF-8 нормализуется, raw layout controls нейтрализуются, ANSI/OSC sequences удаляются. Это предотвращает terminal injection и нарушение геометрии framework chrome. Пользовательский `Panel.View` и `Modal.Content` сохраняют ANSI semantics.
+
 ### Владение ресурсами
 
 Один корневой `Warp` владеет всем деревом панелей, включая вложенные `TabGroup`, `Tab`, wrappers и float-панели. Самостоятельные `TabGroup` и `Tab` образуют отдельные домены, пока не вложены во внешний домен. Указательные панели идентифицируются типом и адресом экземпляра; `Unmount` вызывается однократно после detach и удаления последней ссылки внутри домена. Hiding, collapse, focus changes и reparenting не приводят к `Unmount`. Один экземпляр, разделённый между независимыми `Warp`/owner roots, не поддерживается и управляется вызывающим кодом; глобального реестра нет.

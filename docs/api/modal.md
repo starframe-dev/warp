@@ -77,7 +77,7 @@ described below and should not be mutated directly.
 
 | Field | Description |
 |----|----|
-| `Title` | Displayed in the top border area of the box. |
+| `Title` | Displayed in the top border area as terminal-safe plain text; control sequences are stripped. |
 | `Content` | ANSI-rendered content string (may contain ANSI escape sequences). |
 | `Buttons` | Buttons rendered at the bottom of the box; each carries its own `Action`. |
 | `OnClose` | Called when the modal is closed via the ✕ button, Esc, or any external path. |
@@ -92,8 +92,7 @@ type ModalButton struct {
 }
 ```
 
-A single button inside a modal. The label is rendered as `[Label]` and
-its `Action` runs when the button is clicked.
+A single button inside a modal. The label is sanitized as terminal-safe plain text, rendered as `[Label]`, and its `Action` runs when the button is clicked.
 
 ## Constructors
 
@@ -171,8 +170,8 @@ startY + 0  top border
 startY + 1  top padding (draggable strip)
 startY + 2  title + ✕
 startY + 3  content
-startY + 4  buttons row 1
-startY + 5  buttons row 2 (wraps when wide)
+startY + 4  buttons row
+startY + 5  bottom padding (not interactive)
 startY + 6  bottom border
 ```
 
@@ -188,8 +187,8 @@ Behavior:
     compute the byte/visual `[start, end)` ranges of each button; adding
     `startX + 3` (1 border + 2 padding) gives the X range in screen
     coordinates. A press whose X falls inside `[btnX1, btnX2)` and whose
-    Y is on either of the two button rows invokes the button's `Action`
-    and consumes the event.
+    Y is exactly `startY + 4` invokes the button's `Action` and consumes the
+    event. Truncated/hidden buttons and the bottom padding row are not clickable.
   - If the press is on the draggable padding strip (`Y == startY + 1`, X
     inside the box), dragging starts and the drag anchor is recorded.
 - **MouseActionMotion**: while dragging, the delta is applied to both

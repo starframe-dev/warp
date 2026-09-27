@@ -3,6 +3,7 @@ package warp
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -660,5 +661,58 @@ func TestNestedRenderInternalRowsStayNormalized(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestPadVisualLineTerminatesIncompleteANSI(t *testing.T) {
+	for _, input := range []string{
+		"\x1b",
+		"abc\x1b",
+		"\x1b[",
+		"abc\x1b[31",
+		"\x1b]0;unterminated",
+		"\x1bPunterminated",
+		"\x1b0\x1bX000\x1bX00",
+	} {
+		got := padVisualLine(input, 31)
+		if width := ansi.StringWidth(got); width != 31 {
+			t.Fatalf("padVisualLine(%q) width=%d, want 31; got %q", input, width, got)
+		}
+		if !ansiEndsInGroundState(got) {
+			t.Fatalf("padVisualLine(%q) left parser outside ground state: %q", input, got)
+		}
+	}
+}
+
+func TestSanitizeTerminalFragmentPreservesCompleteSequences(t *testing.T) {
+	for _, input := range []string{
+		"plain",
+		"界🙂",
+		"\x1b[31mred\x1b[0m",
+		"\x1b]0;title\x07",
+	} {
+		if got := sanitizeTerminalFragment(input); got != input {
+			t.Fatalf("sanitizeTerminalFragment(%q)=%q, want unchanged", input, got)
+		}
+	}
+}
+
+func TestPadVisualLineNormalizesInvalidUTF8(t *testing.T) {
+	input := string([]byte{'0', '0', '0', '0', '0', '0', 0xec, 0x89, '0', '0', 0x91})
+	got := padVisualLine(input, 7)
+	if !utf8.ValidString(got) {
+		t.Fatalf("padVisualLine returned invalid UTF-8: %q", got)
+	}
+	if width := ansi.StringWidth(got); width != 7 {
+		t.Fatalf("padVisualLine invalid UTF-8 width=%d, want 7; got %q", width, got)
+	}
+}
+
+func TestNormalizeTerminalTextReplacesLayoutControls(t *testing.T) {
+	if got := normalizeTerminalText("a\tb\rc\nd"); got != "a b c d" {
+		t.Fatalf("normalizeTerminalText whitespace controls=%q, want %q", got, "a b c d")
+	}
+	if got := normalizeTerminalText("a\x0fb\x1fc"); got != "abc" {
+		t.Fatalf("normalizeTerminalText terminal controls=%q, want %q", got, "abc")
 	}
 }

@@ -50,7 +50,7 @@ func (fp *FloatPane) render(_, _ int) []string {
 	}
 
 	lines := make([]string, fp.Height)
-	title := ansi.Truncate(fp.Title, max(0, fp.Width-4), "...")
+	title := ansi.Truncate(sanitizeFrameworkLabel(fp.Title), max(0, fp.Width-4), "...")
 	dashesW := max(0, fp.Width-ansi.StringWidth(title)-4)
 	topBorder := floatBgStyle.Render("╭") + floatTitleStyle.Render(title) +
 		floatBorderStyle.Render(strings.Repeat("─", dashesW)) +

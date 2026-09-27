@@ -540,7 +540,7 @@ func (t *Tab) floatChromeElements(float *FloatPane, totalW, totalH int) []Elemen
 	if width <= 0 || height <= 0 {
 		return nil
 	}
-	name := float.Title
+	name := sanitizeFrameworkLabel(float.Title)
 	if name == "" {
 		name = "Float"
 	}

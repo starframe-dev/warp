@@ -54,7 +54,7 @@ func (c *Collapsible) Elements(w, h int) []Element {
 
 	elements := []Element{{
 		Role:   "button",
-		Name:   c.Title,
+		Name:   sanitizeFrameworkLabel(c.Title),
 		Action: "toggle-collapse",
 		Bounds: Bounds{W: w, H: 1},
 	}}
@@ -135,7 +135,7 @@ func (c *Collapsible) renderTitle(w int) string {
 	}
 
 	titleWidth := max(0, w-4) // indicator, spacing and corner glyphs
-	title := ansi.Truncate(c.Title, titleWidth, "...")
+	title := ansi.Truncate(sanitizeFrameworkLabel(c.Title), titleWidth, "...")
 	padding := max(0, w-4-ansi.StringWidth(title))
 	line := collapsibleStyle.Render("┌"+indicator+" "+title) +
 		collapsibleBorderStyle.Render(strings.Repeat("─", padding)+"┐")

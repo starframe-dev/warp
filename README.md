@@ -30,6 +30,8 @@ Built on [Bubbletea](https://github.com/charmbracelet/bubbletea) and [Lipgloss](
 
 `SetTheme` updates Warp's package-wide component styles. Configure the theme before starting the Bubble Tea program; changing it while rendering is not synchronized.
 
+Framework-owned labels (tab names, float/collapsible titles, dropdown items, input prompts, modal titles/buttons, and popover items) are treated as plain terminal-safe text. ANSI/OSC control sequences are stripped from those labels, invalid UTF-8 is normalized, and layout control characters cannot affect surrounding chrome. Panel-rendered content and `Modal.Content` remain ANSI-capable.
+
 `Warp.ServeHTTP("")` binds the inspector to `127.0.0.1` on `WARP_HTTP_PORT`, or an automatically assigned port when the variable is unset. `HTTPAddr()` returns the actual address. `/elements` exposes the semantic UI tree; cross-origin access is disabled by default. Use `ServeHTTPWithOptions` to opt into a CORS origin and/or require a bearer token. The tree is snapshotted on the UI thread after `Update` and after each completed `View`, so HTTP returns completed semantic state rather than traversing live panels. An explicitly supplied non-loopback address (for example, `:8080`) may expose UI data to the network, so configure access controls before using it outside a trusted local environment.
 
 ## Quick start

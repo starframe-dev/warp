@@ -3,8 +3,12 @@ package warp
 import (
 	"math"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/ansi/parser"
+	"github.com/rivo/uniseg"
 )
 
 type renderBlankKey struct {
@@ -434,12 +438,103 @@ func padVisualLine(line string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	line = ansi.Truncate(line, width, "")
+	line = truncateTerminalFragment(line, width, "")
 	lineWidth := ansi.StringWidth(line)
 	if lineWidth < width {
 		line += strings.Repeat(" ", width-lineWidth)
 	}
 	return line
+}
+
+func normalizeTerminalText(s string) string {
+	if !utf8.ValidString(s) {
+		s = strings.ToValidUTF8(s, "�")
+	}
+	if strings.ContainsFunc(s, unicode.IsControl) {
+		s = strings.Map(func(r rune) rune {
+			switch r {
+			case '\x1b', '\a':
+				// Preserve the standard ESC introducer and BEL terminator used by
+				// valid ANSI sequences. Incomplete sequences are removed later.
+				return r
+			case '\t', '\r', '\n':
+				return ' '
+			default:
+				if unicode.IsControl(r) {
+					return -1
+				}
+				return r
+			}
+		}, s)
+	}
+	return s
+}
+
+func sanitizeFrameworkLabel(s string) string {
+	if utf8.ValidString(s) && strings.IndexByte(s, 0x1b) < 0 &&
+		!strings.ContainsFunc(s, unicode.IsControl) {
+		return s
+	}
+	return ansi.Strip(normalizeTerminalText(s))
+}
+
+func sanitizeTerminalFragment(s string) string {
+	s = normalizeTerminalText(s)
+	if s == "" || strings.IndexByte(s, 0x1b) < 0 {
+		return s
+	}
+	if start := incompleteANSITailStart(s); start >= 0 {
+		// An incomplete escape tail has no stable visual meaning. Drop it before
+		// composing framework chrome so terminal/layout parsers cannot consume
+		// padding, borders or controls that follow the user fragment.
+		return s[:start]
+	}
+	return s
+}
+
+func truncateTerminalFragment(s string, width int, tail string) string {
+	return sanitizeTerminalFragment(ansi.Truncate(normalizeTerminalText(s), width, tail))
+}
+
+func ansiEndsInGroundState(s string) bool {
+	return incompleteANSITailStart(normalizeTerminalText(s)) < 0
+}
+
+func incompleteANSITailStart(s string) int {
+	state := parser.GroundState
+	sequenceStart := -1
+	bytes := []byte(s)
+	for i := 0; i < len(bytes); {
+		next, _ := parser.Table.Transition(state, bytes[i])
+		if next == parser.Utf8State {
+			cluster, _, _, _ := uniseg.FirstGraphemeCluster(bytes[i:], -1)
+			if len(cluster) == 0 {
+				if sequenceStart >= 0 {
+					return sequenceStart
+				}
+				return i
+			}
+			i += len(cluster)
+			state = parser.GroundState
+			sequenceStart = -1
+			continue
+		}
+		if state == parser.GroundState && next != parser.GroundState {
+			sequenceStart = i
+		}
+		state = next
+		i++
+		if state == parser.GroundState {
+			sequenceStart = -1
+		}
+	}
+	if state == parser.GroundState {
+		return -1
+	}
+	if sequenceStart >= 0 {
+		return sequenceStart
+	}
+	return len(s)
 }
 
 func padContent(content string, w, h int) []string {

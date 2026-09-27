@@ -105,25 +105,21 @@ func (m *Modal) Overlay(lines []string, totalW, totalH int) []string {
 
 	innerWidth := max(0, boxWidth-6) // borders (2) plus horizontal padding (4)
 
-	title := ansi.Truncate(m.Title, max(0, innerWidth-1), "")
+	title := ansi.Truncate(sanitizeFrameworkLabel(m.Title), max(0, innerWidth-1), "")
 	titleLine := title + strings.Repeat(" ", max(0, innerWidth-ansi.StringWidth(title)-1)) + "✕"
 
-	contentLine := m.Content
+	contentLine := normalizeTerminalText(m.Content)
 	if ansi.StringWidth(contentLine) > innerWidth {
 		if innerWidth > 0 {
-			contentLine = ansi.Truncate(contentLine, innerWidth, "…")
+			contentLine = truncateTerminalFragment(contentLine, innerWidth, "…")
 		} else {
 			contentLine = ""
 		}
 	}
-	contentLine = ansi.Truncate(contentLine, innerWidth, "")
+	contentLine = truncateTerminalFragment(contentLine, innerWidth, "")
 	contentLine += strings.Repeat(" ", max(0, innerWidth-ansi.StringWidth(contentLine)))
 
-	var btnParts []string
-	for _, btn := range m.Buttons {
-		btnParts = append(btnParts, "["+btn.Label+"]")
-	}
-	btnLine := ansi.Truncate(strings.Join(btnParts, "  "), innerWidth, "")
+	btnLine := truncateTerminalFragment(m.buildButtonLine(), innerWidth, "")
 	btnLine += strings.Repeat(" ", max(0, innerWidth-ansi.StringWidth(btnLine)))
 
 	box := modalBorderStyle.Width(max(0, boxWidth-2)).Render(titleLine + "\n" + contentLine + "\n" + btnLine)
@@ -215,7 +211,7 @@ func (m *Modal) HandleMouse(msg tea.MouseMsg) bool {
 			// Buttons: only fully rendered bracket pairs on the visible button
 			// line are interactive. Truncated/hidden buttons have no hit box.
 			innerWidth := max(0, boxWidth-6)
-			btnLine := ansi.Truncate(m.buildButtonLine(), innerWidth, "")
+			btnLine := truncateTerminalFragment(m.buildButtonLine(), innerWidth, "")
 			offset := 0
 			for _, btn := range m.Buttons {
 				btnStart, btnEnd := findBracketPair(btnLine, offset)
@@ -283,7 +279,7 @@ func (m *Modal) HandleMouse(msg tea.MouseMsg) bool {
 func (m *Modal) buildButtonLine() string {
 	var btnParts []string
 	for _, btn := range m.Buttons {
-		btnParts = append(btnParts, "["+btn.Label+"]")
+		btnParts = append(btnParts, "["+sanitizeFrameworkLabel(btn.Label)+"]")
 	}
 	return strings.Join(btnParts, "  ")
 }

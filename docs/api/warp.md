@@ -82,6 +82,10 @@ until the program exits. `Close` stops the HTTP inspector and, for a root Warp,
 detaches the owned panel hierarchy so unique `Unmounter` panels are released.
 `Close` is idempotent and is recommended for embedded or long-lived processes.
 
+### Terminal text safety
+
+Framework-owned labels are metadata rather than terminal streams. Warp renders tab names, float/collapsible titles, dropdown labels/options, input prompts, modal titles/buttons, and popover item names as plain terminal-safe text. ANSI/OSC sequences are stripped from those labels, invalid UTF-8 is normalized, and raw layout controls cannot consume surrounding framework chrome. Arbitrary `Panel.View` output and `Modal.Content` remain ANSI-capable.
+
 ### Panel resource ownership
 
 A root `Warp` owns its complete panel hierarchy, including nested tabs,

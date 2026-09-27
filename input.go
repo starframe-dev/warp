@@ -60,7 +60,7 @@ func (in *Input) Elements(w, h int) []Element {
 	if w == 0 || h == 0 {
 		return nil
 	}
-	name := strings.TrimSpace(in.Prompt)
+	name := strings.TrimSpace(sanitizeFrameworkLabel(in.Prompt))
 	if name == "" {
 		name = "Input"
 	}
@@ -143,7 +143,7 @@ func (in *Input) renderLine(maxW int) string {
 	if maxW == 0 {
 		return ""
 	}
-	prefix := ansi.Truncate(in.Prompt, maxW, "")
+	prefix := ansi.Truncate(sanitizeFrameworkLabel(in.Prompt), maxW, "")
 	prefixWidth := ansi.StringWidth(prefix)
 	if prefixWidth >= maxW {
 		return prefix

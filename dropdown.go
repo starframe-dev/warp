@@ -45,9 +45,9 @@ func (d *DropdownMenu) View(w, h int) string {
 }
 
 func (d *DropdownMenu) renderButton(w int) string {
-	label := d.Label + " ▼"
+	label := sanitizeFrameworkLabel(d.Label) + " ▼"
 	if ansi.StringWidth(label) > w {
-		label = ansi.Truncate(label, w, "…")
+		label = truncateTerminalFragment(label, w, "…")
 	}
 	return dropdownButtonStyle.Render(padRight(label, w))
 }
@@ -64,9 +64,9 @@ func (d *DropdownMenu) renderMenu(w, h int) string {
 	}
 
 	lines := make([]string, menuH)
-	button := d.Label + " ▲"
+	button := sanitizeFrameworkLabel(d.Label) + " ▲"
 	if ansi.StringWidth(button) > w {
-		button = ansi.Truncate(button, w, "…")
+		button = truncateTerminalFragment(button, w, "…")
 	}
 	lines[0] = dropdownButtonStyle.Render(padRight(button, w))
 
@@ -76,9 +76,9 @@ func (d *DropdownMenu) renderMenu(w, h int) string {
 		if item.Selected {
 			prefix = "✓ "
 		}
-		label := prefix + item.Label
+		label := prefix + sanitizeFrameworkLabel(item.Label)
 		if ansi.StringWidth(label) > w {
-			label = ansi.Truncate(label, w, "…")
+			label = truncateTerminalFragment(label, w, "…")
 		}
 		style := dropdownItemStyle
 		if i == d.Hovered {
@@ -102,7 +102,7 @@ func (d *DropdownMenu) Elements(w, h int) []Element {
 
 	elements := []Element{{
 		Role:   "combobox",
-		Name:   d.Label,
+		Name:   sanitizeFrameworkLabel(d.Label),
 		Action: "toggle",
 		Bounds: Bounds{W: w, H: 1},
 	}}
@@ -114,7 +114,7 @@ func (d *DropdownMenu) Elements(w, h int) []Element {
 	for i := 0; i < visible; i++ {
 		elements = append(elements, Element{
 			Role:   "option",
-			Name:   d.Items[i].Label,
+			Name:   sanitizeFrameworkLabel(d.Items[i].Label),
 			Action: "select",
 			Bounds: Bounds{Y: i + 1, W: w, H: 1},
 		})

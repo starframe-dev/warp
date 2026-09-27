@@ -246,7 +246,7 @@ func (tg *TabGroup) horizontalTabBarElements(w, h int) []Element {
 	col := 0
 	var elements []Element
 	for i, tab := range tg.tabs {
-		name := ansi.Truncate(tab.name, 20, "...")
+		name := ansi.Truncate(sanitizeFrameworkLabel(tab.name), 20, "...")
 		label := " " + name + " "
 		if i == tg.activeTab {
 			label = "▎ " + name + " ×"
@@ -254,14 +254,14 @@ func (tg *TabGroup) horizontalTabBarElements(w, h int) []Element {
 		labelW := ansi.StringWidth(label)
 		element := Element{
 			Role:   "tab",
-			Name:   tab.name,
+			Name:   sanitizeFrameworkLabel(tab.name),
 			Action: "activate-tab",
 			Bounds: Bounds{X: col, Y: y, W: labelW, H: 1},
 		}
 		if i == tg.activeTab && labelW > 0 {
 			element.Children = []Element{{
 				Role:   "button",
-				Name:   "Close " + tab.name,
+				Name:   "Close " + sanitizeFrameworkLabel(tab.name),
 				Action: "close-tab",
 				Bounds: Bounds{X: col + labelW - 1, Y: y, W: 1, H: 1},
 			}}
@@ -309,14 +309,14 @@ func (tg *TabGroup) verticalTabBarElements(w, h int) []Element {
 		}
 		element := Element{
 			Role:   "tab",
-			Name:   tg.tabs[i].name,
+			Name:   sanitizeFrameworkLabel(tg.tabs[i].name),
 			Action: "activate-tab",
 			Bounds: Bounds{X: barX, Y: i, W: labelW, H: 1},
 		}
 		if i == tg.activeTab && strings.HasSuffix(label, "×") {
 			element.Children = []Element{{
 				Role:   "button",
-				Name:   "Close " + tg.tabs[i].name,
+				Name:   "Close " + sanitizeFrameworkLabel(tg.tabs[i].name),
 				Action: "close-tab",
 				Bounds: Bounds{X: barX + labelW - 1, Y: i, W: 1, H: 1},
 			}}
@@ -515,7 +515,7 @@ func (tg *TabGroup) renderHorizontalTabBar(width int) string {
 	contents.Grow(len(tg.tabs)*24 + 3)
 	col := 0
 	for i, tab := range tg.tabs {
-		name := ansi.Truncate(tab.name, 20, "...")
+		name := ansi.Truncate(sanitizeFrameworkLabel(tab.name), 20, "...")
 		label := " " + name + " "
 		if i == activeIdx {
 			label = "▎ " + name + " ×"
@@ -549,6 +549,12 @@ func (tg *TabGroup) renderHorizontalTabBar(width int) string {
 	contents.WriteString(newTabStyle.Render(newLabel))
 
 	bar := tabBarStyle.Render(contents.String())
+	if width <= 0 {
+		return ""
+	}
+	if col > width {
+		return ansi.Truncate(bar, width, "")
+	}
 	if padding := width - col; padding > 0 {
 		var result strings.Builder
 		result.Grow(len(bar) + padding + 16)
@@ -563,7 +569,7 @@ func (tg *TabGroup) verticalTabLabels() ([]string, int) {
 	labels := make([]string, len(tg.tabs))
 	naturalWidth := ansi.StringWidth(" + ")
 	for i, tab := range tg.tabs {
-		name := ansi.Truncate(tab.name, 15, "...")
+		name := ansi.Truncate(sanitizeFrameworkLabel(tab.name), 15, "...")
 		label := " " + name + " "
 		if i == tg.activeTab {
 			label = "▎ " + name + " ×"

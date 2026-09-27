@@ -141,3 +141,27 @@ func tabNames(tabs []*Tab) []string {
 	}
 	return names
 }
+
+func TestHorizontalTabBarNeverExceedsViewportWidth(t *testing.T) {
+	for width := 0; width <= 20; width++ {
+		tg := NewTabGroup(TabTop)
+		tg.ActiveTab().name = "00000"
+		tg.NewTab("second-long-name")
+		view := tg.View(width, 3)
+		rows := strings.Split(view, "\n")
+		if width == 0 {
+			for row, line := range rows {
+				if got := ansi.StringWidth(line); got != 0 {
+					t.Fatalf("width=0 row %d visual width=%d, line=%q", row, got, line)
+				}
+			}
+			continue
+		}
+		if len(rows) == 0 {
+			t.Fatalf("width=%d produced no rows", width)
+		}
+		if got := ansi.StringWidth(rows[0]); got != width {
+			t.Fatalf("width=%d tab row visual width=%d, row=%q", width, got, rows[0])
+		}
+	}
+}

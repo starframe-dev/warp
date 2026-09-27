@@ -51,10 +51,11 @@ func (p *Popover) Overlay(lines []string, totalW, totalH int) []string {
 	var contentLines []string
 	for i, item := range p.Items {
 		var line string
+		name := sanitizeFrameworkLabel(item.Name)
 		if i == p.selected {
-			line = popoverSelectedStyle.Width(contentW).Render(" " + item.Name)
+			line = popoverSelectedStyle.Width(contentW).Render(" " + name)
 		} else {
-			line = popoverBaseStyle.Width(contentW).Render(" " + item.Name)
+			line = popoverBaseStyle.Width(contentW).Render(" " + name)
 		}
 		contentLines = append(contentLines, line)
 	}
