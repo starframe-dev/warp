@@ -151,12 +151,12 @@ func (in *Input) renderLine(maxW int) string {
 
 	value, cursor := truncateInputAtCursor(in.Value, maxW-prefixWidth, in.Cursor, in.graphemeLayout())
 	var result strings.Builder
+	result.Grow(len(prefix) + len(value) + 20)
 	result.WriteString(prefix)
 
 	runePos := 0
-	graphemes := uniseg.NewGraphemes(value)
-	for graphemes.Next() {
-		cluster := graphemes.Str()
+	valueWidth := 0
+	writeCluster := func(cluster string, width int) {
 		runeCount := utf8.RuneCountInString(cluster)
 		if cursor >= runePos && cursor < runePos+runeCount {
 			result.WriteString("\x1b[7m")
@@ -166,8 +166,30 @@ func (in *Input) renderLine(maxW int) string {
 			result.WriteString(cluster)
 		}
 		runePos += runeCount
+		valueWidth += width
 	}
-	if cursor >= runePos && ansi.StringWidth(result.String()) < maxW {
+
+	if !strings.ContainsRune(value, '\x1b') {
+		rest := value
+		state := -1
+		for len(rest) > 0 {
+			cluster, next, width, nextState := uniseg.FirstGraphemeClusterInString(rest, state)
+			if cluster == "" {
+				break
+			}
+			writeCluster(cluster, width)
+			rest = next
+			state = nextState
+		}
+	} else {
+		graphemes := uniseg.NewGraphemes(value)
+		for graphemes.Next() {
+			cluster := graphemes.Str()
+			writeCluster(cluster, ansi.StringWidth(cluster))
+		}
+	}
+
+	if cursor >= runePos && prefixWidth+valueWidth < maxW {
 		result.WriteString("\x1b[7m \x1b[0m")
 	}
 	return result.String()
