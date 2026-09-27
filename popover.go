@@ -192,8 +192,9 @@ func (p *Popover) HandleMouse(msg tea.MouseMsg) bool {
 		return true
 
 	case tea.MouseActionMotion:
-		// Track hover for visual feedback.
-		if int(msg.Y) >= menuY+1 && int(msg.Y) < menuY+boxH-1 {
+		// Track hover only while the pointer is inside the menu content.
+		if int(msg.X) > menuX && int(msg.X) < menuX+boxW-1 &&
+			int(msg.Y) >= menuY+1 && int(msg.Y) < menuY+boxH-1 {
 			contentIdx := int(msg.Y) - menuY - 1
 			if contentIdx >= 0 && contentIdx < len(p.Items) {
 				p.selected = contentIdx

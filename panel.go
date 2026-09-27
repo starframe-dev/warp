@@ -8,8 +8,9 @@ type Panel interface {
 	// View renders the panel content at the given size.
 	View(width, height int) string
 
-	// Update handles Bubbletea messages (keys, mouse, etc).
-	// The panel receives only messages that arrived while it was focused.
+	// Update handles Bubbletea messages (keys, mouse, resize, and custom events).
+	// Keyboard input normally follows focus, while Tab/TabGroup may broadcast
+	// resize, framework, and custom/unknown messages to unfocused panels.
 	Update(msg tea.Msg) tea.Cmd
 }
 

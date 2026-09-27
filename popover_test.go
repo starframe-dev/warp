@@ -262,6 +262,22 @@ func TestPopoverHandleMouse(t *testing.T) {
 		}
 	})
 
+	t.Run("motion outside horizontal bounds does not change selection", func(t *testing.T) {
+		popover.selected = 0
+
+		consumed := popover.HandleMouse(tea.MouseMsg{
+			X:      menuX - 1,
+			Y:      menuY + 2,
+			Action: tea.MouseActionMotion,
+		})
+		if !consumed {
+			t.Error("motion should remain consumed while popover is open")
+		}
+		if popover.selected != 0 {
+			t.Errorf("outside motion changed selected=%d, want 0", popover.selected)
+		}
+	})
+
 	t.Run("release is consumed", func(t *testing.T) {
 		consumed := popover.HandleMouse(tea.MouseMsg{
 			X:      menuX + 1,
