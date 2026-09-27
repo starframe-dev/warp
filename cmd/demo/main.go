@@ -48,10 +48,10 @@ type demoPanel struct {
 func (p *demoPanel) View(w, h int) string {
 	lines := make([]string, h)
 	for i := range lines {
-		switch {
-		case i == 0:
+		switch i {
+		case 0:
 			lines[i] = padRight(p.name, w)
-		case i == h-1:
+		case h - 1:
 			lines[i] = padRight(fmt.Sprintf("clicks: %d", p.count), w)
 		default:
 			lines[i] = strings.Repeat("·", w)

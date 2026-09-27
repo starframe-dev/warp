@@ -43,7 +43,7 @@ func TestInspectorDemandAndPostViewSnapshotRefresh(t *testing.T) {
 	if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
 		t.Fatalf("ServeHTTP failed: %v", err)
 	}
-	defer w.CloseHTTP()
+	defer func() { _ = w.CloseHTTP() }()
 
 	w.Update(tea.KeyMsg{})
 	if panel.calls != 1 {

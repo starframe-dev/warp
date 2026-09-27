@@ -571,15 +571,6 @@ func floatBoundsForViewport(float *FloatPane, totalW, totalH int) (x, y, width, 
 	return x, y, width, height
 }
 
-func (t *Tab) elementsNode(node *Node, x, y, w, h int) []Element {
-	layout := newLayout(node, layoutRect{x: x, y: y, w: max(0, w), h: max(0, h)})
-	return elementsFromLayout(layout)
-}
-
-func (t *Tab) elementsFlex(flex *FlexConfig, x, y, w, h int) []Element {
-	return t.elementsNode(&Node{Flex: flex}, x, y, w, h)
-}
-
 // HandleMouse processes mouse events for this tab with no offset and the
 // tab's current content dimensions. This is the public entry point for
 // embedded tabs (e.g. Container's innerTab) that need border dragging.
@@ -599,7 +590,6 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 	t.setLastBorders(layout)
 
 	// Check float panes first (top z-order)
-	hitFloat := false
 	for i := len(t.floats) - 1; i >= 0; i-- {
 		fp := t.floats[i]
 
@@ -614,7 +604,6 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 			return nil
 		}
 		if cmd != nil {
-			hitFloat = true
 			// Bring to top on press inside float content
 			if msg.Action == tea.MouseActionPress {
 				t.floats = append(t.floats[:i], t.floats[i+1:]...)
@@ -624,7 +613,6 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 			return cmd
 		}
 		if inside {
-			hitFloat = true
 			// Bring to top and consume the event when clicking inside
 			// (title bar drag, edge resize, or close button)
 			if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
@@ -637,7 +625,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 	}
 
 	// Close floats that want auto-close on outside click
-	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && !hitFloat {
+	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
 		for i := len(t.floats) - 1; i >= 0; i-- {
 			if t.floats[i].CloseOnOutsideClick {
 				t.CloseFloat(t.floats[i])
@@ -684,14 +672,9 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 					}
 				}
 				// Forward mouse event to the panel
-				relMsg := tea.MouseMsg{
-					X:      mx - hit.X,
-					Y:      my - hit.Y,
-					Action: msg.Action,
-					Button: msg.Button,
-					Type:   msg.Type,
-					Alt:    msg.Alt,
-				}
+				relMsg := msg
+				relMsg.X = mx - hit.X
+				relMsg.Y = my - hit.Y
 				if hit.Node.Panel != nil {
 					return hit.Node.Panel.Update(relMsg)
 				}
@@ -723,14 +706,9 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 	// Forward mouse to panel under cursor (relative coordinates)
 	if msg.Action == tea.MouseActionPress || msg.Action == tea.MouseActionMotion || msg.Action == tea.MouseActionRelease {
 		if hit := findLayoutPanel(layout, mx, my); hit != nil && hit.Node.Panel != nil {
-			relMsg := tea.MouseMsg{
-				X:      mx - hit.X,
-				Y:      my - hit.Y,
-				Action: msg.Action,
-				Button: msg.Button,
-				Type:   msg.Type,
-				Alt:    msg.Alt,
-			}
+			relMsg := msg
+			relMsg.X = mx - hit.X
+			relMsg.Y = my - hit.Y
 			return hit.Node.Panel.Update(relMsg)
 		}
 	}
@@ -992,12 +970,6 @@ func (t *Tab) broadcastResize(node *Node, x, y, w, h int) []tea.Cmd {
 	return t.broadcastLayoutResize(layout)
 }
 
-func (t *Tab) broadcastNode(node *Node, msg tea.Msg) []tea.Cmd {
-	var commands []tea.Cmd
-	t.appendBroadcastNode(&commands, node, msg)
-	return commands
-}
-
 func (t *Tab) appendBroadcastNode(commands *[]tea.Cmd, node *Node, msg tea.Msg) {
 	if node == nil {
 		return
@@ -1048,15 +1020,6 @@ type panelHit struct {
 func (t *Tab) panelAt(mx, my, cw, ch int) *panelHit {
 	layout := newLayout(t.root, layoutRect{w: max(0, cw), h: max(0, ch)})
 	return findLayoutPanel(layout, mx, my)
-}
-
-func (t *Tab) panelAtNode(node *Node, x, y, w, h int, mx, my int) *panelHit {
-	layout := newLayout(node, layoutRect{x: x, y: y, w: max(0, w), h: max(0, h)})
-	return findLayoutPanel(layout, mx, my)
-}
-
-func (t *Tab) panelAtFlex(flex *FlexConfig, x, y, w, h int, mx, my int) *panelHit {
-	return t.panelAtNode(&Node{Flex: flex}, x, y, w, h, mx, my)
 }
 
 // ToggleCollapsible toggles the collapsed state of a collapsible panel.

@@ -2,12 +2,14 @@ package warp
 
 import (
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/term"
 )
 
 // testPanel is a simple panel that returns its name as content.
@@ -391,7 +393,7 @@ func TestTabCloseClick(t *testing.T) {
 
 	_ = tg.renderTabBar(w.width)
 
-	var closeX int = -1
+	var closeX = -1
 	for _, r := range tg.tabRegions {
 		if r.idx == 0 && r.closeX >= 0 {
 			closeX = r.closeX
@@ -1265,13 +1267,13 @@ func TestServeHTTP(t *testing.T) {
 	if addr == "" {
 		t.Fatal("expected HTTPAddr to be set after ServeHTTP")
 	}
-	defer w.CloseHTTP()
+	defer func() { _ = w.CloseHTTP() }()
 
 	resp, err := http.Get("http://" + addr + "/healthz")
 	if err != nil {
 		t.Fatalf("healthz request failed: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200 on healthz, got %d", resp.StatusCode)
 	}
@@ -1280,7 +1282,7 @@ func TestServeHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("elements request failed: %v", err)
 	}
-	resp2.Body.Close()
+	_ = resp2.Body.Close()
 	if resp2.StatusCode != http.StatusOK {
 		t.Errorf("expected status 200 on elements, got %d", resp2.StatusCode)
 	}
@@ -1302,7 +1304,7 @@ func TestServeHTTPIdempotent(t *testing.T) {
 	if w.HTTPAddr() != addr {
 		t.Errorf("expected address unchanged after idempotent ServeHTTP")
 	}
-	w.CloseHTTP()
+	_ = w.CloseHTTP()
 }
 
 func TestServeHTTPWithEnvPort(t *testing.T) {
@@ -1311,7 +1313,7 @@ func TestServeHTTPWithEnvPort(t *testing.T) {
 	if err := w.ServeHTTP(""); err != nil {
 		t.Fatalf("ServeHTTP failed: %v", err)
 	}
-	defer w.CloseHTTP()
+	defer func() { _ = w.CloseHTTP() }()
 
 	addr := w.HTTPAddr()
 	if !strings.HasPrefix(addr, "127.0.0.1:") || parsePort(addr) == "" || parsePort(addr) == "0" {
@@ -1340,6 +1342,15 @@ func TestCloseHTTP(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
+	if term.IsTerminal(os.Stdin.Fd()) || term.IsTerminal(os.Stdout.Fd()) || term.IsTerminal(os.Stderr.Fd()) {
+		t.Skip("Run non-TTY error path requires a non-interactive process")
+	}
+	if tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0); err == nil {
+		defer func() { _ = tty.Close() }()
+		if term.IsTerminal(tty.Fd()) {
+			t.Skip("Run non-TTY error path requires no controlling terminal")
+		}
+	}
 	w := New()
 	// Run requires a TTY; in a non-interactive environment it should error quickly.
 	done := make(chan error, 1)

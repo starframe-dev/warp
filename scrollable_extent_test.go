@@ -157,7 +157,7 @@ func TestScrollableUpdateThenElementsBeforeViewUsesEffectiveOffset(t *testing.T)
 	if err := warp.ServeHTTP("127.0.0.1:0"); err != nil {
 		t.Fatalf("ServeHTTP failed: %v", err)
 	}
-	defer warp.CloseHTTP()
+	defer func() { _ = warp.CloseHTTP() }()
 
 	warp.Update(tea.WindowSizeMsg{Width: 8, Height: 3})
 	warp.Update(tea.KeyMsg{Type: tea.KeyPgDown})

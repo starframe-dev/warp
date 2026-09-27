@@ -53,9 +53,6 @@ func TestBasePanelUpdateDifferentMsgs(t *testing.T) {
 // interface by using it as a Panel value.
 func TestPanelInterfaceSatisfied(t *testing.T) {
 	var p Panel = BasePanel{}
-	if p == nil {
-		t.Fatalf("expected non-nil Panel")
-	}
 	if got := p.View(60, 30); got != "" {
 		t.Errorf("Panel.View(60, 30) = %q; want empty string", got)
 	}

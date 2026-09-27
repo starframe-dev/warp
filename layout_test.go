@@ -139,15 +139,17 @@ func assertLayoutFits(t *testing.T, layout *layoutNode) {
 	}
 	axisSize := 0
 	if layout.node != nil && layout.node.Split != nil {
-		if layout.node.Split.Direction == Vertical {
+		switch layout.node.Split.Direction {
+		case Vertical:
 			axisSize = bounds.w
-		} else if layout.node.Split.Direction == Horizontal {
+		case Horizontal:
 			axisSize = bounds.h
 		}
 	} else if layout.node != nil && layout.node.Flex != nil {
-		if layout.node.Flex.Direction == Horizontal {
+		switch layout.node.Flex.Direction {
+		case Horizontal:
 			axisSize = bounds.w
-		} else if layout.node.Flex.Direction == Vertical {
+		case Vertical:
 			axisSize = bounds.h
 		}
 	}

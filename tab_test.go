@@ -12,6 +12,11 @@ type tabMockPanel struct {
 	id int
 }
 
+func (p tabMockPanel) View(_, _ int) string {
+	_ = p.id
+	return ""
+}
+
 type tabRecordingPanel struct {
 	BasePanel
 	last tea.Msg
@@ -34,7 +39,6 @@ func (p *tabFocusablePanel) Focused() bool { return p.focused }
 
 type tabElementPanel struct {
 	BasePanel
-	id    int
 	elems []Element
 }
 
@@ -328,7 +332,6 @@ func TestTabHandleMousePressPanel(t *testing.T) {
 		Y:      5,
 		Action: tea.MouseActionPress,
 		Button: tea.MouseButtonLeft,
-		Type:   tea.MouseEventType(0),
 	}
 	tab.HandleMouse(msg)
 	if tab.Focus() != rec {
@@ -357,7 +360,6 @@ func TestTabHandleMouseBorderDrag(t *testing.T) {
 		Y:      1,
 		Action: tea.MouseActionPress,
 		Button: tea.MouseButtonLeft,
-		Type:   tea.MouseEventType(0),
 	}
 	tab.HandleMouse(press)
 	if tab.dragging == nil {
@@ -369,7 +371,6 @@ func TestTabHandleMouseBorderDrag(t *testing.T) {
 		Y:      1,
 		Action: tea.MouseActionMotion,
 		Button: tea.MouseButtonLeft,
-		Type:   tea.MouseEventType(0),
 	}
 	tab.HandleMouse(motion)
 
@@ -378,7 +379,6 @@ func TestTabHandleMouseBorderDrag(t *testing.T) {
 		Y:      1,
 		Action: tea.MouseActionRelease,
 		Button: tea.MouseButtonLeft,
-		Type:   tea.MouseEventType(0),
 	}
 	tab.HandleMouse(release)
 	if tab.dragging != nil {
@@ -435,7 +435,6 @@ func TestTabHandleMouseOutsideFloat(t *testing.T) {
 		Y:      5,
 		Action: tea.MouseActionPress,
 		Button: tea.MouseButtonLeft,
-		Type:   tea.MouseEventType(0),
 	}
 	tab.HandleMouse(msg)
 	if len(tab.floats) != 0 {
@@ -457,7 +456,6 @@ func TestTabHandleMouseInsideFloat(t *testing.T) {
 		Y:      1,
 		Action: tea.MouseActionPress,
 		Button: tea.MouseButtonLeft,
-		Type:   tea.MouseEventType(0),
 	}
 	tab.HandleMouse(msg)
 	if tab.Focus() != p {
@@ -565,7 +563,10 @@ func TestTabCollapseAndExpandAreIdempotentInNestedFlex(t *testing.T) {
 	if before := getHeight(); before <= 1 {
 		t.Fatalf("expanded nested flex height=%d, want more than one row", before)
 	}
-	if !tab.Collapse(collapsible, 1) || !tab.Collapse(collapsible, 1) {
+	if !tab.Collapse(collapsible, 1) {
+		t.Fatal("first Collapse should find the nested panel")
+	}
+	if !tab.Collapse(collapsible, 1) {
 		t.Fatal("repeated Collapse should find the nested panel")
 	}
 	innerFlex := tab.root.Flex.Items[0].Node.Flex
@@ -579,7 +580,10 @@ func TestTabCollapseAndExpandAreIdempotentInNestedFlex(t *testing.T) {
 		t.Fatalf("collapsed title row is missing ▶: %q", title)
 	}
 
-	if !tab.Expand(collapsible) || !tab.Expand(collapsible) {
+	if !tab.Expand(collapsible) {
+		t.Fatal("first Expand should find the nested panel")
+	}
+	if !tab.Expand(collapsible) {
 		t.Fatal("repeated Expand should find the nested panel")
 	}
 	if innerFlex.Items[0].Collapsed || collapsible.Collapsed {
@@ -664,7 +668,6 @@ func TestTabHandleMouseMotionWithoutDrag(t *testing.T) {
 		Y:      5,
 		Action: tea.MouseActionMotion,
 		Button: tea.MouseButtonLeft,
-		Type:   tea.MouseEventType(0),
 	}
 	tab.HandleMouse(msg)
 
@@ -686,7 +689,6 @@ func TestTabHandleMouseReleaseWithoutDrag(t *testing.T) {
 		Y:      5,
 		Action: tea.MouseActionRelease,
 		Button: tea.MouseButtonLeft,
-		Type:   tea.MouseEventType(0),
 	}
 	tab.HandleMouse(msg)
 
@@ -708,7 +710,6 @@ func TestTabHandleMousePressWithoutBorder(t *testing.T) {
 		Y:      5,
 		Action: tea.MouseActionPress,
 		Button: tea.MouseButtonLeft,
-		Type:   tea.MouseEventType(0),
 	}
 	tab.HandleMouse(msg)
 
@@ -751,7 +752,6 @@ func TestTabHandleMouseWithMultipleFloats(t *testing.T) {
 		Y:      1,
 		Action: tea.MouseActionPress,
 		Button: tea.MouseButtonLeft,
-		Type:   tea.MouseEventType(0),
 	}
 	tab.HandleMouse(msg)
 

@@ -21,7 +21,7 @@ func TestServeHTTPDefaultsToLoopback(t *testing.T) {
 	if err := warp.ServeHTTP(""); err != nil {
 		t.Fatalf("ServeHTTP failed: %v", err)
 	}
-	defer warp.CloseHTTP()
+	defer func() { _ = warp.CloseHTTP() }()
 
 	host, _, err := net.SplitHostPort(warp.HTTPAddr())
 	if err != nil {
@@ -40,7 +40,7 @@ func TestServeHTTPConcurrentElementsRequestsUseSnapshot(t *testing.T) {
 	if err := warp.ServeHTTP("127.0.0.1:0"); err != nil {
 		t.Fatalf("ServeHTTP failed: %v", err)
 	}
-	defer warp.CloseHTTP()
+	defer func() { _ = warp.CloseHTTP() }()
 	warp.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -144,7 +144,7 @@ func TestElementsSnapshotAvoidsConcurrentLiveUITreeTraversal(t *testing.T) {
 	if err := warp.ServeHTTP("127.0.0.1:0"); err != nil {
 		t.Fatalf("ServeHTTP failed: %v", err)
 	}
-	defer warp.CloseHTTP()
+	defer func() { _ = warp.CloseHTTP() }()
 	warp.Update(snapshotTick{})
 	warp.View()
 

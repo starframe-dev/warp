@@ -134,7 +134,7 @@ func (m *Modal) Overlay(lines []string, totalW, totalH int) []string {
 
 	// Dim background
 	for i := range lines {
-		lines[i] = dimStyle.Copy().Background(lipgloss.Color(gbDark0)).Render(stripANSI(lines[i]))
+		lines[i] = dimStyle.Background(lipgloss.Color(gbDark0)).Render(stripANSI(lines[i]))
 	}
 
 	// Overlay box, preserving dimmed content left and right

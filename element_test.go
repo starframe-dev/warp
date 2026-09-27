@@ -214,7 +214,7 @@ func TestHTTPElementsEndpoint(t *testing.T) {
 	if err := w.ServeHTTP(":0"); err != nil {
 		t.Fatalf("ServeHTTP: %v", err)
 	}
-	defer w.CloseHTTP()
+	defer func() { _ = w.CloseHTTP() }()
 	_ = w.View()
 
 	addr := w.HTTPAddr()
@@ -222,7 +222,7 @@ func TestHTTPElementsEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get elements: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status %d", resp.StatusCode)
@@ -252,7 +252,7 @@ func TestElementsDefaultsTo80x24(t *testing.T) {
 	if err := w.ServeHTTP(":0"); err != nil {
 		t.Fatalf("ServeHTTP: %v", err)
 	}
-	defer w.CloseHTTP()
+	defer func() { _ = w.CloseHTTP() }()
 	w.View()
 	if panel.width != 80 || panel.height != 24 {
 		t.Fatalf("snapshot size=%dx%d, want 80x24", panel.width, panel.height)
@@ -262,7 +262,7 @@ func TestElementsDefaultsTo80x24(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get elements: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status %d, want 200", resp.StatusCode)
 	}
@@ -277,7 +277,7 @@ func TestHTTPCORSDisabledByDefault(t *testing.T) {
 	if err := w.ServeHTTP(":0"); err != nil {
 		t.Fatalf("ServeHTTP: %v", err)
 	}
-	defer w.CloseHTTP()
+	defer func() { _ = w.CloseHTTP() }()
 	w.View()
 
 	request, err := http.NewRequest(http.MethodGet, "http://"+w.HTTPAddr()+"/elements", nil)
@@ -289,7 +289,7 @@ func TestHTTPCORSDisabledByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get elements: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("default inspector CORS header = %q, want empty", got)
 	}
@@ -332,7 +332,7 @@ func TestHTTPInspectorOptionsCORSAndBearerToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("authorized request: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("authorized status=%d, want 200", response.StatusCode)
 	}

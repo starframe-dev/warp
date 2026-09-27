@@ -310,7 +310,7 @@ func BenchmarkInspector(b *testing.B) {
 		if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
 			b.Fatal(err)
 		}
-		defer w.CloseHTTP()
+		defer func() { _ = w.CloseHTTP() }()
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
@@ -323,7 +323,7 @@ func BenchmarkInspector(b *testing.B) {
 		if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
 			b.Fatal(err)
 		}
-		defer w.CloseHTTP()
+		defer func() { _ = w.CloseHTTP() }()
 		_, _ = w.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 		request := httptest.NewRequest("GET", "/elements", nil)
 		b.ReportAllocs()
