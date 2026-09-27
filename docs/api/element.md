@@ -113,3 +113,24 @@ if el, ok := FindElement(panel.Elems, "", "submit", ""); ok {
 - Warp clones provider-owned semantic data before translating or clipping it; wrappers must not rely on Warp mutating the slice returned by `ElementProvider`.
 - `collectElements` treats "no provider" and "nil panel" identically (both yield `nil`).
 - Bounds are terminal **cell coordinates**, not pixels. The layout/inspector layer does not convert them to pixels.
+
+
+### `SemanticStableMsg`
+
+```go
+type SemanticStableMsg interface {
+    SemanticStateUnchanged() bool
+}
+```
+
+High-frequency messages may implement this optional interface and return
+`true` when processing the message is guaranteed not to change the semantic
+element tree. With the HTTP inspector enabled, Warp then keeps the previously
+published immutable snapshot after `Update` and rebuilds semantic elements on
+the next `View`.
+
+This is intended for streaming/background messages such as PTY output where the
+semantic bounds, roles, names, and actions remain unchanged. Returning `true`
+is an explicit correctness promise by the message producer. Messages that do
+not implement this interface, or return `false`, retain the conservative
+snapshot-after-Update behavior.

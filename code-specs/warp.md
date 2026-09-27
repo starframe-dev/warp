@@ -31,7 +31,7 @@
 ### Bubbletea и запуск
 
 - `Init() tea.Cmd` возвращает `nil`.
-- `Update(msg tea.Msg) (tea.Model, tea.Cmd)` сохраняет размеры при `tea.WindowSizeMsg`, передаёт сообщение корню (если он не nil) и обновляет snapshot. Возвращает сам `Warp` и команду корневой панели.
+- `Update(msg tea.Msg) (tea.Model, tea.Cmd)` сохраняет размеры при `tea.WindowSizeMsg`, передаёт сообщение корню (если он не nil) и обычно обновляет snapshot. Если сообщение реализует `SemanticStableMsg` и возвращает `true`, Update-snapshot пропускается как заведомо семантически неизменный; предыдущий immutable snapshot остаётся опубликованным до следующего `View`. Возвращает сам `Warp` и команду корневой панели.
 - `View() string` возвращает пустую строку при nil-корне. При нулевой ширине или высоте возвращает `Loading...`; иначе рендерит корень. Во всех случаях обновляет snapshot.
 - `Run() error` запускает Bubbletea-программу с `WithAltScreen` и `WithMouseCellMotion` и возвращает ошибку `Program.Run`.
 - `Close() error` останавливает HTTP inspector и, если Warp является корнем ownership domain, заменяет корень на nil, вызывая lifecycle cleanup уникальных `Unmounter` панелей. Для embedded Warp внешним lifecycle владеет родитель.
@@ -56,7 +56,7 @@
 
 GET возвращает HTTP 200 с JSON-массивом immutable snapshot элементов. При включённом bearer token неавторизованный запрос получает 401. Другие методы, кроме GET/OPTIONS, отклоняются. CORS-заголовок появляется только при явной настройке origin.
 
-При построении snapshot неизвестные размеры заменяются на 80×24. Snapshot обновляется после `Update` и повторно после каждого завершённого `View`, потому что пользовательская реализация `Panel.View` может менять semantic state. HTTP handler читает только опубликованный snapshot и не обходит живое дерево.
+При построении snapshot неизвестные размеры заменяются на 80×24. Snapshot обновляется после обычного `Update` и повторно после каждого завершённого `View`, потому что пользовательская реализация `Panel.View` может менять semantic state. Для `SemanticStableMsg` Update-snapshot можно пропустить. `SetRoot` немедленно очищает опубликованный snapshot, не вызывая `Elements` у нового root вне UI-cycle. HTTP handler читает только опубликованный snapshot и не обходит живое дерево.
 
 ### `/healthz`
 

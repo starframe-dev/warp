@@ -113,3 +113,23 @@ if el, ok := FindElement(panel.Elems, "", "submit", ""); ok {
 - Перед clipping/translation Warp копирует provider-owned semantic data и не изменяет срез, который вернул `ElementProvider`.
 - `collectElements` одинаково обрабатывает отсутствие provider'а и nil-панель (возвращает `nil`).
 - `Bounds` задаются в терминальных **ячейках**, а не пикселях; layout и inspector Warp не выполняют преобразование в пиксели.
+
+
+### `SemanticStableMsg`
+
+```go
+type SemanticStableMsg interface {
+    SemanticStateUnchanged() bool
+}
+```
+
+Высокочастотное сообщение может реализовать этот необязательный интерфейс и
+возвращать `true`, если его обработка гарантированно не меняет semantic
+element tree. При включённом HTTP inspector Warp сохраняет предыдущий
+immutable snapshot после `Update` и пересобирает semantic elements на
+следующем `View`.
+
+Это предназначено для streaming/background-сообщений вроде PTY output, когда
+semantic bounds, roles, names и actions остаются неизменными. Значение `true`
+является явным обещанием корректности со стороны producer. Для остальных
+сообщений сохраняется консервативная пересборка snapshot после `Update`.

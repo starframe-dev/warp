@@ -138,7 +138,10 @@ func (w *Warp) View() string
 `Init` returns `nil`. `Update` intercepts only `tea.WindowSizeMsg` to
 record the window dimensions, then forwards every message (including the
 size message) to `w.root.Update`. If the root panel is `nil`, `Update`
-returns no command.
+returns no command. With the HTTP inspector enabled, ordinary messages
+publish a fresh semantic snapshot after `Update`. A message implementing
+`SemanticStableMsg` and returning `true` explicitly opts into reusing the
+previous snapshot until the next `View`.
 
 `View` renders `w.root.View(width, height)`. If either dimension is not
 yet known (zero) it renders the placeholder string `Loading...`; if the
@@ -163,6 +166,6 @@ parent.SetRoot(inner.AsPanel()) // inner Warp embedded in parent
 
 - After `Update` and after every completed `View`, the UI thread collects elements and deep-copies their `Children` before publishing the immutable snapshot. The post-View refresh is intentional because custom panels may update semantic state while rendering. Element collection invokes `Panel.Elements` without holding Warp's mutex.
 - `/elements` reads only the most recently completed snapshot. It never traverses the live panel tree or invokes `Panel.Elements`, `Panel.View`, or `Panel.Update`; a response may be one UI operation behind, but cannot observe partially updated tree data.
-- A root revision prevents a snapshot collected for an old root from being published after `SetRoot`. A nil root is serialized as an empty JSON array, not `null`.
+- A root revision prevents a snapshot collected for an old root from being published after `SetRoot`. `SetRoot` also invalidates the already published snapshot immediately, so `/elements` cannot expose the detached hierarchy before the next UI cycle. A nil snapshot/root is serialized as an empty JSON array, not `null`.
 - If dimensions are unknown while building a snapshot, the inspector uses 80×24.
 - The HTTP server is idempotent to start while running. `CloseHTTP` detaches the server under the mutex, then calls `http.Server.Shutdown` without holding that mutex.

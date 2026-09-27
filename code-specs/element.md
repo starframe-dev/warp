@@ -137,3 +137,21 @@ elements := collectElements(panel, 800, 600)
 - Тип `Bounds` определяет прямоугольные области на сетке.
 - Интерфейс `ElementProvider` позволяет реализующим его значениям предоставлять элементы.
 - `FindElement` рекурсивно ищет элементы по критериям.
+
+
+### `SemanticStableMsg`
+
+Опциональный message-интерфейс:
+
+```go
+type SemanticStableMsg interface {
+    SemanticStateUnchanged() bool
+}
+```
+
+Если сообщение возвращает `true`, оно гарантирует, что его обработка не
+изменяет semantic element tree. При активном inspector `Warp.Update` в этом
+случае не пересобирает snapshot и продолжает публиковать предыдущий immutable
+snapshot до следующего `View`. Это fast path для высокочастотных
+streaming/background events. Без интерфейса или при `false` действует
+консервативное прежнее поведение.
