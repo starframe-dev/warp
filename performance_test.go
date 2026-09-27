@@ -424,3 +424,42 @@ func BenchmarkOverlays(b *testing.B) {
 		}
 	})
 }
+
+func BenchmarkRenderScale(b *testing.B) {
+	for _, size := range []int{64, 256} {
+		b.Run(fmt.Sprintf("nested-splits-%d", size), func(b *testing.B) {
+			tab := benchmarkSplitTab(size)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = tab.View(240, 80)
+			}
+		})
+		b.Run(fmt.Sprintf("flex-%d", size), func(b *testing.B) {
+			tab := benchmarkFlexTab(size)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = tab.View(240, 80)
+			}
+		})
+	}
+}
+
+func BenchmarkInspectorScale(b *testing.B) {
+	for _, count := range []int{1000, 10000} {
+		b.Run(fmt.Sprintf("snapshot-%d", count), func(b *testing.B) {
+			w := New()
+			w.SetRoot(&performancePanel{elements: benchmarkElements(count)})
+			if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
+				b.Fatal(err)
+			}
+			defer func() { _ = w.CloseHTTP() }()
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _ = w.Update(performanceMessage{})
+			}
+		})
+	}
+}

@@ -7,11 +7,33 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+type renderBlankKey struct {
+	width  int
+	height int
+}
+
+type renderHorizontalBorderKey struct {
+	width    int
+	dragging bool
+}
+
+type renderContext struct {
+	blankLines        map[renderBlankKey][]string
+	verticalBorders   map[bool]string
+	horizontalBorders map[renderHorizontalBorderKey]string
+	collapseBorder    string
+}
+
 func renderNode(node *Node, w, h int) []string {
 	return renderLayout(newLayout(node, layoutRect{w: max(0, w), h: max(0, h)}))
 }
 
 func renderLayout(layout *layoutNode) []string {
+	var context renderContext
+	return context.renderLayout(layout)
+}
+
+func (context *renderContext) renderLayout(layout *layoutNode) []string {
 	if layout == nil {
 		return nil
 	}
@@ -20,39 +42,39 @@ func renderLayout(layout *layoutNode) []string {
 		return nil
 	}
 	if layout.node == nil {
-		return renderBlankLines(bounds.w, bounds.h)
+		return context.renderBlankLines(bounds.w, bounds.h)
 	}
 	if layout.node.IsLeaf() {
 		if bounds.w <= 0 || layout.node.Panel == nil {
-			return renderBlankLines(bounds.w, bounds.h)
+			return context.renderBlankLines(bounds.w, bounds.h)
 		}
 		return padContent(layout.node.Panel.View(bounds.w, bounds.h), bounds.w, bounds.h)
 	}
 	if layout.node.Split != nil {
-		return renderSplitLayout(layout)
+		return context.renderSplitLayout(layout)
 	}
 	if layout.node.Flex != nil {
-		return renderFlexLayout(layout)
+		return context.renderFlexLayout(layout)
 	}
-	return renderBlankLines(bounds.w, bounds.h)
+	return context.renderBlankLines(bounds.w, bounds.h)
 }
 
-func renderSplitLayout(layout *layoutNode) []string {
+func (context *renderContext) renderSplitLayout(layout *layoutNode) []string {
 	if len(layout.children) < 2 {
-		return renderBlankLines(layout.bounds.w, layout.bounds.h)
+		return context.renderBlankLines(layout.bounds.w, layout.bounds.h)
 	}
 	split := layout.node.Split
-	first := renderLayout(layout.children[0])
-	second := renderLayout(layout.children[1])
+	first := context.renderLayout(layout.children[0])
+	second := context.renderLayout(layout.children[1])
 	borderVisible := len(layout.borders) > 0
 	bounds := layout.bounds
 
 	switch split.Direction {
 	case Vertical:
-		border := renderVerticalBorder(split.Dragging)
+		border := context.renderVerticalBorder(split.Dragging)
 		collapseBorder := ""
 		if split.OnCollapse != nil && split.CollapseRow >= 0 {
-			collapseBorder = ansi.ResetStyle + collapseStyle.Render("<") + ansi.ResetStyle
+			collapseBorder = context.renderCollapseBorder()
 		}
 		lines := make([]string, bounds.h)
 		for y := range lines {
@@ -73,19 +95,19 @@ func renderSplitLayout(layout *layoutNode) []string {
 		lines := make([]string, 0, bounds.h)
 		lines = append(lines, first...)
 		if borderVisible {
-			lines = append(lines, renderHorizontalBorder(bounds.w, split.Dragging))
+			lines = append(lines, context.renderHorizontalBorder(bounds.w, split.Dragging))
 		}
 		lines = append(lines, second...)
 		return lines
 	default:
-		return renderBlankLines(bounds.w, bounds.h)
+		return context.renderBlankLines(bounds.w, bounds.h)
 	}
 }
 
-func renderFlexLayout(layout *layoutNode) []string {
+func (context *renderContext) renderFlexLayout(layout *layoutNode) []string {
 	flex := layout.node.Flex
 	if flex == nil || len(layout.children) == 0 {
-		return renderBlankLines(layout.bounds.w, layout.bounds.h)
+		return context.renderBlankLines(layout.bounds.w, layout.bounds.h)
 	}
 
 	visible := make([]bool, max(0, len(layout.children)-1))
@@ -99,15 +121,20 @@ func renderFlexLayout(layout *layoutNode) []string {
 	case Horizontal:
 		children := make([][]string, len(layout.children))
 		for i, child := range layout.children {
-			children[i] = renderLayout(child)
+			children[i] = context.renderLayout(child)
 		}
 		lines := make([]string, layout.bounds.h)
-		border := renderVerticalBorder(flex.Dragging)
+		border := context.renderVerticalBorder(flex.Dragging)
 		for y := range lines {
-			var row strings.Builder
-			if layout.bounds.w >= 32 {
-				row.Grow(layout.bounds.w + 16)
+			rowBytes := 0
+			for i, child := range children {
+				if i > 0 && visible[i-1] {
+					rowBytes += len(border)
+				}
+				rowBytes += len(lineAt(child, y))
 			}
+			var row strings.Builder
+			row.Grow(rowBytes)
 			for i, child := range children {
 				if i > 0 && visible[i-1] {
 					row.WriteString(border)
@@ -121,13 +148,13 @@ func renderFlexLayout(layout *layoutNode) []string {
 		lines := make([]string, 0, layout.bounds.h)
 		for i, child := range layout.children {
 			if i > 0 && visible[i-1] {
-				lines = append(lines, renderHorizontalBorder(layout.bounds.w, flex.Dragging))
+				lines = append(lines, context.renderHorizontalBorder(layout.bounds.w, flex.Dragging))
 			}
-			lines = append(lines, renderLayout(child)...)
+			lines = append(lines, context.renderLayout(child)...)
 		}
 		return lines
 	default:
-		return renderBlankLines(layout.bounds.w, layout.bounds.h)
+		return context.renderBlankLines(layout.bounds.w, layout.bounds.h)
 	}
 }
 
@@ -136,6 +163,57 @@ func lineAt(lines []string, index int) string {
 		return ""
 	}
 	return lines[index]
+}
+
+func (context *renderContext) renderBlankLines(w, h int) []string {
+	if h <= 0 {
+		return nil
+	}
+	key := renderBlankKey{width: max(0, w), height: h}
+	if context.blankLines != nil {
+		if lines, ok := context.blankLines[key]; ok {
+			return lines
+		}
+	} else {
+		context.blankLines = make(map[renderBlankKey][]string)
+	}
+	lines := renderBlankLines(key.width, key.height)
+	context.blankLines[key] = lines
+	return lines
+}
+
+func (context *renderContext) renderVerticalBorder(dragging bool) string {
+	if context.verticalBorders != nil {
+		if border, ok := context.verticalBorders[dragging]; ok {
+			return border
+		}
+	} else {
+		context.verticalBorders = make(map[bool]string, 2)
+	}
+	border := renderVerticalBorder(dragging)
+	context.verticalBorders[dragging] = border
+	return border
+}
+
+func (context *renderContext) renderHorizontalBorder(width int, dragging bool) string {
+	key := renderHorizontalBorderKey{width: width, dragging: dragging}
+	if context.horizontalBorders != nil {
+		if border, ok := context.horizontalBorders[key]; ok {
+			return border
+		}
+	} else {
+		context.horizontalBorders = make(map[renderHorizontalBorderKey]string)
+	}
+	border := renderHorizontalBorder(width, dragging)
+	context.horizontalBorders[key] = border
+	return border
+}
+
+func (context *renderContext) renderCollapseBorder() string {
+	if context.collapseBorder == "" {
+		context.collapseBorder = ansi.ResetStyle + collapseStyle.Render("<") + ansi.ResetStyle
+	}
+	return context.collapseBorder
 }
 
 func renderBlankLines(w, h int) []string {
