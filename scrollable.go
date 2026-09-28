@@ -15,14 +15,6 @@ type Scrollable struct {
 	lastWidth, lastHeight int
 	hasViewport           bool
 	hasLocalResize        bool
-	extentCache           scrollableExtentCache
-}
-
-type scrollableExtentCache struct {
-	content Panel
-	width   int
-	height  int
-	known   bool
 }
 
 type scrollableViewport struct {
@@ -123,9 +115,6 @@ func (s *Scrollable) effectiveOffset(w, h int) scrollableViewport {
 	if contentHeight, known := panelContentHeight(s.Content, w); known {
 		return scrollableViewport{offset: clampScrollableOffset(offset, contentHeight, h), known: true}
 	}
-	if contentHeight, known := s.cachedContentHeight(w); known {
-		return scrollableViewport{offset: clampScrollableOffset(offset, contentHeight, h), known: true}
-	}
 	if h == 0 {
 		return scrollableViewport{offset: offset}
 	}
@@ -134,7 +123,6 @@ func (s *Scrollable) effectiveOffset(w, h int) scrollableViewport {
 	lines := strings.Split(s.Content.View(w, probeHeight), "\n")
 	if len(lines) < probeHeight {
 		contentHeight := len(lines)
-		s.rememberContentHeight(w, contentHeight)
 		return scrollableViewport{
 			offset: clampScrollableOffset(offset, contentHeight, h),
 			lines:  lines,
@@ -143,26 +131,6 @@ func (s *Scrollable) effectiveOffset(w, h int) scrollableViewport {
 		}
 	}
 	return scrollableViewport{offset: offset, lines: lines, probed: true}
-}
-
-func (s *Scrollable) cachedContentHeight(width int) (int, bool) {
-	if !s.extentCache.known || s.extentCache.width != width || !samePanel(s.extentCache.content, s.Content) {
-		return 0, false
-	}
-	return s.extentCache.height, true
-}
-
-func (s *Scrollable) rememberContentHeight(width, height int) {
-	s.extentCache = scrollableExtentCache{
-		content: s.Content,
-		width:   width,
-		height:  max(0, height),
-		known:   true,
-	}
-}
-
-func (s *Scrollable) invalidateContentHeight() {
-	s.extentCache = scrollableExtentCache{}
 }
 
 func clampScrollableOffset(offset, contentHeight, viewportHeight int) int {
@@ -236,7 +204,6 @@ func (s *Scrollable) Update(msg tea.Msg) tea.Cmd {
 
 	var cmd tea.Cmd
 	if !isNilPanel(s.Content) {
-		s.invalidateContentHeight()
 		cmd = s.Content.Update(msg)
 	}
 	if s.hasViewport && (viewportChanged || scrollChanged) {

@@ -6,12 +6,12 @@
 
 ## Тип `Warp`
 
-`Warp` хранит корневую панель, её ревизию, последние размеры окна, состояние HTTP-сервера и snapshot элементов. `mu` защищает корень, ревизию, размеры и поля HTTP-сервера; отдельный `elementsSnapshotMu` защищает опубликованный snapshot. Snapshot строится вне блокировки `mu`, а публикуется только если ревизия корня не изменилась. Дерево глубоко копируется вместе с `Children`.
+`Warp` хранит корневую панель, ревизии корня и состояния, последние размеры окна, состояние HTTP-сервера и snapshot элементов. `mu` защищает корень, ревизии, размеры и поля HTTP-сервера; отдельный `elementsSnapshotMu` защищает опубликованный snapshot. Snapshot строится вне блокировки `mu`, а публикуется, только если ревизии корня и состояния всё ещё совпадают с использованными при построении. Дерево глубоко копируется вместе с `Children`; копирование ограничено глубиной 128 уровней и 100 000 узлами.
 
 ### Создание и корень
 
-- `New() *Warp` создаёт `Warp` с `TabGroup` в позиции `TabTop` и пустым snapshot.
-- `SetRoot(panel Panel)` собирает панели старого корня, обновляет и ревизирует корень, затем вызывает `Unmount` лишь для экземпляров, недостижимых из нового дерева владельца.
+- `New() *Warp` создаёт `Warp` с `TabGroup` в позиции `TabTop`. Snapshot изначально пуст: nil snapshot при HTTP-кодировании даёт JSON-массив `[]`.
+- `SetRoot(panel Panel)` собирает панели старого корня, обновляет и ревизует корень и состояние, затем вызывает `Unmount` лишь для экземпляров, недостижимых из нового дерева владельца. Если inspector включён, опубликованный snapshot очищается.
 - `Root() Panel` возвращает текущий корень под блокировкой чтения.
 
 ### Безопасность framework labels
@@ -31,8 +31,8 @@
 ### Bubbletea и запуск
 
 - `Init() tea.Cmd` возвращает `nil`.
-- `Update(msg tea.Msg) (tea.Model, tea.Cmd)` сохраняет размеры при `tea.WindowSizeMsg`, передаёт сообщение корню (если он не nil) и обычно обновляет snapshot. Если сообщение реализует `SemanticStableMsg` и возвращает `true`, Update-snapshot пропускается как заведомо семантически неизменный; предыдущий immutable snapshot остаётся опубликованным до следующего `View`. Возвращает сам `Warp` и команду корневой панели.
-- `View() string` возвращает пустую строку при nil-корне. При нулевой ширине или высоте возвращает `Loading...`; иначе рендерит корень. Во всех случаях обновляет snapshot.
+- `Update(msg tea.Msg) (tea.Model, tea.Cmd)` сохраняет размеры при `tea.WindowSizeMsg`, передаёт сообщение корню (если он не nil) и, если inspector включён, обновляет snapshot. Если сообщение реализует `SemanticStableMsg` и возвращает `true`, Update-snapshot пропускается как заведомо семантически неизменный; предыдущий immutable snapshot остаётся опубликованным до следующего `View`. Возвращает сам `Warp` и команду корневой панели.
+- `View() string` возвращает пустую строку при nil-корне. При нулевой ширине или высоте возвращает `Loading...`; иначе рендерит корень. После каждого вызова обновляет snapshot, если inspector включён.
 - `Run() error` запускает Bubbletea-программу с `WithAltScreen` и `WithMouseCellMotion` и возвращает ошибку `Program.Run`.
 - `Close() error` останавливает HTTP inspector и, если Warp является корнем ownership domain, заменяет корень на nil, вызывая lifecycle cleanup уникальных `Unmounter` панелей. Для embedded Warp внешним lifecycle владеет родитель.
 
@@ -48,13 +48,13 @@
 ### Методы
 
 - `ServeHTTP(addr string) error` использует безопасные defaults и делегирует `ServeHTTPWithOptions(addr, InspectorOptions{})`.
-- `ServeHTTPWithOptions(addr, options) error` запускает сервер с маршрутами `/elements` и `/healthz`. При пустом адресе используется loopback `127.0.0.1` и `WARP_HTTP_PORT` либо порт 0. `InspectorOptions.AllowedOrigin` явно разрешает точный CORS origin или `"*"`; по умолчанию CORS не добавляется. `BearerToken` при непустом значении требует `Authorization: Bearer ...` для `/elements`.
-- `CloseHTTP() error` отключает inspector demand, очищает snapshot и выполняет bounded `http.Server.Shutdown` с timeout; при timeout выполняется `server.Close()`. Mutex Warp не удерживается во время ожидания shutdown.
+- `ServeHTTPWithOptions(addr string, options InspectorOptions) error` запускает сервер с маршрутами `/elements` и `/healthz`. При пустом адресе используется loopback `127.0.0.1` и `WARP_HTTP_PORT` либо порт 0. `InspectorOptions.AllowedOrigin` явно разрешает точный CORS origin или `"*"`; по умолчанию CORS не добавляется. `BearerToken` при непустом значении требует `Authorization: Bearer ...` для `/elements`. Повторный запуск при уже активном сервере или в процессе закрытия — no-op.
+- `CloseHTTP() error` отключает inspector demand, очищает snapshot и выполняет bounded `http.Server.Shutdown` с timeout; при ошибке Shutdown выполняется `server.Close()`. Mutex Warp не удерживается во время ожидания shutdown.
 - `HTTPAddr() string` возвращает сохранённый адрес или пустую строку.
 
 ### `/elements`
 
-GET возвращает HTTP 200 с JSON-массивом immutable snapshot элементов. При включённом bearer token неавторизованный запрос получает 401. Другие методы, кроме GET/OPTIONS, отклоняются. CORS-заголовок появляется только при явной настройке origin.
+GET возвращает HTTP 200 с JSON-массивом immutable snapshot элементов; при отсутствии snapshot возвращается `[]`. При включённом bearer token неавторизованный запрос получает 401. OPTIONS возвращает 204 и разрешённые методы/headers; другие методы, кроме GET/OPTIONS, отклоняются. CORS-заголовок появляется только при явной настройке origin и совпадающем Origin (или настройке `*`).
 
 При построении snapshot неизвестные размеры заменяются на 80×24. Snapshot обновляется после обычного `Update` и повторно после каждого завершённого `View`, потому что пользовательская реализация `Panel.View` может менять semantic state. Для `SemanticStableMsg` Update-snapshot можно пропустить. `SetRoot` немедленно очищает опубликованный snapshot, не вызывая `Elements` у нового root вне UI-cycle. HTTP handler читает только опубликованный snapshot и не обходит живое дерево.
 

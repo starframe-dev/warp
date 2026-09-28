@@ -1,27 +1,10 @@
 # Публичный API Warp
 
-## Обзор
+## Назначение
 
-Warp — Go-библиотека TUI layout engine для Bubbletea. Она не рисует
-контент сама, а собирает `Panel`-компоненты в дерево, рисует границы
-и перераспределяет размеры. Контент, ввод и события остаются за
-разработчиком.
+Warp — Go-библиотека для компоновки терминальных панелей Bubble Tea. Пакет `github.com/starframe-dev/warp` предоставляет модель `Warp`, дерево split/flex на уровне `Tab`, вкладки и компоненты-обёртки. Содержимое панелей и прикладная логика остаются у вызывающего кода; визуальные размеры задаются в терминальных ячейках.
 
-Пакет: `github.com/starframe-dev/warp` (импортируется как `warp`).
-
-## Точки входа
-
-```go
-w := warp.New()               // корень — TabGroup с одной вкладкой
-w.SetRoot(myPanel)            // заменить корень полностью
-tab := w.NewTab("editor")     // создать вкладку
-tab2 := w.ActiveTab()         // активная вкладка
-w.SetTabPosition(warp.TabLeft)
-w.NextTab() / w.PrevTab()
-w.Run()                      // запустить Bubbletea-программу
-```
-
-## Интерфейс `Panel`
+## Минимальная панель и расширения
 
 ```go
 type Panel interface {
@@ -30,153 +13,57 @@ type Panel interface {
 }
 ```
 
-Всё, что вставляется в дерево Warp — `Panel`. Это единственная
-обязательная реализация у стороннего кода.
+Дополнительные возможности необязательны и независимы:
 
-## Layout: `Tab`
+- `Focusable` (`Panel`, `Focus()`, `Blur()`, `Focused() bool`) участвует в явном управлении фокусом.
+- `RawKeyReceiver` (`Panel`, `WantsRawKeys() bool`) просит передавать клавиши без перехвата сочетаний TabGroup.
+- `ElementProvider.Elements(width, height) []Element` публикует семантические элементы для инспектора и E2E.
+- `ContentHeightProvider.ContentHeight(width) (height int, known bool)` сообщает intrinsic-высоту без рендеринга.
+- `ViewportRenderer.ViewAt(width, height, offset int) string` и `ViewportElementProvider.ElementsAt(width, height, offset int) []Element` дают быстрый viewport-путь Scrollable при известной высоте. Bounds `ElementsAt` остаются в координатах полного содержимого.
+- `Unmounter.Unmount()` освобождает ресурсы при окончательном удалении панели из домена владения.
+- `SemanticStableMsg.SemanticStateUnchanged() bool` позволяет сообщению обещать неизменность semantic snapshot.
 
-`Tab` — единственная точка мутации дерева:
+`BasePanel` — пустая базовая реализация `Panel`.
 
-| Метод | Описание |
-|--------|----------|
-| `RootPanel() Panel` | корневая панель таба |
-| `SetRootPanel(p Panel)` | заменить корневую панель |
-| `SplitVertical(parent, fraction, newPanel)` | деление по вертикали |
-| `SplitHorizontal(parent, fraction, newPanel)` | деление по горизонтали |
-| `FlexRow(parent, items []FlexItemSpec)` | горизонтальный flex |
-| `FlexColumn(parent, items []FlexItemSpec)` | вертикальный flex |
-| `Float(panel, x, y, w, h)` | добавить плавающую панель |
-| `CloseFloat(fp)` | удалить плавающую панель |
-| `SetSplitCollapse(parent, row, onCollapse)` | символ «<» на границе |
-| `ToggleSplitCollapse(parent)` | переключить collapsed |
-
-`FlexItemSpec { Panel Panel; Grow int }` — `Grow: 0` (авто),
-`Grow: 1..n` (доля остатка).
-
-## `TabGroup` — Panel
+## Корень и вкладки
 
 ```go
-tg := warp.NewTabGroup(warp.TabLeft)
-tg.NewTab("editor")
-tg.NewTab("debug")
-tg.ActiveTab()
-tg.NextTab() / tg.PrevTab()
-```
-
-`TabGroup` сам — `Panel`, вставляется в flex/split наравне с другими
-компонентами.
-
-## Компоненты-обёртки
-
-| Конструктор | Тип | Назначение |
-|--------------|-----|------------|
-| `NewCollapsible(title, panel)` | `*Collapsible` | сворачиваемая секция |
-| `NewScrollable(panel)` | `*Scrollable` | прокрутка |
-| `NewDropdownMenu(label, items)` | `*DropdownMenu` | выпадающее меню |
-| `NewSelectable(panel)` | `*Selectable` | выделение текста |
-| `NewInput(prompt)` | `*Input` | однострочный ввод |
-| `NewModal(...)` / `ShowModalMsg` | `*Modal` | диалоговое окно |
-| `&Popover{Items, X, Y, OnClose}` | `*Popover` | контекстное меню |
-
-Компоненты сами реализуют `Panel`, плюс (при необходимости)
-`Focusable` и `ElementProvider`.
-
-## Фокус
-
-```go
-type Focusable interface {
-    Panel
-    Focus()
-    Blur()
-    Focused() bool
-}
-
-tab.FocusNext()      // следующая focusable
-tab.FocusPrev()     // предыдущая
-tab.FocusFirst()    // первая
-tab.FocusPanel(p)   // конкретная панель
-```
-
-Warp не биндит `Tab`/`Shift+Tab`. Разработчик сам решает, какие
-клавиши вызывают `Focus*` — и сам рисует help, если нужно.
-
-`RawKeyReceiver` — интерфейс `{Panel; WantsRawKeys() bool}` для
-PTY/терминалов, которым нужен прямой доступ ко всем клавишам.
-
-## Element tree (E2E)
-
-```go
-type Element struct {
-    Role     string
-    Name     string
-    Action   string
-    Bounds   Bounds      // {X, Y, W, H}
-    Children []Element
-}
-
-type ElementProvider interface {
-    Elements(width, height int) []Element
-}
-
-FindElement(elems []Element, role, name, action string) (Element, bool)
-```
-
-HTTP: `GET /elements` — JSON-массив элементов.
-`GET /healthz` — `ok`.
-
-## Тема
-
-```go
-type ThemeColors struct {
-    Background, Surface, Raised, Border, BorderMuted string
-    Text, TextMuted, TextStrong string
-    Accent, AccentMuted string
-    Error, Success, Warning string
-    SelectionBackground, SelectionForeground string
-}
-func SetTheme(c ThemeColors)
-```
-
-Пересчитывает все package-level `lipgloss.Style` (табы, floats,
-dropdown, popover, modal, input, collapsible, split borders).
-Порядок вызовов не важен: `SetTheme` перезаписывает
-полный набор стилей.
-
-## Утилиты
-
-| Функция | Описание |
-|---------|----------|
-| `WordWrap(text, width)` | перенос по словам, ломает длинные слова |
-| `SpaceWrap(text, width)` | перенос по пробелам, слова не ломает |
-| `StripANSI(s string)` | удалить ANSI-последовательности, посчитать визуальную ширину |
-| `FindElement(...)` | поиск в `[]Element` |
-
-## Встраивание
-
-```go
-inner := warp.New()
-inner.SetRoot(innerTabGroup)
-outerTab.SplitVertical(parent, 0.5, inner.AsPanel())
-```
-
-`AsPanel()` возвращает адаптер, который сам вызывает
-`View`/`Update` с передаваемыми размерами.
-
-## Пример: flex-форма
-
-```go
-w := warp.New()
+w := warp.New()                  // TabGroup TabTop с вкладкой main
+w.SetRoot(customPanel)           // заменить корневую Panel
+root := w.Root()
 tab := w.ActiveTab()
-
-name := warp.NewInput("Name: ")
-email := warp.NewInput("Email: ")
-preview := &statusPanel{}
-
-tab.FlexRow(tab.RootPanel(), []warp.FlexItemSpec{
-    {Panel: name,  Grow: 1},
-    {Panel: email, Grow: 1},
-})
-tab.Float(preview, 10, 4, 24, 8)
-
-w.Run()
+newTab := w.NewTab("editor")
+w.SetTabPosition(warp.TabLeft)
+w.NextTab(); w.PrevTab()
+err := w.Run()
 ```
+
+`Warp` реализует `tea.Model`. `Init` пуст; `Update` сохраняет `WindowSizeMsg`, передаёт сообщение корню и возвращает его `tea.Cmd`. `View` рендерит корневую панель; до получения размера возвращается `Loading...`. Warp не назначает собственные клавиатурные биндинги.
+
+`NewTabGroup(position)` создаёт Panel с вкладкой `main`; `TabGroup.NewTab`, `ActiveTab`, `NextTab`, `PrevTab` управляют набором вкладок. Позиции: `TabTop`, `TabBottom`, `TabLeft`, `TabRight`, `TabNone`.
+
+`Tab` управляет layout-деревом: `RootPanel`, `SetRootPanel`, `SplitVertical`, `SplitHorizontal`, `FlexRow`, `FlexColumn`, `Float`, `CloseFloat`, `SetSplitCollapse`, `ToggleSplitCollapse`, а также `FocusNext`, `FocusPrev`, `FocusFirst`, `FocusPanel`. Split fraction относится к первому ребёнку; `FlexItemSpec{Panel, Grow}` задаёт детей flex и веса роста. Float располагается поверх дерева.
+
+## Компоненты
+
+Конструкторы основных компонентов: `NewCollapsible(title, panel)`, `NewScrollable(panel)`, `NewDropdownMenu(label, items)`, `NewSelectable(panel)`, `NewInput(prompt)`, `NewModal(...)`. Контекстное меню можно создать как `&Popover{Items, X, Y, OnClose}`. Их поля и точная семантика описаны в `code-specs/*.md`; компоненты реализуют `Panel` и поддерживают соответствующие optional interfaces.
+
+Вкладки и компоненты могут быть вложены друг в друга как `Panel`. `w.AsPanel()` возвращает адаптер Warp для такого встраивания.
+
+## Фокус и события
+
+Фокус управляется явно через методы `Tab.Focus*`; Warp не связывает Tab/Shift+Tab с навигацией. TabGroup резервирует `Ctrl+T` (новая вкладка), `Ctrl+W` (закрыть текущую, кроме последней), `Ctrl+Tab` и `Ctrl+Shift+Tab` (переключение), а также `Ctrl+C`. Фокусируемая raw-key панель может получать клавиши первой. Точная маршрутизация мыши описана в архитектуре и спецификациях компонентов.
+
+## Семантические элементы
+
+`Element` содержит `Role`, `Name`, `Action`, `Bounds` и `Children`; `Bounds` имеет координаты и размер в ячейках, `Center()` возвращает центральную ячейку. `FindElement(elems, role, name, action)` ищет первое совпадение в глубину; пустой критерий игнорируется.
+
+## Тема и утилиты
+
+`SetTheme(ThemeColors)` перенастраивает package-level стили компонентов. `ThemeColors` включает Background/Surface/Raised, Border/BorderMuted, Text/TextMuted/TextStrong, Accent/AccentMuted, Error/Success/Warning и цвета SelectionBackground/SelectionForeground.
+
+Экспортируемые строковые утилиты: `WordWrap(text, width)`, `SpaceWrap(text, width)` и `StripANSI(s)`. Последняя удаляет ANSI-последовательности; визуальная ширина текста учитывает терминальные ячейки.
+
+## Совместимость
+
+`Panel` остаётся минимальным обязательным интерфейсом. Новые свойства добавляются через optional interfaces, поэтому пользовательские панели не обязаны реализовывать высоту, viewport, семантические элементы, фокус или lifecycle.

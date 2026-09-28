@@ -24,9 +24,12 @@ type Collapsible struct {
 func NewCollapsible(title string, content Panel) *Collapsible
 func (c *Collapsible) View(w, h int) string
 func (c *Collapsible) Elements(w, h int) []Element
+func (c *Collapsible) ContentHeight(width int) (height int, known bool)
 func (c *Collapsible) Update(msg tea.Msg) tea.Cmd
 func (c *Collapsible) Toggle()
 ```
+
+`ContentHeight` возвращает `(1, true)` в свёрнутом состоянии. В раскрытом состоянии он добавляет строку заголовка к известной высоте содержимого; если высота содержимого неизвестна, возвращает `(0, false)`. Переполнение при добавлении строки заголовка насыщается максимальным значением `int`.
 
 `Toggle` инвертирует `Collapsed`. Методы `Tab.Collapse` и `Tab.Expand` синхронно задают явное состояние `Collapsible` и его `FlexItem`, поэтому повторные вызовы Collapse/Expand идемпотентны.
 
