@@ -1396,3 +1396,71 @@ func TestServeHTTPErr(t *testing.T) {
 		t.Error("expected error for invalid listen address")
 	}
 }
+
+func TestClose(t *testing.T) {
+	w := New()
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+	if w.Root() != nil {
+		t.Error("expected Close to release the root panel")
+	}
+}
+
+func TestServeHTTPWithOptions(t *testing.T) {
+	w := New()
+	if err := w.ServeHTTPWithOptions("127.0.0.1:0", InspectorOptions{
+		AllowedOrigin: "https://example.test",
+		BearerToken:   "secret",
+	}); err != nil {
+		t.Fatalf("ServeHTTPWithOptions failed: %v", err)
+	}
+	defer func() { _ = w.CloseHTTP() }()
+
+	baseURL := "http://" + w.HTTPAddr()
+	doRequest := func(method, path, origin, authorization string) *http.Response {
+		t.Helper()
+		req, err := http.NewRequest(method, baseURL+path, nil)
+		if err != nil {
+			t.Fatalf("create request: %v", err)
+		}
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		if authorization != "" {
+			req.Header.Set("Authorization", authorization)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("send request: %v", err)
+		}
+		return resp
+	}
+
+	resp := doRequest(http.MethodGet, "/elements", "https://example.test", "")
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("unauthenticated request status = %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "https://example.test" {
+		t.Errorf("allowed origin = %q", got)
+	}
+
+	resp = doRequest(http.MethodGet, "/elements", "", "Bearer secret")
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("authorized request status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	resp = doRequest(http.MethodOptions, "/elements", "https://example.test", "")
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("preflight status = %d, want %d", resp.StatusCode, http.StatusNoContent)
+	}
+
+	resp = doRequest(http.MethodPost, "/elements", "", "Bearer secret")
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("POST status = %d, want %d", resp.StatusCode, http.StatusMethodNotAllowed)
+	}
+}

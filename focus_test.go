@@ -131,6 +131,22 @@ func TestFocusPanel(t *testing.T) {
 	}
 }
 
+func TestFocusableFocused(t *testing.T) {
+	f := &testFocusable{testPanel: testPanel{name: "focusable"}}
+	var focusable Focusable = f
+	if focusable.Focused() {
+		t.Fatal("new focusable should not be focused")
+	}
+	focusable.Focus()
+	if !focusable.Focused() {
+		t.Fatal("Focused() should report true after Focus()")
+	}
+	focusable.Blur()
+	if focusable.Focused() {
+		t.Error("Focused() should report false after Blur()")
+	}
+}
+
 func TestIsFocusable(t *testing.T) {
 	if _, ok := isFocusable(nil); ok {
 		t.Error("isFocusable(nil) should be false")

@@ -232,3 +232,72 @@ func TestCollapsibleToggleNilContent(t *testing.T) {
 		t.Error("Toggle should restore state")
 	}
 }
+
+type collapsibleSemanticPanel struct {
+	collapsibleTestPanel
+	elements []Element
+	height   int
+	known    bool
+}
+
+func (p *collapsibleSemanticPanel) Elements(w, h int) []Element { return p.elements }
+func (p *collapsibleSemanticPanel) ContentHeight(width int) (int, bool) {
+	return p.height, p.known
+}
+
+func TestCollapsibleElements(t *testing.T) {
+	inner := &collapsibleSemanticPanel{
+		collapsibleTestPanel: collapsibleTestPanel{name: "content"},
+		elements: []Element{{Role: "text", Name: "item", Bounds: Bounds{X: 1, Y: 0, W: 8, H: 3}}},
+	}
+	c := NewCollapsible("Title", inner)
+	got := c.Elements(10, 3)
+	if len(got) != 2 {
+		t.Fatalf("Elements returned %d elements, want 2", len(got))
+	}
+	if got[0].Role != "button" || got[0].Action != "toggle-collapse" || got[0].Bounds != (Bounds{W: 10, H: 1}) {
+		t.Errorf("title element = %+v", got[0])
+	}
+	if got[1].Bounds != (Bounds{X: 1, Y: 1, W: 8, H: 2}) {
+		t.Errorf("clipped, shifted content element bounds = %+v", got[1].Bounds)
+	}
+	if got := c.Elements(-1, 2); got != nil {
+		t.Errorf("negative-width Elements = %v, want nil", got)
+	}
+	if got := c.Elements(10, 0); got != nil {
+		t.Errorf("zero-height Elements = %v, want nil", got)
+	}
+	c.Collapsed = true
+	if got := c.Elements(10, 3); len(got) != 1 {
+		t.Errorf("collapsed Elements count = %d, want 1", len(got))
+	}
+	c.Collapsed = false
+	if got := c.Elements(10, 1); len(got) != 1 {
+		t.Errorf("title-only Elements count = %d, want 1", len(got))
+	}
+	c.Content = nil
+	if got := c.Elements(10, 3); len(got) != 1 {
+		t.Errorf("nil-content Elements count = %d, want 1", len(got))
+	}
+}
+
+func TestCollapsibleContentHeight(t *testing.T) {
+	inner := &collapsibleSemanticPanel{height: 4, known: true}
+	c := NewCollapsible("Title", inner)
+	if height, known := c.ContentHeight(12); !known || height != 5 {
+		t.Errorf("ContentHeight() = (%d, %v), want (5, true)", height, known)
+	}
+	c.Collapsed = true
+	if height, known := c.ContentHeight(12); !known || height != 1 {
+		t.Errorf("collapsed ContentHeight() = (%d, %v), want (1, true)", height, known)
+	}
+	c.Collapsed = false
+	inner.known = false
+	if height, known := c.ContentHeight(12); known || height != 0 {
+		t.Errorf("unknown ContentHeight() = (%d, %v), want (0, false)", height, known)
+	}
+	c.Content = nil
+	if height, known := c.ContentHeight(12); known || height != 0 {
+		t.Errorf("nil-content ContentHeight() = (%d, %v), want (0, false)", height, known)
+	}
+}

@@ -37,6 +37,20 @@ type testNonProviderPanel struct{}
 func (testNonProviderPanel) View(width, height int) string { return "" }
 func (testNonProviderPanel) Update(msg tea.Msg) tea.Cmd    { return nil }
 
+type testViewportElementProvider struct {
+	width, height, offset int
+	elems                 []Element
+}
+
+func (p *testViewportElementProvider) ElementsAt(width, height, offset int) []Element {
+	p.width, p.height, p.offset = width, height, offset
+	return p.elems
+}
+
+type testSemanticStableMsg bool
+
+func (m testSemanticStableMsg) SemanticStateUnchanged() bool { return bool(m) }
+
 func TestElementStructFields(t *testing.T) {
 	el := Element{
 		Role:     "button",
@@ -127,6 +141,30 @@ func TestElementProviderFuncViaInterface(t *testing.T) {
 	elems := ep.Elements(10, 20)
 	if elems[0].Bounds.W != 10 || elems[0].Bounds.H != 20 {
 		t.Fatalf("unexpected element via interface: %+v", elems[0])
+	}
+}
+
+func TestViewportElementProvider(t *testing.T) {
+	want := []Element{{Role: "item", Bounds: Bounds{X: 1, Y: 2, W: 3, H: 4}}}
+	provider := &testViewportElementProvider{elems: want}
+	var vp ViewportElementProvider = provider
+	got := vp.ElementsAt(80, 24, 7)
+	if provider.width != 80 || provider.height != 24 || provider.offset != 7 {
+		t.Fatalf("ElementsAt arguments = (%d,%d,%d), want (80,24,7)", provider.width, provider.height, provider.offset)
+	}
+	if len(got) != 1 || got[0].Role != "item" {
+		t.Fatalf("ElementsAt = %+v, want %+v", got, want)
+	}
+}
+
+func TestSemanticStableMsg(t *testing.T) {
+	var stable SemanticStableMsg = testSemanticStableMsg(true)
+	if !stable.SemanticStateUnchanged() {
+		t.Fatal("stable message should report unchanged semantic state")
+	}
+	var unstable SemanticStableMsg = testSemanticStableMsg(false)
+	if unstable.SemanticStateUnchanged() {
+		t.Fatal("unstable message should report changed semantic state")
 	}
 }
 

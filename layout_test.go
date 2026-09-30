@@ -176,3 +176,88 @@ func assertLayoutFits(t *testing.T, layout *layoutNode) {
 		assertLayoutFits(t, child)
 	}
 }
+
+func TestLayoutHelpersAndTraversal(t *testing.T) {
+	left := &geometryTestPanel{name: "left"}
+	right := &geometryTestPanel{name: "right"}
+	split := &SplitConfig{Direction: Vertical, Fraction: .5, First: &Node{Panel: left}, Second: &Node{Panel: right}}
+	root := &Node{Split: split}
+	layout := newLayout(root, layoutRect{x: 2, y: 3, w: 11, h: 4})
+	if len(layout.children) != 2 || len(layout.borders) != 1 {
+		t.Fatalf("split layout children/borders = %d/%d", len(layout.children), len(layout.borders))
+	}
+	if got := layout.borders[0]; got.X != 7 || got.Y != 3 || got.Length != 4 || got.Bounds != (Bounds{X: 2, Y: 3, W: 11, H: 4}) {
+		t.Fatalf("unexpected split border: %+v", got)
+	}
+	if got := findLayoutPanel(layout, 2, 3); got == nil || got.Node.Panel != left || got.W != 5 {
+		t.Fatalf("unexpected panel hit: %+v", got)
+	}
+	if findLayoutPanel(layout, 13, 3) != nil || findLayoutPanel(nil, 0, 0) != nil {
+		t.Fatal("out-of-bounds or nil layout hit a panel")
+	}
+	borders := collectLayoutBorders(layout)
+	if len(borders) != 1 || findFlexLayout(layout, &FlexConfig{}) != nil {
+		t.Fatalf("unexpected traversal results: borders=%d", len(borders))
+	}
+	if got := elementsFromLayout(layout); len(got) != 2 || got[0].Bounds.X != 2 || got[1].Bounds.X <= got[0].Bounds.X {
+		t.Fatalf("unexpected translated elements: %+v", got)
+	}
+	if elementsFromLayout(nil) != nil || elementsFromLayout(&layoutNode{}) != nil {
+		t.Fatal("nil layouts should not produce elements")
+	}
+	if appendLayoutBorders(nil, nil) != nil || findFlexLayout(nil, nil) != nil || appendElementsFromLayout(nil, nil) != nil {
+		t.Fatal("nil traversal should preserve an empty result")
+	}
+	if got := newLayout(nil, layoutRect{w: -2, h: -3}); got.bounds.w != 0 || got.bounds.h != 0 {
+		t.Fatalf("negative bounds not clamped: %+v", got.bounds)
+	}
+	leaf := newLayout(&Node{Panel: left}, layoutRect{x: 1, y: 2, w: 3, h: 4})
+	if len(leaf.children) != 0 || leaf.bounds != (layoutRect{x: 1, y: 2, w: 3, h: 4}) {
+		t.Fatalf("unexpected leaf layout: %+v", leaf)
+	}
+	var nested []Element
+	nested = appendElementsFromLayout(nested, layout)
+	if len(nested) != 2 {
+		t.Fatalf("appendElementsFromLayout returned %d elements", len(nested))
+	}
+}
+
+func TestLayoutFlexTraversalAndResize(t *testing.T) {
+	first := &geometryTestPanel{name: "first"}
+	second := &geometryTestPanel{name: "second"}
+	flex := &FlexConfig{Direction: Horizontal, Items: []*FlexItem{{Node: &Node{Panel: first}, Grow: 1}, nil, {Node: &Node{Panel: second}, Grow: 1}}}
+	root := &Node{Flex: flex}
+	layout := newLayout(root, layoutRect{x: 4, y: 5, w: 9, h: 3})
+	if found := findFlexLayout(layout, flex); found != layout {
+		t.Fatal("failed to locate flex layout")
+	}
+	if len(layout.children) != 3 || len(collectLayoutBorders(layout)) != 0 {
+		t.Fatalf("unexpected flex children/borders: %d/%d", len(layout.children), len(layout.borders))
+	}
+	if flexItemNode(nil) != nil || !flexItemCollapsed(nil) || flexItemCollapsed(&FlexItem{}) || nodeCollapsed(nil) || nodeCollapsedSize(nil, Vertical) != 0 {
+		t.Fatal("nil/collapse helpers returned unexpected values")
+	}
+	var tab Tab
+	commands := tab.broadcastLayoutResize(layout)
+	if len(commands) != 0 || first.lastResize.Width != 4 || first.lastResize.Height != 3 || second.lastResize.Width != 4 || second.lastResize.Height != 3 {
+		t.Fatalf("resize broadcast failed: commands=%d first=%+v second=%+v", len(commands), first.lastResize, second.lastResize)
+	}
+	if got := tab.broadcastLayoutResize(nil); len(got) != 0 {
+		t.Fatalf("nil resize layout returned %d commands", len(got))
+	}
+	if elems := elementsAtLayout(layout.children[0]); len(elems) != 1 || elems[0].Bounds.X != 4 || elems[0].Bounds.Y != 5 {
+		t.Fatalf("unexpected elementsAtLayout output: %+v", elems)
+	}
+
+	vertical := newLayout(&Node{Flex: &FlexConfig{Direction: Vertical, Items: []*FlexItem{{Node: &Node{Panel: first}}, {Node: &Node{Panel: second}}}}}, layoutRect{w: 5, h: 6})
+	if len(vertical.children) != 2 || len(vertical.borders) != 1 || vertical.borders[0].Direction != Horizontal {
+		t.Fatalf("unexpected vertical flex layout: %+v", vertical)
+	}
+	unknown := newLayout(&Node{Split: &SplitConfig{Direction: Direction(99)}}, layoutRect{w: 5, h: 5})
+	if len(unknown.children) != 0 {
+		t.Fatal("unknown split direction should not create children")
+	}
+	if got := newLayout(&Node{Flex: &FlexConfig{}}, layoutRect{}); len(got.children) != 0 {
+		t.Fatal("empty flex should not create children")
+	}
+}
