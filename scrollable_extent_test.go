@@ -433,7 +433,7 @@ func rowName(index int) string {
 	return fmt.Sprintf("row%d", index)
 }
 
-func TestScrollableCachesDiscoveredFallbackExtentAcrossUpdateElementsAndView(t *testing.T) {
+func TestScrollableReprobesFallbackExtentAcrossUpdateElementsAndView(t *testing.T) {
 	panel := &naturalHeightPanel{rows: []string{"0", "1", "2", "3"}}
 	scrollable := NewScrollable(panel)
 	scrollable.rememberViewport(1, 3)
@@ -448,14 +448,17 @@ func TestScrollableCachesDiscoveredFallbackExtentAcrossUpdateElementsAndView(t *
 	}
 
 	_ = scrollable.Elements(1, 3)
-	if got := len(panel.viewRequests); got != 1 {
-		t.Fatalf("Elements repeated fallback probe: calls=%d, want 1", got)
+	if got := len(panel.viewRequests); got != 2 {
+		t.Fatalf("Elements fallback probe calls=%d, want a fresh second probe", got)
 	}
 
 	if got := scrollable.View(1, 3); got != "1\n2\n3" {
-		t.Fatalf("View after cached fallback extent = %q, want %q", got, "1\n2\n3")
+		t.Fatalf("View after fresh fallback probe = %q, want %q", got, "1\n2\n3")
 	}
-	if got := len(panel.viewRequests); got != 2 {
-		t.Fatalf("View calls with cached fallback extent = %d, want probe + render = 2", got)
+	if got := len(panel.viewRequests); got != 3 {
+		t.Fatalf("View fallback probe calls=%d, want a fresh third probe", got)
+	}
+	if want := []int{24, 5, 5}; !reflect.DeepEqual(panel.viewRequests, want) {
+		t.Fatalf("fallback probe heights=%v, want %v", panel.viewRequests, want)
 	}
 }

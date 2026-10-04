@@ -50,7 +50,7 @@ func TestPanelInstanceIdentityAndRemoval(t *testing.T) {
 		t.Fatal("typed nil panel should not have an instance key")
 	}
 	valueKey, ok := panelInstance(BasePanel{})
-	if !ok || valueKey.typeOf == nil || valueKey.value != BasePanel{} {
+	if !ok || valueKey.typeOf == nil || valueKey.value != (BasePanel{}) {
 		t.Fatal("comparable value panel should have an instance key")
 	}
 
