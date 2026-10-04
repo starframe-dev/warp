@@ -9,14 +9,12 @@ Start with a `Tab` and use its methods to replace panels in the layout tree.
 
 ## Splits
 
-Use a split for two regions separated by a draggable border:
+Use a split for two regions separated by a draggable border. `SplitVertical` places panes side by side (left/right); `SplitHorizontal` stacks them (top/bottom). The fraction is the first pane's share, clamped to `0.1..0.9`; Warp enforces the minimum panel size when the available area allows it:
 
 ```go
 tab.SplitVertical(parent, 0.5, rightPanel)
 tab.SplitHorizontal(parent, 0.5, bottomPanel)
 ```
-
-The fraction controls the share of the first child. Warp clamps it to `0.1..0.9`.
 
 ## Flex
 
@@ -72,4 +70,4 @@ scroll := warp.NewScrollable(panel)
 tab.SetRootPanel(scroll)
 ```
 
-Scrolling supports the mouse wheel, `PgUp`, `PgDn`, and line navigation keys.
+Scrolling supports the mouse wheel (three lines per wheel step), `Up`/`Down` (one line), and `PgUp`/`PgDn` (ten lines). For accurate end-of-content clamping, a custom panel can report its intrinsic height through the optional `ContentHeightProvider`; see [Components](./components).

@@ -1,16 +1,14 @@
 # Element
 
-The `element.go` file defines the representation of semantic UI elements
-and the helpers used to expose, collect and look them up inside a panel.
-An element is a tree node: it carries a *role*, an optional *name* and
-an optional *action*, a screen *bounds* (a cell-coordinates rectangle),
-and a list of child elements.
+`element.go` defines semantic UI elements, their screen bounds, and helpers for providing, clipping, and searching element trees.
+
+An element contains a role, a name, an optional action, bounds in terminal-cell coordinates, and optional child elements.
 
 ## Types
 
 ### `Element`
 
-``` go
+```go
 type Element struct {
     Role     string    `json:"role"`
     Name     string    `json:"name"`
@@ -20,16 +18,11 @@ type Element struct {
 }
 ```
 
-JSON encoding notes:
-
-- `Role` and `Name` are always present.
-- `Action` is omitted when empty.
-- `Children` is omitted when the slice is empty (use the pointer form of
-  `json` tag).
+`Role`, `Name`, and `Bounds` are always included in JSON. `Action` is omitted when empty, and `Children` is omitted when it has zero elements.
 
 ### `Bounds`
 
-``` go
+```go
 type Bounds struct {
     X int `json:"x"`
     Y int `json:"y"`
@@ -38,82 +31,45 @@ type Bounds struct {
 }
 ```
 
-Defines a rectangular screen region in cell coordinates: top-left corner
-at `(X, Y)`, width `W`, height `H`.
+Defines a rectangle in terminal-cell coordinates, with its top-left corner at `(X, Y)` and dimensions `W` by `H`.
 
 ### `Bounds.Center`
 
-``` go
+```go
 func (b Bounds) Center() (int, int)
 ```
 
-Returns the centre cell as integer coordinates using integer division:
-`(X + W/2, Y + H/2)`.
+Returns `(X + W/2, Y + H/2)`, using integer division.
 
 ### `ElementProvider`
 
-``` go
+```go
 type ElementProvider interface {
     Elements(width, height int) []Element
 }
 ```
 
-Implemented by panels that can expose their UI elements. The method
-takes the current panel dimensions in cells and returns the root list of
-elements (children are nested inside each `Element`).
+Panels can implement this interface to provide root elements for the given panel dimensions, in cells. Child elements are nested in each element's `Children` slice.
+
+### `ViewportElementProvider`
+
+```go
+type ViewportElementProvider interface {
+    ElementsAt(width, height, offset int) []Element
+}
+```
+
+A provider can implement this interface to return semantic elements intersecting a requested content viewport. The returned bounds remain relative to the full content origin. The viewport dimensions and content offset are supplied in cells.
 
 ### `ElementProviderFunc`
 
-``` go
+```go
 type ElementProviderFunc func(width, height int) []Element
 
 func (f ElementProviderFunc) Elements(width, height int) []Element
 ```
 
-Adapts a plain function to the `ElementProvider` interface. Useful for
-one-off providers that don't warrant a struct.
-
-## Functions
-
-### `collectElements`
-
-``` go
-func collectElements(panel Panel, width, height int) []Element
-```
-
-Package-private helper. Returns `nil` when `panel` is nil. Otherwise it
-type-asserts the panel to `ElementProvider` and calls
-`Elements(width, height)`; if the assertion fails, `nil` is returned.
-Used by the warp pipeline to collect elements from a panel.
-
-### `FindElement`
-
-``` go
-func FindElement(elems []Element, role, name, action string) (Element, bool)
-```
-
-Recursively searches a list of elements for the first element whose
-role, name and action match. Empty search strings are treated as
-wildcards (match anything). Returns the matched `Element` and `true`
-when found, zero value and `false` otherwise.
-
-``` go
-if el, ok := FindElement(panel.Elems, "", "submit", ""); ok {
-    x, y := el.Bounds.Center()
-    // press at (x, y)
-}
-```
-
-## Behaviour Notes
-
-- The tree is *ordered*: `FindElement` returns the *first* match in a
-  depth-first pre-order traversal, so the caller is responsible for
-  disambiguating by role/name/action.
-- Semantic traversal is bounded to 128 levels and 100,000 nodes. Warp truncates deeper/larger provider output when cloning snapshots or searching with `FindElement`, preventing malformed trees from exhausting the stack or allocating without limit.
-- Warp clones provider-owned semantic data before translating or clipping it; wrappers must not rely on Warp mutating the slice returned by `ElementProvider`.
-- `collectElements` treats "no provider" and "nil panel" identically (both yield `nil`).
-- Bounds are terminal **cell coordinates**, not pixels. The layout/inspector layer does not convert them to pixels.
-
+Adapts a function to `ElementProvider` by forwarding the dimensions and returning the function's result.
 
 ### `SemanticStableMsg`
 
@@ -123,14 +79,35 @@ type SemanticStableMsg interface {
 }
 ```
 
-High-frequency messages may implement this optional interface and return
-`true` when processing the message is guaranteed not to change the semantic
-element tree. With the HTTP inspector enabled, Warp then keeps the previously
-published immutable snapshot after `Update` and rebuilds semantic elements on
-the next `View`.
+A message type may implement this interface to promise that processing a particular message does not change the semantic element tree. When the HTTP inspector is enabled, a message returning `true` allows Warp to retain the previously published immutable snapshot after `Update` and defer rebuilding elements until the next `View`. This is an explicit correctness promise; messages that do not implement the interface or return `false` use the conservative update behavior.
 
-This is intended for streaming/background messages such as PTY output where the
-semantic bounds, roles, names, and actions remain unchanged. Returning `true`
-is an explicit correctness promise by the message producer. Messages that do
-not implement this interface, or return `false`, retain the conservative
-snapshot-after-Update behavior.
+## Functions
+
+### `collectElements`
+
+```go
+func collectElements(panel Panel, width, height int) []Element
+```
+
+Package-private helper. Returns `nil` if the panel is nil or does not implement `ElementProvider`; otherwise calls `Elements(width, height)` and returns its result.
+
+### `FindElement`
+
+```go
+func FindElement(elems []Element, role, name, action string) (Element, bool)
+```
+
+Searches recursively in depth-first pre-order and returns the first element matching all non-empty criteria. Empty role, name, or action arguments are wildcards. Returns the zero value and `false` if no match is found or the search reaches its safety limit.
+
+```go
+if el, ok := FindElement(panel.Elems, "", "submit", ""); ok {
+    x, y := el.Bounds.Center()
+    // Use (x, y) as the element's center cell.
+}
+```
+
+## Behavior notes
+
+- Tree traversal and cloning use limits of 128 levels and 100,000 nodes. Cloning truncates trees beyond these limits; `FindElement` stops searching when a limit is reached.
+- Warp clones provider-owned semantic data before translating or clipping it, so providers should not rely on Warp mutating the slices they return.
+- Bounds use terminal-cell coordinates, not pixels.

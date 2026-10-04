@@ -9,23 +9,9 @@ configurable via `TabPosition` (top, bottom, left, right, or none).
 
 ### TabGroup
 
-``` go
-type TabGroup struct {
-    tabs      []*Tab
-    activeTab int
-    width     int
-    height    int
-
-    tabPosition      TabPosition
-    tabRegions       []tabRegion
-    newTabRegion     *tabRegion
-    verticalTabWidth int
-}
-```
-
 `TabGroup` keeps an ordered list of `*Tab` panels, tracks the active tab
-index, and caches per-frame geometry (width, height, tab hit regions)
-used for mouse hit-testing.
+index, and stores its tab position, ownership, and layout and hit-test
+state.
 
 ## Public API
 
@@ -37,7 +23,7 @@ used for mouse hit-testing.
 | `NextTab()` | method | Switches to the next tab (wrapping). |
 | `PrevTab()` | method | Switches to the previous tab (wrapping). |
 | `View(w, h int) string` | method | Renders the tab bar plus active tab content. |
-| `Elements(w, h int) []Element` | method | Returns active tab elements offset by the tab bar position. |
+| `Elements(w, h int) []Element` | method | Returns active-tab elements offset by the tab bar position, along with semantic tab-bar elements. |
 | `Update(msg tea.Msg) tea.Cmd` | method | Handles key, mouse, resize, and broadcast messages. |
 
 ## Behavior
@@ -52,9 +38,9 @@ tab is already active.
 ### Tab creation and closing
 
 `NewTab` appends a new tab and immediately activates it. `closeTab`
-removes a tab by index; if the active tab is closed, the next tab at that
+removes a tab by index; if the active tab is closed, the tab at that
 index is activated, or the last remaining tab when the removed tab was
-last. Closing the only tab is a no-op.
+last. Closing an invalid index or the only tab is a no-op.
 
 ### Focus lifecycle
 
@@ -73,48 +59,55 @@ embedded in a `Warp`, the outer `Warp` owns it.
 `View` composes the tab bar and active tab content using
 `lipgloss.JoinVertical` / `lipgloss.JoinHorizontal` depending on the
 `TabPosition`. The tab bar is rendered as either a horizontal row of tab
-labels (for top/bottom) or a vertical column (for left/right). Tab
-labels are truncated to 20 chars (horizontal) or 15 chars (vertical)
-with an ellipsis. The active tab label shows a `▎` prefix and `×` close
-glyph. If `ActiveTab()` is nil, `View` returns exactly `h` blank lines
-(`""` when `h == 0`; otherwise `h-1` newline characters).
+labels (for top/bottom) or a vertical column (for left/right). Labels
+are truncated by terminal display width to at most 20 columns
+(horizontal) or 15 columns (vertical), using an ellipsis where specified
+by `ansi.Truncate`. The active tab label shows a `▎` prefix and `×` close
+glyph. If `ActiveTab()` is nil, `View` returns `emptyView(h)` (with the
+requested height normalized to at least zero).
 
 ### Semantic tab chrome
 
-`Elements` exposes framework-owned tab-bar controls in addition to active-tab content. Tab labels use role `tab` with action `activate-tab`; the active close cell is a child `button` with action `close-tab`; the `+` cell is a `button` with action `new-tab`. Their bounds are computed from the same label geometry as mouse hit regions and do not require a prior `View` call.
+`Elements` exposes framework-owned tab-bar controls in addition to active-tab
+content. Tab labels use role `tab` with action `activate-tab`; the active close
+cell is a child `button` with action `close-tab`; the `+` cell is a `button`
+with action `new-tab`. Bounds are computed from tab-bar label geometry and do
+not require a prior `View` call.
 
 ### Mouse interaction
 
-Tab bar hit regions (`tabRegion`) are recomputed each frame during
-rendering. Clicking a tab switches to it, clicking the close glyph
-closes the tab, and clicking the `+ /` region creates a new tab.
-Hit-testing logic differs for horizontal vs. vertical bar layouts.
+Tab bar hit regions (`tabRegion`) are populated while rendering the tab bar.
+Clicking a tab switches to it, clicking its close glyph closes it, and clicking
+the `+` region creates a new tab. Hit-testing logic differs for horizontal vs.
+vertical bar layouts.
 
 ### Message dispatch
 
-`Update` intercepts `tea.KeyMsg` (ctrl+c, ctrl+tab, ctrl+shift+tab,
-ctrl+w, ctrl+t), `tea.MouseMsg`, `tea.WindowSizeMsg`, and `ResizeMsg`.
-All other messages are broadcast to every tab so that child panels (e.g.
-PTY emulators) receive them.
+`Update` handles `tea.KeyMsg`, `tea.MouseMsg`, `tea.WindowSizeMsg`, and
+`ResizeMsg`. Tab-group shortcuts are ctrl+c, ctrl+tab, ctrl+shift+tab,
+ctrl+w, and ctrl+t; if the active tab's focused panel requests raw keys,
+key messages are forwarded to it before shortcut handling. Other key messages
+are forwarded to the active tab. Window-size and resize messages are forwarded
+to every tab, and other messages are broadcast to all tabs so child panels
+(e.g. PTY emulators) can receive them.
 
 ## Implementation details
 
-- `padRight` pads a string with spaces to a target width, using
-  lipgloss's rune-aware width calculation.
+- `padRight` pads a string with spaces to a target terminal display width, using
+  `ansi.StringWidth`.
 - `tabRegion` stores per-tab click bounds; `idx == -1` marks the "new
   tab" region.
-- Horizontal bar: regions are computed left-to-right with a trailing `+`
-  region; vertical bar: regions stack top-to-bottom with the `+` region
+- Horizontal bar regions are computed left-to-right with a trailing `+`
+  region; vertical bar regions stack top-to-bottom with the `+` region
   last.
-- Content geometry (`contentWidth`, `contentHeight`, `contentOffset`)
-  adjusts for the tab bar's position so child panels are laid out
-  correctly.
+- Content geometry adjusts for the tab bar's position so child panels are
+  laid out correctly.
 - `shiftElements` recursively offsets element bounds so hit-testing
   remains consistent after the tab bar shifts child coordinates.
 
 ## Example
 
-``` go
+```go
 tg := warp.NewTabGroup(warp.TabTop)
 tg.NewTab("editor")
 tg.NewTab("logs")

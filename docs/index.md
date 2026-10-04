@@ -31,8 +31,11 @@ w.Run()
 - **Modal** — dialog windows with overlay
 - **Popover** — context menus
 - **Focus API** — explicit focus switching (developer decides keys)
-- **Element tree** — semantic UI tree for E2E testing
-- **Gruvbox Dark** theme
+- **Element tree** — semantic UI tree for E2E testing, optionally exposed through an HTTP inspector
+- **Custom themes** — runtime component colors through `SetTheme` (Gruvbox Dark by default)
+- **Resource lifecycle** — optional `Unmounter` hook for panels permanently removed from their owner
+
+The HTTP inspector binds to loopback by default. If you choose an externally reachable address, configure access controls before exposing UI data.
 
 ## Quick start
 

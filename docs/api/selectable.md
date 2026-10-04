@@ -1,10 +1,10 @@
 # Selectable
 
 The `Selectable` type adds text-selection support to a wrapped `Panel`.
-Mouse dragging and Shift+arrow keys create a selection, which is
-rendered with reversed colors and can be extracted as plain text.
+Mouse dragging and Shift+arrow keys create a selection, which is rendered
+with reversed colors and can be extracted as plain text.
 
-``` go
+```go
 package warp
 
 type Selectable struct {
@@ -12,9 +12,8 @@ type Selectable struct {
     AnchorX, AnchorY int
     CursorX, CursorY int
     HasSelection bool
-    Selecting    bool
-    lastW, lastH int
-    lastLines    []string
+    Selecting bool
+    // Private fields also track mouse-drag origin and last rendered content.
 }
 ```
 
@@ -44,51 +43,54 @@ Public struct with the following exported fields:
 | HasSelection | `bool` | True when a non-empty selection exists. |
 | Selecting | `bool` | True while an active mouse drag is in progress. |
 
-The unexported fields `lastW`, `lastH`, and `lastLines` cache the last
-rendered dimensions and lines so that `SelectedText` can extract text
-using the exact same coordinate system that was used for rendering.
+Private fields include the mouse-drag origin (`mouseStartX` and
+`mouseStartY`) and the last rendered dimensions and lines (`lastW`, `lastH`,
+and `lastLines`). The cached lines let `SelectedText` extract text using
+the same coordinate system as rendering.
 
 ## Public API
 
-``` go
+```go
 func NewSelectable(content Panel) *Selectable
 ```
 
 Constructs a new `Selectable` wrapping the given panel. All selection
 state starts empty.
 
-``` go
+```go
 func (s *Selectable) SelectedText() string
 ```
 
 Returns the currently selected text as a plain string. Uses the cached
-rendered lines so that the coordinate system matches exactly what is
-visible on screen. If no rendered lines are cached, it renders `Content`
-using the last known dimensions, substituting `80` for a non-positive
-width and `24` for a non-positive height.
+rendered lines so that the coordinate system matches what is visible on
+screen. If no rendered lines are cached, it renders `Content` using the
+last known dimensions, substituting `80` for a non-positive width and `24`
+for a non-positive height. Returns an empty string if there is no selection
+or `Content` is nil.
 
-``` go
+```go
 func (s *Selectable) ClearSelection()
 ```
 
 Removes the current selection, resetting both `HasSelection` and
 `Selecting`.
 
-``` go
+```go
 func (s *Selectable) Copy() tea.Cmd
 ```
 
-Returns a `tea.Cmd` that copies the selected text to the system
-clipboard via OSC 52. Intended to be called when the user presses
-Ctrl+C. Returns `nil` if there is no selection.
+Returns a `tea.Cmd` that copies non-empty selected text to the system
+clipboard via OSC 52. Intended to be called when the user presses Ctrl+C.
+Returns `nil` if the extracted selected text is empty.
 
-``` go
+```go
 func (s *Selectable) SelectAll(w, h int)
 ```
 
-Selects all visible content within the given width and height bounds.
+Selects all content within the given positive width and height bounds. If
+either dimension is non-positive, it clears the selection.
 
-``` go
+```go
 func (s *Selectable) View(w, h int) string
 ```
 
@@ -96,40 +98,51 @@ Renders the wrapped content with selection highlight and caches the
 rendered lines for later text extraction. Selection ranges are
 end-exclusive (`[start, end)`); horizontal boundaries are clamped to
 `[0, w]`, so the boundary after the final visible cell remains valid. If
-`Content` is nil, `View` returns exactly `h` blank lines (`""` when
-`h == 0`; otherwise `h-1` newline characters).
+`Content` is nil, `View` returns exactly `h` blank lines after normalizing
+`h` to at least zero (`""` when `h == 0`; otherwise `h-1` newline characters).
 
-``` go
+```go
 func (s *Selectable) Elements(width, height int) []Element
 ```
 
-Transparently forwards semantic elements from the wrapped panel using the
-same bounds and normalized dimensions.
+Returns cloned semantic elements collected from the wrapped panel using
+non-negative width and height bounds.
 
-``` go
+```go
+func (s *Selectable) ContentHeight(width int) (int, bool)
+```
+
+Forwards a known intrinsic height from the wrapped panel for the given
+width.
+
+```go
 func (s *Selectable) Update(msg tea.Msg) tea.Cmd
 ```
 
 Handles mouse and keyboard messages for selection. Messages not consumed
-by the selection logic are proxied to the wrapped `Panel`.
+by the selection logic are forwarded to the wrapped `Panel`. Resize
+messages are forwarded directly to the wrapped panel as well.
 
 ## Behavior
 
 ### Mouse selection
 
 - **Press (left button):** Records the origin cell and starts dragging.
-- **Motion:** Converts pointer cell `x` to end-exclusive boundary `x+1` when dragging forward; reverse dragging uses the boundary after the origin cell. `HasSelection` becomes true.
-- **Release:** Finalizes the end-exclusive boundary. Press/release without motion does not create a selection.
+- **Motion:** While dragging, converts pointer cell `x` to end-exclusive
+  boundary `x+1` when dragging forward; reverse dragging uses the boundary
+after the origin cell. `HasSelection` becomes true.
+- **Release:** Finalizes the end-exclusive boundary. Press/release without
+  motion does not create a selection.
 
 ### Keyboard selection
 
 - **Shift+Up / Shift+Down / Shift+Left / Shift+Right:** Extends or
   creates a selection in the given direction. Shift+Tab is intentionally
-  *not* handled and is proxied to the wrapped panel (e.g. a terminal) so
+  *not* handled and is forwarded to the wrapped panel (e.g. a terminal) so
   that TUI apps inside the PTY receive it.
-- **Ctrl+A:** Selects all visible content (falls back to 80×24 if
-  dimensions are unknown).
-- **Esc:** Clears the selection.
+- **Ctrl+A:** Selects all within the last known dimensions (falls back to
+  80×24 if dimensions are unknown).
+- **Esc:** Clears the selection if one exists.
 
 ### Rendering
 
@@ -138,7 +151,8 @@ selected range. `sortedBounds` normalizes the anchor and cursor into
 end-exclusive bounds. Lines outside the selected range pass through
 unchanged. Highlighting uses terminal-cell widths and grapheme
 boundaries; selecting any part of a wide grapheme highlights the whole
-grapheme.
+grapheme. Selection coordinates are clamped to the current view during
+rendering; an empty view clears the selection.
 
 ### Text extraction
 
@@ -151,25 +165,29 @@ so joining fragments preserves blank lines and trailing newlines.
 ### ANSI / Unicode handling
 
 `highlightRange` and `extractVisRange` track ANSI-aware terminal-cell
-positions and complete grapheme clusters rather than byte or rune
-indices. CSI and OSC sequences do not advance the visual position; a
-selection overlapping any cell of a grapheme includes that grapheme.
+positions and complete grapheme clusters rather than byte or rune indices.
+CSI and OSC sequences do not advance the visual position; a selection
+overlapping any cell of a grapheme includes that grapheme.
 
 ## Implementation details
 
-- **OSC 52 clipboard:** The `Copy` method encodes the selected text as
-  base64 and emits the sequence `\x1b]52;c;<data>\x07`. This works in
+- **OSC 52 clipboard:** The `Copy` method encodes non-empty selected text
+  as base64 and emits the sequence `\x1b]52;c;<data>\x07`. This works in
   Bubbletea's alternate screen buffer.
-- **End-exclusive bounds:** `SelectAll(w, h)` sets the final horizontal boundary to `w`, so the last cell is included. Mouse dragging and Shift+Right use the same boundary convention for ASCII and Unicode text.
-- **Selection invalidation:** If the cursor and anchor coincide after a
-  release or a keyboard step, the selection is cleared automatically.
+- **End-exclusive bounds:** `SelectAll(w, h)` sets the final horizontal
+  boundary to `w`, so the last cell is included. Mouse dragging and
+  Shift+Right use the same boundary convention.
+- **Selection invalidation:** A release at the anchor clears the
+  selection. A keyboard selection that leaves anchor and cursor at the
+  same coordinate is cleared when the selection is clamped during `View`.
 - **Message proxying:** Any message not handled by the selection logic
-  (unrecognized keys, Shift+Tab, resize messages, etc.) is forwarded to
-  `Content.Update(msg)`, keeping the wrapped panel fully functional.
+  (unrecognized keys, Shift+Tab, etc.) is forwarded to `Content.Update(msg)`;
+  resize messages are also forwarded. A nil wrapped panel receives no
+  update.
 
 ## Example usage
 
-``` go
+```go
 sel := NewSelectable(myPanel)
 model.SetProgramView(sel)
 

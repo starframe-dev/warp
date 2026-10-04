@@ -16,7 +16,7 @@ Warp components implement `Panel` and compose through the same layout tree.
 ## Content wrappers
 
 - `NewSelectable(panel)` adds mouse and keyboard text selection; `Copy()` returns an OSC 52 command.
-- `NewScrollable(panel)` adds wheel, page, and line scrolling.
+- `NewScrollable(panel)` adds wheel, page, and line scrolling. Its offset is clamped to the content end when the wrapped panel provides a known intrinsic height.
 - `NewCollapsible(title, panel)` adds a collapsible title section.
 
 ## Dialogs
@@ -27,6 +27,8 @@ Warp components implement `Panel` and compose through the same layout tree.
 
 `WordWrap`, `SpaceWrap`, and `WrapToString` handle fixed-width text using terminal display width.
 
+Custom scrollable content can implement the optional `ContentHeightProvider` to report its intrinsic height without rendering. When that height is known, `ViewportRenderer` and `ViewportElementProvider` can render or inspect only the visible region; ordinary `Panel` implementations remain compatible without these interfaces.
+
 ## Theme
 
-Use `SetTheme(ThemeColors{...})` to replace the default palette. The [Theme API](../api/theme) lists semantic fields and their mappings.
+Use `SetTheme(ThemeColors{...})` to replace the default palette. Configure it before the Bubble Tea program starts; theme changes are not synchronized with rendering. The [Theme API](../api/theme) lists semantic fields and their mappings.

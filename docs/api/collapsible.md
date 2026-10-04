@@ -14,11 +14,14 @@ type Collapsible struct {
 func NewCollapsible(title string, content Panel) *Collapsible
 func (c *Collapsible) View(w, h int) string
 func (c *Collapsible) Elements(w, h int) []Element
+func (c *Collapsible) ContentHeight(width int) (int, bool)
 func (c *Collapsible) Update(msg tea.Msg) tea.Cmd
 func (c *Collapsible) Toggle()
 ```
 
-`NewCollapsible` starts expanded. `Toggle` flips `Collapsed`; a nil `Content` does not prevent state changes. A left click on the persistent title row is handled by `Collapsible.Update` itself, so the component remains interactive even outside a `Tab`.
+`NewCollapsible` starts expanded. `Toggle` flips `Collapsed`; a nil `Content` does not prevent state changes. A left click on the title row (`Y == 0`) is handled by `Collapsible.Update` itself, so the component remains interactive even outside a `Tab`.
+
+`ContentHeight` reports the total height including the title row. It returns `(1, true)` when collapsed. When expanded, it adds one to the content panel's reported height; if the content height is unknown, it returns `(0, false)`. A nil content panel contributes zero content height.
 
 ## Rendering
 
@@ -32,7 +35,7 @@ A nil `Content` still renders the title when `h > 0`; the remaining expanded row
 
 ## Messages and mouse coordinates
 
-`Update` forwards ordinary messages to `Content`. For `ResizeMsg`, expanded content receives height `max(0, h-1)` and collapsed content receives height `0`. Mouse events on the title row and events targeting hidden collapsed content are not forwarded. For visible content, `Y` is reduced by one so the first content row receives `Y == 0`.
+`Update` forwards ordinary messages to `Content`. For `ResizeMsg`, expanded content receives height `max(0, h-1)` and collapsed content receives height `0`. A resize is not forwarded when `Content` is nil. Mouse events on the title row and events targeting hidden collapsed content are not forwarded. For visible content, `Y` is reduced by one so the first content row receives `Y == 0`.
 
 When used in a `Tab`, a left click on the visible title row toggles the component. `Tab.Collapse` and `Tab.Expand` explicitly synchronize the component state with its flex item and are idempotent when repeated.
 

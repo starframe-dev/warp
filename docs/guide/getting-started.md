@@ -28,7 +28,7 @@ func main() {
 
 Warp implements the Bubbletea `Model` contract, so you can embed it in a Bubbletea app or let Warp run its own program.
 
-`Run()` starts the Bubbletea program.
+`Run()` starts the Bubbletea program. `Warp` also implements `tea.Model`, so you can pass it to `tea.NewProgram` when your application needs to manage Bubbletea itself. Use `SetRoot(panel)` to install a custom root panel.
 
 Run the project demo from the repository root:
 

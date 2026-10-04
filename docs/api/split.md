@@ -1,80 +1,73 @@
 # split.go
 
-The `split` module (package `warp`) defines the structural types for a
-hierarchical panel layout tree. Nodes are either leaf panels or internal
-split/flex containers. It carries the data model of the layout but not
-its rendering or hit-testing logic.
+The `split.go` file in package `warp` defines data structures for a hierarchical panel layout tree and provides tree-query and mutation helpers. It does not implement layout calculation, rendering, or hit testing.
 
 ## Public API
 
 ### `Direction`
 
-``` go
+```go
 type Direction int
 
 const (
-    Vertical   Direction = iota // side by side (left/right)
-    Horizontal                  // stacked (top/bottom)
+    Vertical Direction = iota
+    Horizontal
 )
 ```
 
-Integer type (`Direction`) selecting the split orientation of a
-`SplitConfig` or `FlexConfig`. `Vertical` lays children side by side,
-`Horizontal` stacks them top to bottom. It is stored directly as a
-`Direction` value in the config structs, not as a pointer.
+`Direction` identifies an orientation. `Vertical` represents side-by-side (left/right) arrangement, and `Horizontal` represents top/bottom arrangement.
 
 ### `ResizeMsg`
 
-``` go
+```go
 type ResizeMsg struct {
     Width  int
     Height int
 }
 ```
 
-Message type the layout engine sends to a panel when its allocated
-rectangle changes. `Width` and `Height` are measured in cells, without
-borders or padding. It is a bubbletea command (`tea.Cmd`), so it
-participates in the per-frame message loop of the running app.
+A resize message carrying a panel's allocated content size in cells, excluding borders and padding. The type itself does not send messages or define command behavior.
+
+### `MinPanelSize`
+
+```go
+const MinPanelSize = 3
+```
+
+Minimum size in cells when enough space is available. This file declares the constant; it does not enforce sizing.
 
 ### `SplitConfig`
 
-``` go
+```go
 type SplitConfig struct {
     Direction   Direction
-    Fraction    float64   // share of First (0.0..1.0)
+    Fraction    float64
     First       *Node
     Second      *Node
-    Dragging   bool       // true during drag-and-drop
-    CollapseRow  int     // border row showing "<"
-    OnCollapse   func() tea.Cmd
+    Dragging    bool
+    CollapseRow int
+    OnCollapse  func() tea.Cmd
 }
 ```
 
-An internal node that divides its area between two children. `Fraction`
-is the relative share of the *first* child, clamped to \[0.0, 1.0\].
-`CollapseRow` is the 0-indexed row where the border renders a collapse
-handle (“\|” or “\<”); clicking it invokes `OnCollapse`, which returns a
-`tea.Cmd` to re-render.
+An internal node description with two child pointers. `Fraction` is documented in code as the share of the first child in the range 0.0–1.0; this file does not clamp or otherwise apply it. `Dragging` records drag-and-drop state. `CollapseRow` is the zero-indexed row where the border shows `"<"`; `OnCollapse` is called when that marker is clicked and returns a `tea.Cmd` to trigger a re-render.
 
 ### `NodeCollapse`
 
-``` go
+```go
 type NodeCollapse struct {
-    Active  bool
-    Width   int  // fixed width when collapsed (vertical layouts)
-    Height  int  // fixed height when collapsed (horizontal layouts)
-    Saved   float64 // fraction to restore on expand
+    Active bool
+    Width  int
+    Height int
+    Saved  float64
 }
 ```
 
-Holds the collapsed state of a node. When `Active` is true the node
-renders at its fixed `Width`/`Height`; `Saved` preserves the
-pre-collapse fraction for later restoration.
+Stores collapse state and dimensions: `Width` is used for vertical layouts, `Height` for horizontal layouts, and `Saved` stores a fraction to restore on expansion. This type alone does not perform collapse or expansion.
 
 ### `Node`
 
-``` go
+```go
 type Node struct {
     Panel    Panel
     Split    *SplitConfig
@@ -83,32 +76,24 @@ type Node struct {
 }
 ```
 
-Generic panel-tree node. Exactly one of `Panel`, `Split`, `Flex` is set:
-a leaf has a non-nil `Panel` and nil internal config; an internal node
-has one of `Split`/`Flex` and a nil `Panel`. `Collapse` is present on
-any node that supports collapse/expand.
+A tree node can hold a panel and/or split or flex configuration; the struct does not enforce that exactly one of these is set. `Collapse` stores optional collapse state.
 
 ### Methods on `Node`
 
 | Signature | Description |
-|----|----|
-| `func (n *Node) IsLeaf() bool` | Returns `true` when `n.Panel` is non-nil (terminal leaf node). |
-| `func (n *Node) IsCollapsed() bool` | Returns `true` when the node is currently in a collapsed state (`Collapse.Active == true`). |
-| `func (n *Node) CollapsedSize(d Direction) int` | Returns the collapsed size along direction `d`, or 0 if the node is not collapsed. |
+|---|---|
+| `func (n *Node) IsLeaf() bool` | True when `n` is non-nil, its `Panel` is not nil (including typed-nil detection via `isNilPanel`), and both `Split` and `Flex` are nil. |
+| `func (n *Node) IsCollapsed() bool` | True when `n` is non-nil, `Collapse` is non-nil, and `Collapse.Active` is true. |
+| `func (n *Node) CollapsedSize(d Direction) int` | Returns 0 for a nil node, missing/inactive collapse state, or otherwise the active collapsed width for `Vertical` or height for other directions, falling back to 1 when the selected dimension is not positive. |
 
-Both `IsLeaf` and `IsCollapsed` are cheap field checks; they are the
-primary entry points for tree walks. `CollapsedSize` returns the stored
-dimension (or 1 as a minimum) so that the layout engine can query a
-uniform size regardless of whether the node is currently collapsed.
+### `FlexItem` and `FlexConfig`
 
-### `FlexItem` / `FlexConfig`
-
-``` go
+```go
 type FlexItem struct {
     Node      *Node
-    Grow      int  // flex-grow weight
-    Shrink    int  // flex-shrink (currently unused)
-    Basis     int  // flex-basis (min size); 0 = auto
+    Grow      int
+    Shrink    int
+    Basis     int
     Collapsed bool
 }
 
@@ -119,39 +104,15 @@ type FlexConfig struct {
 }
 ```
 
-Weighted row/column layout. Each item wraps a `Node` and carries its
-grow/shrink/basis weights plus a local `Collapsed` flag. `FlexConfig`
-lays its children out in one row or column with the weights distributed
-proportionally. `Shrink` is declared but intentionally unused (the
-layout does not implement shrinking in the current release).
+These structs store flex-layout configuration. `Shrink` is marked unused for now; this file does not implement weighted size distribution or use the `Collapsed` flag.
 
-## Behavior
+## Tree helpers
 
-The tree is a *binary* or *multi-child* tree depending on which internal
-node is in use: a `SplitConfig` always has exactly two children; a
-`FlexConfig` has an ordered list of `FlexItem`s (each wrapping a
-`Node`). A `Node` is either a leaf (`Panel != nil`) or an internal
-container (`Split != nil` or `Flex != nil`), never both at once.
+The following unexported methods operate on the tree:
 
-Direction-dependent sizing: `SplitConfig` and `FlexConfig` use a single
-`Direction` to pick the split axis; collapsed dimensions are queried
-through `CollapsedSize(d)` so the caller can request either axis
-uniformly.
+- `findNode` returns the leaf containing the given panel, or nil if the receiver or panel is nil or no matching leaf is found. It traverses split children in `First`, then `Second` order, and flex items in slice order; nil flex items are skipped.
+- `findSplitParent` returns the split node with a direct leaf child matching the given panel, or searches recursively and returns nil if none is found. It also traverses flex items in slice order and skips nil items.
+- `replaceNode` replaces a child pointer equal to `old` with `new` and returns true, or recursively searches descendants and returns false if not found. Nil receivers return false. Nil flex items are skipped.
+- `collectLeafNodes` returns leaf nodes in traversal order: split `First` then `Second`, followed by flex items in slice order. A nil receiver returns nil; nil flex items are skipped.
 
-Drag state is tracked per-config via `Dragging bool`; setting it to
-`true` pauses layout re-computation until the next resize message
-arrives.
-
-## Implementation details
-
-- `findNode`, `findSplitParent`, `replaceNode` and `collectLeafNodes`
-  are recursive walkers defined as methods on `*Node`; they handle both
-  `SplitConfig` and `FlexConfig` children.
-- `findNode` returns the leaf node that matches the given `Panel`;
-  `findSplitParent` returns the parent `Split` node whose two children
-  are the direct parents of the target panel; `replaceNode` rewrites a
-  pointer in place and returns a success flag; `collectLeafNodes`
-  returns every leaf `*Node` in in-order (split left-to-right / flex
-  top-to-bottom) traversal order.
-- All walkers guard against a nil receiver so they can be called on a
-  nil `*Node` safely.
+`IsLeaf` defines a leaf as a node with a non-nil panel and no split or flex configuration. The helpers do not validate the overall tree shape or prevent cycles.

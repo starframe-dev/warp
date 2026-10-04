@@ -25,8 +25,8 @@ type FloatPane struct {
 }
 ```
 
-A floating panel that is composed from a regular `Panel` plus a screen
-rectangle. The exported fields are:
+A floating panel composed from a regular `Panel` and a screen rectangle.
+The exported fields are:
 
 - `Panel` — the content provider. It is called with the *inner* size
   (`Width-2`, `Height-2`) so the 1-cell border is not counted.
@@ -45,29 +45,24 @@ rectangle. The exported fields are:
 
 On `tea.WindowSizeMsg`, `ResizeMsg`, and before rendering, the tab clamps the visible rectangle to the viewport without changing the preferred dimensions. When the viewport grows, the float restores its preferred width and height and reclamps `X` and `Y` so the rectangle fits. A mouse resize updates the preferred size to the user's selected dimensions, so that size is restored after subsequent viewport changes. A viewport smaller than 10×3 may temporarily show a smaller float; automatic clamping preserves the preferred size.
 
-A float created before its tab receives a viewport keeps its preferred dimensions. The first resize or render clamps the visible rectangle to the known viewport.
+A float created before its tab receives a viewport keeps its preferred dimensions. The tab's resize/render path clamps the visible rectangle to the known viewport; calling `FloatPane.render` directly does not perform viewport clamping.
 
 ### Rendering — `render(w, h)`
 
-Produces a fixed `Height`-long slice of lines. The first line is the
-title bar, the last is the bottom border, and the rows in between are
-the `Panel.View` output padded by `padContent`.
+Produces a `Height`-long slice of lines when the receiver is non-nil and both `Width` and `Height` are positive. Otherwise it returns `nil`. The `w` and `h` arguments are currently ignored. The first line is the title bar, the last is the bottom border, and the rows in between are the `Panel.View` output padded by `padContent`.
 
-- The top border is built from `╭` + title + dashes + ` ×` + `╮`. The
-  close button always reserves 4 visual columns (`╭` + `" ×"` + `╮`). If
-  the title is too wide it is truncated with an ellipsis (`...`) so the
-  close button stays reachable.
+- The top border is built from `╭` + title + dashes + ` ×` + `╮`. The close button always reserves 4 visual columns (`╭` + `" ×"` + `╮`). The title is sanitized and truncated with an ellipsis (`...`) to keep the close button in place.
 - The content area is
-  `padContent(fp.Panel.View(fp.Width-2, fp.Height-2), fp.Width-2, fp.Height-2)`.
-  Each content line is wrapped in vertical border characters
+  `padContent(fp.Panel.View(fp.Width-2, fp.Height-2), fp.Width-2, fp.Height-2)`
+  when `Panel` is non-nil. Each content line is wrapped in vertical border characters
   (`│ ... │`).
 - The bottom border is `╰ ─ ... ─ ╯`.
 
 ### Mouse handling — `handleMouse(msg, mx, my)`
 
-Processes a single `tea.MouseMsg` at screen coordinates (`mx`, `my`) and
-returns a `tea.Cmd` only when the event was forwarded to the inner
-`Panel`.
+Processes a single left-button `tea.MouseMsg` at screen coordinates (`mx`, `my`) and
+returns a `tea.Cmd` only when the event was forwarded to the inner `Panel`.
+Other mouse buttons are ignored.
 
 Hit-testing rules:
 
@@ -76,9 +71,10 @@ Hit-testing rules:
   the panel.
 - Title bar drag — `relY == 0` and `0 < relX < fp.Width-1`. Enters
   `dragging` state and saves the origin.
-- Resize edges — `hitEdge` maps any of the eight border cells to `"n"`,
-  `"s"`, `"e"`, `"w"` and the four corners `"nw"`, `"ne"`, `"sw"`,
-  `"se"`. A non-empty edge starts a `resizing` gesture.
+- Resize edges — `hitEdge` maps the border cells that are not handled as
+  title-bar drag or close-button hits to `"n"`, `"s"`, `"e"`, `"w"` and
+  the four corners `"nw"`, `"ne"`, `"sw"`, `"se"`. A non-empty edge starts a
+  `resizing` gesture.
 - Inner click — forwarded to `fp.Panel.Update` with coordinates shifted
   by one cell so the panel sees a zero-based content area.
 
@@ -111,7 +107,8 @@ plain text and can safely be measured with `lipgloss.Width` or
 ### `overlayFloat(lines []string, fp *FloatPane, totalW, totalH int)`
 
 Draws `fp.render(totalW, totalH)` on top of the existing `lines` without
-disturbing the rest of the screen. For every row it:
+disturbing the rest of the screen. It returns without drawing when the
+float, its panel, or the viewport dimensions are invalid. For each visible row it:
 
 1.  Locates visual column `fp.X` using ANSI- and grapheme-aware width
     measurement; wide clusters are not split.
@@ -119,7 +116,6 @@ disturbing the rest of the screen. For every row it:
     adds an ANSI reset before the uncovered suffix so styles cannot leak.
 3.  Skips the original bytes that the float visually covers.
 4.  Appends the remaining original suffix verbatim.
-
 
 ## Style tokens used by the float
 
@@ -147,7 +143,7 @@ tab.Float(detailsPanel, 10, 5, 30, 10)
 - The float is *not* a `Panel`. It is a screen rectangle that *contains*
   a panel; the float itself owns no keys other than the ones consumed by
   `handleMouse`.
-- The close button occupies exactly one cell ( `fp.Width-2`, `0`).
+- The close button occupies exactly one cell (`fp.Width-2`, `0`).
   Anything to its right is part of the `╮` corner and is not a hit
   target.
 - Drag/resize bookkeeping uses the *original*

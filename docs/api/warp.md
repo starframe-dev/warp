@@ -18,7 +18,7 @@ In addition to being a Bubble Tea model (`Init`, `Update`, `View`),
 
 ### Construction
 
-` w := warp.New() `
+`w := warp.New()`
 
 `New` returns a `*Warp` whose root is a fresh `TabGroup` positioned at
 `TabTop` with a single default tab. The model is safe to use immediately
@@ -64,7 +64,7 @@ root.
 
 ### Embedding as a panel
 
-` func (w *Warp) AsPanel() Panel `
+`func (w *Warp) AsPanel() Panel`
 
 Returns a `warpPanel` adapter implementing the `Panel` interface (i.e.
 `View(width, height)` and `Update(msg)`). This is how a `Warp` can be
@@ -152,11 +152,11 @@ the element snapshot.
 
 Because `AsPanel` exposes the `Panel` interface, a `Warp` can be placed
 inside another panel (or another `Warp`). The adapter's `View` writes
-the parent-supplied dimensions back into the inner `Warp` and then
+ the parent-supplied dimensions back into the inner `Warp` and then
 renders its root, while `Update` simply forwards the message and returns
 any resulting command.
 
-``` go
+```go
 parent := warp.New()
 inner  := warp.New()
 parent.SetRoot(inner.AsPanel()) // inner Warp embedded in parent
@@ -164,7 +164,7 @@ parent.SetRoot(inner.AsPanel()) // inner Warp embedded in parent
 
 ## Implementation notes
 
-- After `Update` and after every completed `View`, the UI thread collects elements and deep-copies their `Children` before publishing the immutable snapshot. The post-View refresh is intentional because custom panels may update semantic state while rendering. Element collection invokes `Panel.Elements` without holding Warp's mutex.
+- After each `Update`, the UI thread collects elements and deep-copies their `Children` before publishing an immutable snapshot, unless the message implements `SemanticStableMsg` and returns `true`; that opt-in reuses the prior snapshot until the next `View`. After each completed `View`, elements are collected and copied whenever the inspector is enabled. The post-View refresh is intentional because custom panels may update semantic state while rendering. Element collection invokes `Panel.Elements` without holding Warp's mutex.
 - `/elements` reads only the most recently completed snapshot. It never traverses the live panel tree or invokes `Panel.Elements`, `Panel.View`, or `Panel.Update`; a response may be one UI operation behind, but cannot observe partially updated tree data.
 - A root revision prevents a snapshot collected for an old root from being published after `SetRoot`. `SetRoot` also invalidates the already published snapshot immediately, so `/elements` cannot expose the detached hierarchy before the next UI cycle. A nil snapshot/root is serialized as an empty JSON array, not `null`.
 - If dimensions are unknown while building a snapshot, the inspector uses 80×24.

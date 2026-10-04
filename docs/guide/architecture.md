@@ -31,7 +31,7 @@ The `Tab` methods mutate this tree. `TabGroup` is itself a `Panel`, so a complet
 
 Warp renders the tree recursively, pads each child to its allocated cell rectangle, and draws float panes above the result. Mouse events visit the topmost float first, then split borders, then the active panel. A click inside a float does not reach panels below it.
 
-`WindowSizeMsg` and other Bubbletea messages are forwarded to the appropriate panels. Warp does not install application-level `Tab` or `Shift+Tab` bindings.
+Keyboard input normally goes to the focused panel. Resize, framework, and custom/unknown messages may also be broadcast to unfocused panels, so panel implementations should tolerate those updates. Warp does not bind `Tab` or `Shift+Tab` for focus navigation.
 
 ## Focus
 
@@ -39,7 +39,15 @@ A focusable panel implements `Focusable`. `Tab.FocusNext`, `FocusPrev`, `FocusFi
 
 ## Theme
 
-The default palette is Gruvbox Dark. `SetTheme` rebuilds the package styles at runtime from semantic colors. See [Theme](../api/theme).
+The default palette is Gruvbox Dark. `SetTheme` replaces package-wide component styles using semantic colors. Configure it before starting the Bubble Tea program; changing the theme while rendering is not synchronized. See [Theme](../api/theme).
+
+## Panel lifecycle
+
+A resource-owning panel may implement `Unmounter`. Warp calls `Unmount` only after the panel is permanently detached and no longer referenced in its ownership domain; switching tabs, hiding, collapsing, or moving focus does not end its lifecycle. Use pointer-backed panels for stable instance identity. Sharing one resource-owning panel instance across independent Warp roots is unsupported and remains the caller's responsibility.
+
+## HTTP inspector
+
+The optional inspector serves `/elements` from the latest completed UI-thread snapshot; HTTP requests do not traverse live panels. With an empty address, `ServeHTTP` binds to `127.0.0.1` using `WARP_HTTP_PORT`, or an automatically assigned port if the variable is unset. Cross-origin access is disabled by default. An explicit non-loopback address may expose UI data to the network; configure a bearer token with `ServeHTTPWithOptions` before using it outside a trusted local environment.
 
 ## Element tree
 

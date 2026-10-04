@@ -33,7 +33,7 @@ Traversal follows the visual order of focusable leaves and wraps at either end.
 
 ## Key bindings
 
-Warp does not bind `Tab` or `Shift+Tab`. Bind those keys in the application when they fit its interaction model.
+Warp does not bind `Tab` or `Shift+Tab`; bind those keys in the application when they fit its interaction model. The root `TabGroup` handles `Ctrl+T` (create a tab), `Ctrl+W` (close the active tab unless it is the last one), `Ctrl+Tab` / `Ctrl+Shift+Tab` (switch tabs), and `Ctrl+C` (quit).
 
 ## RawKeyReceiver
 
@@ -44,7 +44,7 @@ type RawKeyReceiver interface {
 }
 ```
 
-Use `RawKeyReceiver` for PTY or terminal panels that need to declare a raw-key preference. The interface does not replace `Panel.Update`; it adds the `WantsRawKeys` signal.
+Use `RawKeyReceiver` for PTY or terminal panels that need every key before Warp shortcuts. When the focused panel returns `true`, it receives the key first, including `Ctrl+C`, so Warp does not treat that key as quit. The interface does not replace `Panel.Update`; it adds the `WantsRawKeys` signal.
 
 ## Example
 

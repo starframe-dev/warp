@@ -71,8 +71,8 @@ be queried as an element provider before real panels are attached.
   broadcasts `ResizeMsg` plus the original window msg), `ResizeMsg`
   (broadcast resize only), and forwards all other messages (e.g.
   `PtyOutputMsg`) to every leaf.
-- **Rendering:** `View` renders the node tree, refreshes border hit data
-  (`findBorders`), then overlays floating panes.
+- **Rendering:** `View` renders the node tree, refreshes border hit data,
+  then overlays floating panes.
 - **Mouse:** `handleMouse` (exposed as `HandleMouse`) processes float
   panes first (z-order, bring-to-top, close-on-outside-click), then
   border dragging (split or flex), collapse symbols, and finally
@@ -95,14 +95,20 @@ be queried as an element provider before real panels are attached.
   items and `Collapsible` panels are assigned the requested state
   explicitly, making repeated Collapse/Expand calls idempotent. A nil
   `SetSplitCollapse` callback does not disable the internal state toggle.
-- **Element collection:** `Elements` recursively walks splits and flex layouts, then includes framework chrome and float content in viewport coordinates. Each float exposes a `titlebar` / `move-float` region and `button` / `close-float`; configured split-collapse glyphs expose `button` / `toggle-collapse`. Float chrome/content is returned topmost-first before root-layout elements so automation sees overlays before covered background content.
+- **Element collection:** `Elements` recursively walks splits and flex
+  layouts, then includes framework chrome and float content in viewport
+  coordinates. Each float exposes a `titlebar` / `move-float` region and
+  `button` / `close-float`; configured split-collapse glyphs expose
+  `button` / `toggle-collapse`. Float chrome/content is returned topmost-first
+  before root-layout elements so automation sees overlays before covered
+  background content.
 
 Panel instances shared across independent owner roots are unsupported and
 must be managed by the caller; lifecycle tracking is local, not global.
 
 ## Usage
 
-``` go
+```go
 tab := warp.NewTab("main")
 tab.SplitVertical(tab.RootPanel(), 0.6, rightPanel)
 tab.SplitHorizontal(leftPanel, 0.7, bottomPanel)

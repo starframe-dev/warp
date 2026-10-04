@@ -1,133 +1,138 @@
 # render.go — Warp rendering engine
 
-This file contains the recursive rendering logic that converts a `Node`
-tree (leaves, splits, and flex containers) into a grid of text cells. It
-also implements hit-testing for draggable borders so that mouse/pointer
-interaction can find which split or flex border lies under a given cell.
+This file implements the internal rendering helpers for the `warp` package. It
+turns a laid-out `Node` tree into terminal lines and defines border hit-test
+entry points. Layout geometry is created by `newLayout`; this file renders that
+geometry rather than allocating child rectangles itself.
 
-## Public API
+## Exported type
 
-None of the functions in this file are exported (all are lowercase). The
-only exported type is `BorderHit`. The file is an internal
-implementation module of the `warp` package; consumers interact with the
-package's public render entry point (defined elsewhere) which drives
-these internal helpers.
+```go
+type BorderHit struct {
+    Split     *SplitConfig
+    Flex      *FlexConfig
+    Direction Direction
+    X, Y      int
+    Length    int
+    Bounds    Bounds
+    FlexIndex int
+}
+```
 
-`type BorderHit struct { Split *SplitConfig Flex *FlexConfig Direction Direction X, Y int // Start position of the border Length int // Length of the border in cells }`
+`BorderHit` describes a draggable border and the layout rectangle that owns it.
+`Split` or `Flex` identifies the associated configuration; `Direction`, `X`,
+`Y`, and `Length` describe the border, while `Bounds` and `FlexIndex` carry its
+owning bounds and flex-item index. The type definition does not itself enforce
+that exactly one of `Split` and `Flex` is non-nil.
 
-`BorderHit` describes a single draggable border at a concrete position
-in the terminal grid. Exactly one of `Split` or `Flex` is non-nil,
-identifying which config owns the border. `Direction` tells whether the
-border runs vertically (splitting width) or horizontally (splitting
-height).
+## Rendering
 
-## Core rendering functions
+### `renderNode`
 
-### renderNode
-
-``` go
+```go
 func renderNode(node *Node, w, h int) []string
 ```
 
-The central dispatcher. Given a node and its allocated `w` × `h` cell
-rectangle it returns exactly `h` strings, each of visual width `w`. The
-behaviour is decided by which layout field is set:
+Builds a layout rectangle with non-negative width and height using `newLayout`,
+then renders it. A nil layout or a layout with non-positive height produces no
+lines. A blank layout produces blank lines; a leaf with a panel calls
+`Panel.View(w, h)` and pads its result. A leaf with non-positive width or a nil
+panel renders blank lines. Split and flex layouts are dispatched according to
+their layout node configuration.
 
-- *nil node* — returns blank lines via `makeEmptyLines`.
-- *Leaf* (`node.IsLeaf()`) — asks the panel's `View(w, h)` for content
-  and normalises it with `padContent`.
-- *Vertical / Horizontal split* — delegates to `renderVerticalSplit` /
-  `renderHorizontalSplit`.
-- *Flex* — delegates to `renderFlex`.
+The output is composed from the children and borders as allocated by the
+layout. Do not rely on every result having exactly the requested width or
+height: several rendering branches return or combine child lines directly.
 
-### renderVerticalSplit / renderHorizontalSplit
+### Split and flex layouts
 
-Both compute child sizes with `computeSplitSizes`, render each child
-recursively, then merge the two halves. A one-cell border of `│`
-(vertical) or `─` (horizontal) is drawn between them. Key behaviours:
+Split layouts render their first two children. For vertical splits, each row
+joins the child lines, with a vertical border only when the layout has a visible
+border. When configured and the collapse row is non-negative, the collapse
+indicator can replace that border on its row. For horizontal splits, the
+children's line slices are joined with a horizontal border when visible.
 
-- If either side is *collapsed*, the border is omitted so the collapsed
-  panel sits flush against the expanded one.
-- When `split.Dragging` is true, the border is styled with
-  `borderDragStyle`; otherwise `borderStyle`.
-- The border character is wrapped in `ansi.ResetStyle` on both sides so
-  panel styles cannot bleed into the border line.
-- An optional collapse indicator (`<`) is drawn at `split.CollapseRow`
-  only when `OnCollapse` is set and no side is collapsed.
+Flex layouts render all layout children. In the horizontal direction, child
+lines are joined row-by-row, adding vertical borders at visible flex boundaries.
+In the vertical direction, child line slices are appended with horizontal
+borders at visible boundaries. Border styling reflects the configuration's
+dragging state. Blank-line and border strings are cached within each render
+context.
 
-### renderFlex
+`renderVerticalSplit`, `renderHorizontalSplit`, and `renderFlex` are convenience
+wrappers that create a `Node` and call `renderNode`. `renderFlexRow` and
+`renderFlexColumn` currently delegate to `renderFlex`; their final `[]int`
+argument is unused.
 
-Dispatches to `renderFlexRow` (Direction=Horizontal, children laid out
-left-to-right with vertical borders) or `renderFlexColumn`
-(Direction=Vertical, children top-to-bottom with horizontal borders).
-Border count is `len(items) − 1`; available space is reduced accordingly
-before `computeFlexSizes` distributes it.
+### `computeSplitSizes`
 
-### computeFlexSizes
+```go
+func computeSplitSizes(avail int, fraction float64, firstCollapsed, secondCollapsed bool, firstSize, secondSize int) (first, second int)
+```
 
-Two-pass flexbox-like algorithm:
+Clamps available size to zero or greater. A collapsed child's requested size is
+clamped to at least one and at most the available space; if the other child is
+expanded and there is sufficient room, the expanded child retains at least
+`MinPanelSize`. With neither child collapsed, NaN fractions become `0.5`, and
+fractions are clamped to `[0, 1]`. The first size is the truncated product of
+available size and fraction, clamped to keep both children at least
+`MinPanelSize` when there is room for both; otherwise it is clamped to the
+available range. The second size is the remainder.
 
-1.  Assign each item a *basis* (its `Basis` or `MinPanelSize` if not
-    collapsed; 1 if collapsed).
-2.  If remaining space after bases is non-positive, return bases as-is.
-3.  Distribute remaining space proportionally by `Grow` weights among
-    non-collapsed items; if total grow is 0, split equally among
-    non-collapsed items.
-4.  Assign leftover pixels to the last non-collapsed item to keep total
-    width/height exact.
+### `computeFlexSizes`
 
-### padContent
+```go
+func computeFlexSizes(avail int, items []*FlexItem) []int
+```
 
-``` go
+Returns nil for no items and otherwise clamps available space to zero or greater.
+Each collapsed item has a basis of one; other items use `Basis`, falling back
+to `MinPanelSize` when the basis is non-positive. If the sum of bases exceeds
+available space, the available size is allocated proportionally to the bases,
+using floors for all but the final item, which receives the remainder. If the
+bases fit, their integer sizes are retained and remaining space is distributed
+among non-collapsed items proportionally to positive `Grow` values. If no
+eligible item has positive growth, remaining space is divided equally among
+non-collapsed items. Fractional shares are floored except for the final
+eligible item, which receives the remainder. No growth is distributed when
+available size is zero or all items are collapsed.
+
+## Panel content and terminal text
+
+### `padContent`
+
+```go
 func padContent(content string, w, h int) []string
 ```
 
-Normalises a panel's raw string to exactly `w` columns × `h` rows.
-Truncation uses `ansi.Truncate` (visual-width aware) so multi-byte UTF-8
-and ANSI sequences are never split. Every returned line is right-padded
-with spaces and suffixed with `ansi.ResetStyle` to prevent style leakage
-between adjacent panels.
+For positive width and height, splits panel output on newline, keeps at most
+`h` rows, truncates each non-empty row to the visual width `w`, pads it to that
+width, and appends `ansi.ResetStyle`. Missing or empty rows are filled with
+spaces followed by a style reset. For non-positive width or height it delegates
+to `makeEmptyLines`, which returns nil in those cases.
 
-### computeSplitSizes
-
-Resolves the exact pixel widths/heights for a two-child split: collapsed
-children get their fixed `CollapsedSize`; otherwise `fraction` of
-`avail` goes to the first child. Both sides are clamped to
-`MinPanelSize` before the second is derived.
+Terminal fragments are normalized to valid UTF-8. Newlines, carriage returns,
+and tabs are converted to spaces; other control characters are removed while
+ESC and BEL are retained for ANSI parsing. Incomplete trailing ANSI sequences
+are removed before fragments are composed with framework content. Framework
+labels with invalid UTF-8 or control characters are stripped of ANSI styling
+after normalization.
 
 ## Border hit-testing
 
-### findBorders
-
-``` go
+```go
 func findBorders(node *Node, x, y, w, h int) []BorderHit
+func findFlexBorders(flex *FlexConfig, x, y, w, h int) []BorderHit
 ```
 
-Recursively walks the node tree and returns the absolute positions of
-every visible border. Split borders are reported only when both children
-are expanded (collapsed side suppresses the border). Flex borders are
-gathered via `findFlexBorders`.
+Both entry points create a layout using the supplied origin and non-negative
+width and height, then return the border hits collected from that layout.
 
-### findFlexBorders
+## Other helpers
 
-Iterates the flex items, accumulating offsets to compute each inter-item
-border's `(X, Y)` and `Length`. A border between items *i* and *i+1* is
-omitted if either adjacent item is collapsed.
-
-## Key invariants
-
-- Returned line slices always have length exactly `h` (or are empty/nil
-  when the node is nil or the size is ≤ 0).
-- Every line is exactly `w` visual columns wide.
-- No style can leak from one panel into a neighbour because each line is
-  reset with `ansi.ResetStyle`.
-- Border visibility is a function of child collapse state; the render
-  and hit-test passes share the same size computations, keeping them
-  consistent.
-
-## Dependencies
-
-Internal (same package): `Node`, `Panel`, `SplitConfig`, `FlexConfig`,
-`FlexItem`, `Direction`, `MinPanelSize`, border style variables, and
-`CollapsedSize`. External: `github.com/charmbracelet/x/ansi` for string
-width, truncation, and SGR reset.
+`renderBlankLines` creates `h` rows of spaces of width `w` when height is
+positive; `makeEmptyLines` returns nil if either dimension is non-positive.
+`emptyView` returns an empty string for non-positive height, otherwise a string
+containing `height - 1` newline characters. Border renderers add ANSI reset
+sequences around styled vertical or horizontal glyphs; horizontal borders are
+empty for non-positive width.

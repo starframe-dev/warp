@@ -1,110 +1,61 @@
 # wrap.go
 
-Text-wrapping utilities for the `warp` package. All width measurements
-are *visual* widths, computed with `lipgloss.Width` (a fork of
-go-runewidth) — this means ANSI escape sequences, zero-width joiners and
-other control characters are handled correctly when deciding where to
-break a line. A *visual width* of 0 characters means "the characters a
-human eye sees", not the byte length of the string.
+Text-wrapping utilities for the `warp` package. Widths are measured in terminal cells by `github.com/charmbracelet/x/ansi`; ANSI escape sequences are not counted as visible columns, and Unicode grapheme clusters are handled by that package.
 
 ## Public API
 
 ### `WordWrap`
 
-``` typescript
+```go
 func WordWrap(text string, width int) []string
 ```
 
-Wraps text at *word* boundaries so no line exceeds `width` visual
-columns. Words that are longer than `width` are broken in the middle
-(hard break). A line in the input text that is itself shorter than
-`width` is left as-is. The input is split on `"\n"` first, then each
-line is wrapped independently — output lines never contain `\n`.
+Wraps text using `ansi.Wrap`, with spaces as word-break opportunities. Long words are hard-wrapped when possible. Each input line is wrapped independently; input is split at `\n`, and output lines are separated into slice elements. Any wrapped line that still measures wider than `width` is truncated to `width` terminal cells.
 
 - If `width <= 0`, the result is `nil`.
-- Input text without any characters wider than `width` is returned
-  unchanged.
-- Each element of the returned slice is one visual line, at most `width`
-  columns wide.
+- Whitespace and ANSI sequences are handled by the underlying `ansi` package; whitespace is not normalized through `strings.Fields`.
 
-``` go
+```go
 lines := warp.WordWrap("the quick brown fox", 10)
-// lines[0] == "the quick"
-// lines[1] == "brown fox"
-// lines[2] == nil (if width <= 0)
+// lines contains "the quick" and "brown fox"
 ```
 
 ### `SpaceWrap`
 
-``` typescript
+```go
 func SpaceWrap(text string, width int) []string
 ```
 
-Wraps text at *space* boundaries so no line exceeds `width` visual
-columns. Unlike `WordWrap`, this does *not* break words in the middle —
-a single word longer than `width` overflows the line and the result is
-still produced. Word boundaries are taken from `strings.Fields` (any run
-of whitespace collapses to a single space).
+Wraps text using `ansi.Wordwrap`, with spaces as word-break opportunities. It does not hard-wrap words that are longer than `width`, so such words can produce lines wider than the requested width. Each input line is wrapped independently, after splitting the input at `\n`.
 
 - If `width <= 0`, the result is `nil`.
-- Empty input returns a single empty line.
+- Whitespace handling follows the underlying `ansi` package; whitespace is not tokenized with `strings.Fields`.
 
-``` go
+```go
 lines := warp.SpaceWrap("hello   world foo", 12)
-// lines[0] == "hello"
-// lines[1] == "world foo"
+// The words are wrapped at available breakpoints; whitespace handling follows ansi.Wordwrap.
 ```
 
 ### `WrapToString`
 
-``` typescript
+```go
 func WrapToString(text string, width int, useSpaceWrap bool) string
 ```
 
-Convenience wrapper around `WordWrap` / `SpaceWrap` that joins the
-resulting lines with `"\n"`. It is the only exported function that
-returns a string directly; the slice-returning functions above give the
-caller control over how lines are rendered (e.g. a TUI renderer that
-needs to know how many lines were emitted).
+Calls `SpaceWrap` when `useSpaceWrap` is true and `WordWrap` otherwise, then joins the returned lines with `\n`. If `width <= 0`, the wrapped slice is nil and the result is an empty string.
 
-``` go
-s := warp.WrapToString("a b c d e f g h i j k", 8, false)
-// s == "a b c d\nf g h i\nj k"
+```go
+s := warp.WrapToString("the quick brown fox", 10, false)
+// s == "the quick\nbrown fox"
 ```
 
-## Implementation Notes
+## Implementation notes
 
-- `wrapLine` (used by `WordWrap`) walks the line character-by-character,
-  keeping track of the last word boundary it has seen, so a long word is
-  only broken if no natural break point exists before the visual width
-  is exceeded.
-- `wrapAtSpaces` (used by `SpaceWrap`) first tokenizes with
-  `strings.Fields`, then greedily packs words into lines, adding a
-  single space between them. The space separator counts toward the
-  visual width.
-- The `isWordBreak` helper exists as a byte-level convenience around
-  `unicode.IsSpace`; it is currently unused in the package but kept for
-  potential external use.
-- Both wrappers rely on `lipgloss.Width` for visual width. That means a
-  string like `"\x1b[31mred\x1b[0m"` is measured as 3 characters, not as
-  the length of the escape sequence.
-- The two strategies differ in one way only: `WordWrap` hard-breaks
-  words that are longer than the width; `SpaceWrap` does not, and will
-  emit a single line that overflows the width if no spaces are
-  available.
+- `WordWrap` uses `ansi.Wrap(line, width, " ")`. If any returned line has an ANSI-aware visual width greater than `width`, it is passed through `ansi.Truncate` with an empty suffix.
+- `SpaceWrap` uses `ansi.Wordwrap(line, width, " ")` and does not apply a post-wrap truncation step.
+- `isWordBreak` is an unexported helper that is not used by these wrapping functions.
+- Both functions return `nil` for non-positive widths. Otherwise, each processes the results of `strings.Split(text, "\n")` and appends the underlying wrapper's lines.
 
-## Dependencies
+## Dependency
 
-- `github.com/charmbracelet/lipgloss` — provides `lipgloss.Width`, a
-  fork of go-runewidth, used as the source of truth for visual character
-  width.
-
-## Limitations
-
-- Both functions only handle `"\n"` as the line separator; carriage
-  returns and other Unicode line breaks in the input are not treated as
-  line breaks and will be preserved in the output as-is (wrapped by the
-  width logic).
-- There is no concept of hyphenation or word-joining across a wrap
-  boundary; a wrap always occurs at a whitespace boundary (or mid-word
-  for `WordWrap`).
+The wrapping and terminal-width behavior comes from `github.com/charmbracelet/x/ansi`.
