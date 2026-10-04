@@ -145,7 +145,7 @@ func semanticSnapshotRequest(t *testing.T, address string) []warp.Element {
 	if err != nil {
 		t.Fatalf("GET /elements: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read /elements: %v", err)

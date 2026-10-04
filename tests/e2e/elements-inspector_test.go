@@ -21,7 +21,7 @@ func TestHTTPInspectorTracksTabsAndInteractiveElements(t *testing.T) {
 	if err := app.ServeHTTP("127.0.0.1:0"); err != nil {
 		t.Fatalf("start HTTP inspector: %v", err)
 	}
-	defer app.Close()
+	defer func() { _ = app.Close() }()
 
 	menu := warp.NewDropdownMenu("Color", []warp.DropdownItem{
 		{Label: "Red", Selected: true},
@@ -197,7 +197,7 @@ func inspectorGet(url string) (*http.Response, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	return response, body, err
 }

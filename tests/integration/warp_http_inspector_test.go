@@ -50,7 +50,7 @@ func inspectorRequest(t *testing.T, client *http.Client, method, url, token, ori
 	if err != nil {
 		t.Fatalf("perform %s %s: %v", method, url, err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read response: %v", err)

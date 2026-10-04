@@ -77,8 +77,11 @@ func TestPopoverKeyboardSelectionAndCallbacks(t *testing.T) {
 	}
 	menu.Overlay(popoverBackground(40, 12), 40, 12)
 
-	if !menu.HandleKey(popoverKey(tea.KeyDown)) || !menu.HandleKey(popoverKey(tea.KeyDown)) {
-		t.Fatal("down-arrow navigation was not consumed")
+	if !menu.HandleKey(popoverKey(tea.KeyDown)) {
+		t.Fatal("first down-arrow navigation was not consumed")
+	}
+	if !menu.HandleKey(popoverKey(tea.KeyDown)) {
+		t.Fatal("second down-arrow navigation was not consumed")
 	}
 	if !menu.HandleKey(popoverKey(tea.KeyUp)) {
 		t.Fatal("up-arrow navigation was not consumed")

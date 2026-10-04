@@ -18,15 +18,6 @@ func (p *floatE2EPanel) View(_, height int) string {
 
 func (*floatE2EPanel) Update(tea.Msg) tea.Cmd { return nil }
 
-func findFloatCloseButton(tab *warp.Tab) (warp.Element, bool) {
-	for _, element := range tab.Elements(70, 20) {
-		if element.Action == "close-float" {
-			return element, true
-		}
-	}
-	return warp.Element{}, false
-}
-
 func TestFloatBringToFrontDragResizeClampAndClose(t *testing.T) {
 	const width, height = 70, 20
 	tab := warp.NewTab("floats")
