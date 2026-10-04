@@ -248,7 +248,7 @@ func (p *collapsibleSemanticPanel) ContentHeight(width int) (int, bool) {
 func TestCollapsibleElements(t *testing.T) {
 	inner := &collapsibleSemanticPanel{
 		collapsibleTestPanel: collapsibleTestPanel{name: "content"},
-		elements: []Element{{Role: "text", Name: "item", Bounds: Bounds{X: 1, Y: 0, W: 8, H: 3}}},
+		elements:             []Element{{Role: "text", Name: "item", Bounds: Bounds{X: 1, Y: 0, W: 8, H: 3}}},
 	}
 	c := NewCollapsible("Title", inner)
 	got := c.Elements(10, 3)

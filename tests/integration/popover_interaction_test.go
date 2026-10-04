@@ -30,7 +30,7 @@ func TestPopoverOverlaysAndClampsToViewport(t *testing.T) {
 	background[9] = "terminal footer content"
 	menu := &warp.Popover{
 		Items: []warp.PopoverItem{{Name: "Open"}, {Name: "Save"}, {Name: "Quit"}},
-		X: 58, Y: 9, Width: 12,
+		X:     58, Y: 9, Width: 12,
 	}
 
 	lines := menu.Overlay(background, width, height)
@@ -72,7 +72,7 @@ func TestPopoverKeyboardSelectionAndCallbacks(t *testing.T) {
 			{Name: "Second", Action: func() { calls = append(calls, "Second") }},
 			{Name: "Third", Action: func() { calls = append(calls, "Third") }},
 		},
-		Width: 14,
+		Width:   14,
 		OnClose: func() { closes++ },
 	}
 	menu.Overlay(popoverBackground(40, 12), 40, 12)
