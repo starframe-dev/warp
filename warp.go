@@ -295,6 +295,34 @@ func (w *Warp) ServeHTTPWithOptions(addr string, options InspectorOptions) error
 		addr = net.JoinHostPort("127.0.0.1", port)
 	}
 
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("warp http listen: %w", err)
+	}
+	w.startHTTPListenerLocked(ln, options)
+	return nil
+}
+
+// ServeHTTPOnListener starts the inspector using an already-open listener.
+// On success, Warp owns the listener and CloseHTTP closes it. If this method
+// returns an error, ownership remains with the caller.
+func (w *Warp) ServeHTTPOnListener(listener net.Listener, options InspectorOptions) error {
+	if listener == nil {
+		return errors.New("warp http listener is nil")
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.httpServer != nil || w.httpClosing {
+		return errors.New("warp http inspector is already running or closing")
+	}
+	w.startHTTPListenerLocked(listener, options)
+	return nil
+}
+
+// startHTTPListenerLocked transfers listener ownership to the HTTP server.
+// The caller must hold w.mu.
+func (w *Warp) startHTTPListenerLocked(listener net.Listener, options InspectorOptions) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/elements", func(wr http.ResponseWriter, request *http.Request) {
 		w.handleElementsRequest(wr, request, options)
@@ -305,21 +333,16 @@ func (w *Warp) ServeHTTPWithOptions(addr string, options InspectorOptions) error
 		_, _ = wr.Write([]byte("ok"))
 	})
 
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("warp http listen: %w", err)
-	}
 	server := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: httpReadHeaderTimeout,
 		IdleTimeout:       httpIdleTimeout,
 		WriteTimeout:      httpWriteTimeout,
 	}
-	w.httpAddr = ln.Addr().String()
+	w.httpAddr = listener.Addr().String()
 	w.httpServer = server
 	w.inspectorEnabled = true
-	go w.serveHTTP(server, ln)
-	return nil
+	go w.serveHTTP(server, listener)
 }
 
 func (w *Warp) serveHTTP(server *http.Server, listener net.Listener) {

@@ -79,11 +79,12 @@ type InspectorOptions struct {
 
 func (w *Warp) ServeHTTP(addr string) error
 func (w *Warp) ServeHTTPWithOptions(addr string, options InspectorOptions) error
+func (w *Warp) ServeHTTPOnListener(listener net.Listener, options InspectorOptions) error
 func (w *Warp) CloseHTTP() error
 func (w *Warp) HTTPAddr() string
 ```
 
-`ServeHTTP` запускает HTTP-сервер по адресу `addr` и предоставляет два эндпоинта. Если `addr` пуст, сервер привязывается к `127.0.0.1` на порту из `WARP_HTTP_PORT` либо на автоматически назначенном порту, если эта переменная не задана. Непустой адрес используется без изменений. Межсайтовый доступ по умолчанию отключён. `ServeHTTPWithOptions` позволяет явно разрешить точный CORS origin (или указать `"*"`) и потребовать bearer token для `/elements`.
+`ServeHTTP` запускает HTTP-сервер по адресу `addr` и предоставляет два эндпоинта. Если `addr` пуст, сервер привязывается к `127.0.0.1` на порту из `WARP_HTTP_PORT` либо на автоматически назначенном порту, если эта переменная не задана. Непустой адрес используется без изменений. Межсайтовый доступ по умолчанию отключён. `ServeHTTPWithOptions` позволяет явно разрешить точный CORS origin (или указать `"*"`) и потребовать bearer token для `/elements`. `ServeHTTPOnListener` запускает сервер на listener, созданном вызывающим кодом, не выполняя повторную привязку порта. При успехе Warp забирает listener во владение, и `CloseHTTP` закрывает его; при ошибке listener остаётся у вызывающего кода. Это удобно, когда уже привязанный сокет передаётся дочернему процессу.
 
 | Путь | Описание |
 |----|----|

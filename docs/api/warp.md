@@ -107,6 +107,7 @@ type InspectorOptions struct {
 
 func (w *Warp) ServeHTTP(addr string) error
 func (w *Warp) ServeHTTPWithOptions(addr string, options InspectorOptions) error
+func (w *Warp) ServeHTTPOnListener(listener net.Listener, options InspectorOptions) error
 func (w *Warp) CloseHTTP() error
 func (w *Warp) HTTPAddr() string
 ```
@@ -116,7 +117,11 @@ If `addr` is empty, it binds to `127.0.0.1` on `WARP_HTTP_PORT`, or on an
 automatically assigned port when that variable is unset. A non-empty
 address is used as supplied. Cross-origin access is disabled by default.
 `ServeHTTPWithOptions` can opt into an exact CORS origin (or `"*"` explicitly)
-and can require a bearer token for `/elements`.
+and can require a bearer token for `/elements`. `ServeHTTPOnListener` starts
+serving on a listener created by the caller, without another bind. On success,
+Warp takes ownership and `CloseHTTP` closes it; on error, the caller retains
+ownership. This is useful when passing an already-bound socket to a child
+process.
 
 | Path | Description |
 |----|----|

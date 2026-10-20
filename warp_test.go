@@ -1,6 +1,7 @@
 package warp
 
 import (
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -1289,6 +1290,66 @@ func TestServeHTTP(t *testing.T) {
 	}
 	if ct := resp2.Header.Get("Content-Type"); ct != "application/json" {
 		t.Errorf("expected Content-Type application/json, got %q", ct)
+	}
+}
+
+func TestServeHTTPOnListener(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := listener.Addr().String()
+
+	w := New()
+	if err := w.ServeHTTPOnListener(listener, InspectorOptions{}); err != nil {
+		_ = listener.Close()
+		t.Fatalf("ServeHTTPOnListener failed: %v", err)
+	}
+	defer func() { _ = w.CloseHTTP() }()
+	if got := w.HTTPAddr(); got != address {
+		t.Fatalf("HTTPAddr = %q, want inherited listener address %q", got, address)
+	}
+	resp, err := http.Get("http://" + address + "/healthz")
+	if err != nil {
+		_ = w.CloseHTTP()
+		t.Fatalf("healthz on inherited listener failed: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("healthz status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if err := w.CloseHTTP(); err != nil {
+		t.Fatalf("CloseHTTP failed: %v", err)
+	}
+	if w.HTTPAddr() != "" {
+		t.Fatalf("HTTPAddr after CloseHTTP = %q, want empty", w.HTTPAddr())
+	}
+	if resp, err := http.Get("http://" + address + "/healthz"); err == nil {
+		_ = resp.Body.Close()
+		t.Fatal("inherited listener remained open after CloseHTTP")
+	}
+}
+
+func TestServeHTTPOnListenerRejectsInvalidOwnership(t *testing.T) {
+	w := New()
+	if err := w.ServeHTTPOnListener(nil, InspectorOptions{}); err == nil {
+		t.Fatal("ServeHTTPOnListener(nil) unexpectedly succeeded")
+	}
+	if err := w.ServeHTTP("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = w.CloseHTTP() }()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.ServeHTTPOnListener(listener, InspectorOptions{}); err == nil {
+		_ = listener.Close()
+		t.Fatal("listener was accepted while an inspector was already running")
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatalf("listener ownership was not retained on error: %v", err)
 	}
 }
 
