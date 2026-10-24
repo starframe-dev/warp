@@ -273,17 +273,19 @@ func TestTabUpdateResizeMsg(t *testing.T) {
 	}
 }
 
-func TestTabUpdateBroadcastsUnknownMsg(t *testing.T) {
+func TestTabUpdateBroadcastsUnknownMsgButNotUnfocusedKeys(t *testing.T) {
 	tab := NewTab("test")
 	rec := &tabRecordingPanel{}
 	tab.SetRootPanel(rec)
 	key := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
 	tab.Update(key)
-	if rec.last == nil {
-		t.Fatal("expected panel to receive broadcast message")
+	if rec.last != nil {
+		t.Fatalf("unfocused key was delivered: %T", rec.last)
 	}
-	if _, ok := rec.last.(tea.KeyMsg); !ok {
-		t.Fatalf("expected KeyMsg, got %T", rec.last)
+	type customMessage struct{}
+	tab.Update(customMessage{})
+	if _, ok := rec.last.(customMessage); !ok {
+		t.Fatalf("custom message got %T, want broadcast", rec.last)
 	}
 }
 

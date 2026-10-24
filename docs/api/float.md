@@ -41,7 +41,7 @@ The exported fields are:
 
 ### Preferred size and viewport
 
-`Tab.Float(panel, x, y, width, height)` creates a float and stores the requested dimensions as its preferred size, raised to the minimum dimensions (10×3). `Width` and `Height` are the current visible dimensions; the preferred dimensions are stored separately.
+`Tab.Float(panel, x, y, width, height)` creates a float and stores the requested dimensions as its preferred size, raised to the minimum dimensions (10×3). `Width` and `Height` are the current visible dimensions; the preferred dimensions are stored separately. For panels whose initial `ResizeMsg` returns a `tea.Cmd`, call `Tab.FloatWithCmd(...)` inside the application's `Update` and return that command to Bubble Tea. The original `Float` method remains available for source compatibility, but cannot return the initializer command.
 
 On `tea.WindowSizeMsg`, `ResizeMsg`, and before rendering, the tab clamps the visible rectangle to the viewport without changing the preferred dimensions. When the viewport grows, the float restores its preferred width and height and reclamps `X` and `Y` so the rectangle fits. A mouse resize updates the preferred size to the user's selected dimensions, so that size is restored after subsequent viewport changes. A viewport smaller than 10×3 may temporarily show a smaller float; automatic clamping preserves the preferred size.
 

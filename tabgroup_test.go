@@ -352,15 +352,19 @@ func TestContentWidth(t *testing.T) {
 		wantW int
 	}{
 		{TabTop, TabGroup{verticalTabWidth: 4}, 40},
-		{TabLeft, TabGroup{verticalTabWidth: 4}, 36},
-		{TabRight, TabGroup{verticalTabWidth: 4}, 36},
+		{TabLeft, TabGroup{}, 0},
+		{TabRight, TabGroup{}, 0},
 		{TabNone, TabGroup{}, 40},
 	}
 	for _, c := range cases {
 		tg := c.v
 		tg.tabPosition = c.pos
-		if got := tg.contentWidth(40); got != c.wantW {
-			t.Errorf("position %d: contentWidth(40)=%d, want %d", c.pos, got, c.wantW)
+		want := c.wantW
+		if c.pos == TabLeft || c.pos == TabRight {
+			want = max(0, 40-tg.verticalTabBarWidth(40))
+		}
+		if got := tg.contentWidth(40); got != want {
+			t.Errorf("position %d: contentWidth(40)=%d, want %d", c.pos, got, want)
 		}
 	}
 }
@@ -383,7 +387,7 @@ func TestContentHeight(t *testing.T) {
 }
 
 func TestContentOffset(t *testing.T) {
-	tg := &TabGroup{tabPosition: TabTop, verticalTabWidth: 3}
+	tg := &TabGroup{tabPosition: TabTop, verticalTabWidth: 3, width: 10}
 	x, y := tg.contentOffset()
 	if x != 0 || y != 1 {
 		t.Fatalf("TabTop: got (%d,%d), want (0,1)", x, y)
@@ -397,6 +401,11 @@ func TestContentOffset(t *testing.T) {
 	x, y = tg.contentOffset()
 	if x != 0 || y != 0 {
 		t.Fatalf("TabBottom: got (%d,%d), want (0,0)", x, y)
+	}
+	tg.tabPosition = TabNone
+	x, y = tg.contentOffset()
+	if x != 0 || y != 0 {
+		t.Fatalf("TabNone: got (%d,%d), want (0,0)", x, y)
 	}
 }
 

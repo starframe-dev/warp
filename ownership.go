@@ -6,8 +6,9 @@ import (
 )
 
 type panelOwnership struct {
-	mu   sync.RWMutex
-	root Panel
+	mu        sync.RWMutex
+	root      Panel
+	unmounted map[panelInstanceKey]struct{}
 }
 
 type panelInstanceKey struct {
@@ -51,11 +52,30 @@ func (o *panelOwnership) unmountRemoved(candidates []Panel) {
 		}
 	}
 
-	var nestedWarps []*Warp
 	for _, panel := range candidates {
-		if adapter, ok := panel.(*warpPanel); ok && adapter.warp != nil {
-			nestedWarps = append(nestedWarps, adapter.warp)
+		adapter, ok := panel.(*warpPanel)
+		if !ok || adapter.warp == nil {
+			continue
 		}
+		resources := make(map[panelInstanceKey]struct{})
+		for _, child := range collectPanelInstances(adapter.warp.Root()) {
+			if _, ownsResource := child.(Unmounter); !ownsResource {
+				continue
+			}
+			if key, ok := panelInstance(child); ok {
+				if _, stillOwned := retained[key]; !stillOwned {
+					resources[key] = struct{}{}
+				}
+			}
+		}
+		adapter.warp.mu.Lock()
+		if adapter.warp.unmounted == nil {
+			adapter.warp.unmounted = make(map[panelInstanceKey]struct{})
+		}
+		for key := range resources {
+			adapter.warp.unmounted[key] = struct{}{}
+		}
+		adapter.warp.mu.Unlock()
 	}
 
 	seen := make(map[panelInstanceKey]struct{}, len(candidates))
@@ -71,15 +91,15 @@ func (o *panelOwnership) unmountRemoved(candidates []Panel) {
 		if _, stillOwned := retained[key]; stillOwned {
 			continue
 		}
-		for _, nested := range nestedWarps {
-			if containsPanelInstance(nested.Root(), key) {
-				nested.mu.Lock()
-				if nested.unmounted == nil {
-					nested.unmounted = make(map[panelInstanceKey]struct{})
-				}
-				nested.unmounted[key] = struct{}{}
-				nested.mu.Unlock()
-			}
+		o.mu.Lock()
+		_, alreadyUnmounted := o.unmounted[key]
+		if alreadyUnmounted {
+			delete(o.unmounted, key)
+		}
+		o.mu.Unlock()
+		if alreadyUnmounted {
+			detachPanelOwnership(panel, o)
+			continue
 		}
 		if unmounter, ok := panel.(Unmounter); ok {
 			unmounter.Unmount()
@@ -104,20 +124,21 @@ func detachPanelOwnership(panel Panel, ownership *panelOwnership) {
 		}
 		current.warp.mu.Lock()
 		if current.warp.ownership == ownership {
-			current.warp.ownership = nil
-			current.warp.ownsDomainRoot = true
+			if len(current.warp.unmounted) == 0 {
+				current.warp.ownership = nil
+				current.warp.ownsDomainRoot = true
+			} else {
+				root := current.warp.root
+				local := newPanelOwnership(root)
+				local.unmounted = current.warp.unmounted
+				current.warp.unmounted = nil
+				current.warp.ownership = local
+				current.warp.ownsDomainRoot = true
+				attachPanelOwnership(root, local)
+			}
 		}
 		current.warp.mu.Unlock()
 	}
-}
-
-func containsPanelInstance(root Panel, target panelInstanceKey) bool {
-	for _, panel := range collectPanelInstances(root) {
-		if key, ok := panelInstance(panel); ok && key == target {
-			return true
-		}
-	}
-	return false
 }
 
 func panelInstance(panel Panel) (panelInstanceKey, bool) {

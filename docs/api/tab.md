@@ -22,7 +22,8 @@ always renderable.
 | `SplitHorizontal(parent Panel, fraction float64, newPanel Panel)` | Split a panel into top/bottom (fraction is the top share). |
 | `FlexRow(parent Panel, items []FlexItemSpec)` | Replace a panel with a horizontal flex row. |
 | `FlexColumn(parent Panel, items []FlexItemSpec)` | Replace a panel with a vertical flex column. |
-| `Float(panel Panel, x, y, width, height int)` | Add a floating pane on top of the layout. |
+| `Float(panel Panel, x, y, width, height int)` | Add a floating pane on top of the layout; preserves the legacy void signature. |
+| `FloatWithCmd(panel Panel, x, y, width, height int) tea.Cmd` | Add a float and return the command from its initial content resize; return it from the caller's `Update`. |
 | `CloseFloat(fp *FloatPane)` | Remove a floating pane. |
 | `Focus() Panel` | Return the currently focused panel. |
 | `SetFocus(panel Panel) tea.Cmd` | Set the focused panel. |

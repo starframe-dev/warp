@@ -314,9 +314,16 @@ func (t *Tab) FlexColumn(parent Panel, items []FlexItemSpec) {
 }
 
 // Float makes a panel floating above the layout.
+// Use FloatWithCmd when the panel returns an initialization command from resize.
 func (t *Tab) Float(panel Panel, x, y, width, height int) {
+	_ = t.FloatWithCmd(panel, x, y, width, height)
+}
+
+// FloatWithCmd adds a floating panel and returns its initial content resize
+// command. Return this command from the caller's Update method.
+func (t *Tab) FloatWithCmd(panel Panel, x, y, width, height int) tea.Cmd {
 	if isNilPanel(panel) || width <= 0 || height <= 0 {
-		return
+		return nil
 	}
 	ownership := t.ensureOwnership()
 	width = max(floatMinWidth, width)
@@ -334,7 +341,7 @@ func (t *Tab) Float(panel Panel, x, y, width, height int) {
 	fp.clampPosition(t.width, t.height)
 	t.floats = append(t.floats, fp)
 	attachPanelOwnership(panel, ownership)
-	fp.resizeContent(true)
+	return fp.resizeContent(true)
 }
 
 // CloseFloat removes a floating pane.
@@ -485,10 +492,7 @@ func (t *Tab) Update(msg tea.Msg) tea.Cmd {
 		t.appendResizeCommands(&commands, msg.Width, msg.Height)
 		return tea.Batch(commands...)
 	case tea.KeyMsg:
-		if t.focused != nil {
-			return t.handleKeys(msg)
-		}
-		return tea.Batch(t.broadcastMsg(msg)...)
+		return t.handleKeys(msg)
 	case tea.MouseMsg:
 		return t.handleMouse(msg, 0, 0, t.width, t.height)
 	default:
@@ -1024,9 +1028,71 @@ func (t *Tab) broadcastMsg(msg tea.Msg) []tea.Cmd {
 func (t *Tab) appendBroadcastMsg(commands *[]tea.Cmd, msg tea.Msg) {
 	t.appendBroadcastNode(commands, t.root, msg)
 	for _, float := range t.floats {
-		if float != nil && !isNilPanel(float.Panel) {
-			if cmd := float.Panel.Update(msg); cmd != nil {
-				*commands = append(*commands, cmd)
+		if float == nil {
+			continue
+		}
+		if _, ok := msg.(tea.WindowSizeMsg); ok {
+			t.appendLegacyWindowSizePanel(commands, float.Panel, msg)
+			continue
+		}
+		if isNilPanel(float.Panel) {
+			continue
+		}
+		if cmd := float.Panel.Update(msg); cmd != nil {
+			*commands = append(*commands, cmd)
+		}
+	}
+}
+
+func (t *Tab) appendLegacyWindowSizePanel(commands *[]tea.Cmd, panel Panel, msg tea.Msg) {
+	if isNilPanel(panel) {
+		return
+	}
+	switch current := panel.(type) {
+	case *Scrollable:
+		t.appendLegacyWindowSizePanel(commands, current.Content, msg)
+	case *Collapsible:
+		t.appendLegacyWindowSizePanel(commands, current.Content, msg)
+	case *Selectable:
+		t.appendLegacyWindowSizePanel(commands, current.Content, msg)
+	case *TabGroup:
+		for _, tab := range current.tabs {
+			if tab != nil {
+				t.appendLegacyWindowSizeNode(commands, tab.root, msg)
+				for _, float := range tab.floats {
+					if float != nil {
+						t.appendLegacyWindowSizePanel(commands, float.Panel, msg)
+					}
+				}
+			}
+		}
+	case *warpPanel:
+		if current.warp != nil {
+			t.appendLegacyWindowSizePanel(commands, current.warp.Root(), msg)
+		}
+	default:
+		if cmd := panel.Update(msg); cmd != nil {
+			*commands = append(*commands, cmd)
+		}
+	}
+}
+
+func (t *Tab) appendLegacyWindowSizeNode(commands *[]tea.Cmd, node *Node, msg tea.Msg) {
+	if node == nil {
+		return
+	}
+	if node.IsLeaf() {
+		t.appendLegacyWindowSizePanel(commands, node.Panel, msg)
+		return
+	}
+	if node.Split != nil {
+		t.appendLegacyWindowSizeNode(commands, node.Split.First, msg)
+		t.appendLegacyWindowSizeNode(commands, node.Split.Second, msg)
+	}
+	if node.Flex != nil {
+		for _, item := range node.Flex.Items {
+			if item != nil {
+				t.appendLegacyWindowSizeNode(commands, item.Node, msg)
 			}
 		}
 	}
@@ -1054,12 +1120,13 @@ func (t *Tab) appendBroadcastNode(commands *[]tea.Cmd, node *Node, msg tea.Msg) 
 	if node == nil {
 		return
 	}
-	if node.IsLeaf() && !isNilPanel(node.Panel) {
-		if _, isWindowSize := msg.(tea.WindowSizeMsg); isWindowSize {
-			switch node.Panel.(type) {
-			case *TabGroup, *warpPanel:
-				return
-			}
+	if node.IsLeaf() {
+		if _, ok := msg.(tea.WindowSizeMsg); ok {
+			t.appendLegacyWindowSizePanel(commands, node.Panel, msg)
+			return
+		}
+		if isNilPanel(node.Panel) {
+			return
 		}
 		if cmd := node.Panel.Update(msg); cmd != nil {
 			*commands = append(*commands, cmd)

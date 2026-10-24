@@ -120,10 +120,7 @@ func (tg *TabGroup) PrevTab() {
 
 func (tg *TabGroup) contentWidth(totalW int) int {
 	if tg.tabPosition == TabLeft || tg.tabPosition == TabRight {
-		if tg.verticalTabWidth == 0 {
-			tg.verticalTabWidth = tg.verticalTabBarWidth(totalW)
-		}
-		tg.verticalTabWidth = min(tg.verticalTabWidth, max(0, totalW))
+		tg.syncVerticalTabBar(totalW)
 		return max(0, totalW-tg.verticalTabWidth)
 	}
 	return max(0, totalW)
@@ -136,7 +133,16 @@ func (tg *TabGroup) contentHeight(totalH int) int {
 	return max(0, totalH)
 }
 
+func (tg *TabGroup) syncVerticalTabBar(width int) {
+	if tg.tabPosition == TabLeft || tg.tabPosition == TabRight {
+		tg.verticalTabWidth = tg.verticalTabBarWidth(max(0, width))
+	}
+}
+
 func (tg *TabGroup) contentOffset() (int, int) {
+	if tg.tabPosition == TabLeft || tg.tabPosition == TabRight {
+		tg.syncVerticalTabBar(tg.width)
+	}
 	switch tg.tabPosition {
 	case TabTop:
 		return 0, 1
@@ -216,10 +222,12 @@ func (tg *TabGroup) Elements(w, h int) []Element {
 	case TabBottom:
 		ch = max(0, h-1)
 	case TabLeft:
-		offX = tg.verticalTabBarWidth(w)
+		tg.syncVerticalTabBar(w)
+		offX = tg.verticalTabWidth
 		cw = max(0, w-offX)
 	case TabRight:
-		cw = max(0, w-tg.verticalTabBarWidth(w))
+		tg.syncVerticalTabBar(w)
+		cw = max(0, w-tg.verticalTabWidth)
 	}
 
 	elems := collectElements(tab, cw, ch)
@@ -362,6 +370,7 @@ func (tg *TabGroup) Update(msg tea.Msg) tea.Cmd {
 	case tea.WindowSizeMsg:
 		tg.width = msg.Width
 		tg.height = msg.Height
+		tg.syncVerticalTabBar(msg.Width)
 		contentSize := ResizeMsg{Width: tg.contentWidth(msg.Width), Height: tg.contentHeight(msg.Height)}
 		var cmds []tea.Cmd
 		for _, tab := range tg.tabs {
@@ -380,6 +389,7 @@ func (tg *TabGroup) Update(msg tea.Msg) tea.Cmd {
 		// the content viewport after subtracting the bar.
 		tg.width = msg.Width
 		tg.height = msg.Height
+		tg.syncVerticalTabBar(msg.Width)
 		contentSize := ResizeMsg{Width: tg.contentWidth(msg.Width), Height: tg.contentHeight(msg.Height)}
 		var cmds []tea.Cmd
 		for _, tab := range tg.tabs {
@@ -432,6 +442,9 @@ func (tg *TabGroup) handleKeyMsg(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (tg *TabGroup) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
+	if tg.tabPosition == TabLeft || tg.tabPosition == TabRight {
+		tg.renderVerticalTabBar(tg.width)
+	}
 	if tg.isOnTabBar(msg.X, msg.Y) {
 		return tg.handleTabBarClick(msg)
 	}
@@ -452,8 +465,10 @@ func (tg *TabGroup) isOnTabBar(x, y int) bool {
 	case TabBottom:
 		return y == tg.height-1
 	case TabLeft:
+		tg.syncVerticalTabBar(tg.width)
 		return x < tg.verticalTabWidth
 	case TabRight:
+		tg.syncVerticalTabBar(tg.width)
 		return x >= tg.width-tg.verticalTabWidth
 	case TabNone:
 		return false
@@ -469,6 +484,7 @@ func (tg *TabGroup) handleTabBarClick(msg tea.MouseMsg) tea.Cmd {
 	x := msg.X
 	y := msg.Y
 	if tg.tabPosition == TabRight {
+		tg.syncVerticalTabBar(tg.width)
 		x -= tg.width - tg.verticalTabWidth
 	}
 

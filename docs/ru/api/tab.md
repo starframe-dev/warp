@@ -22,7 +22,8 @@
 | `SplitHorizontal(parent Panel, fraction float64, newPanel Panel)` | Разделяет панель на верхнюю и нижнюю (fraction — доля верхней части). |
 | `FlexRow(parent Panel, items []FlexItemSpec)` | Заменяет панель горизонтальным гибким рядом. |
 | `FlexColumn(parent Panel, items []FlexItemSpec)` | Заменяет панель вертикальным гибким столбцом. |
-| `Float(panel Panel, x, y, width, height int)` | Добавляет плавающую панель поверх компоновки. |
+| `Float(panel Panel, x, y, width, height int)` | Добавляет плавающую панель поверх компоновки; сохраняет прежнюю сигнатуру без возвращаемого значения. |
+| `FloatWithCmd(panel Panel, x, y, width, height int) tea.Cmd` | Добавляет float и возвращает команду первоначального resize содержимого; верните её из `Update` вызывающей модели. |
 | `CloseFloat(fp *FloatPane)` | Удаляет плавающую панель. |
 | `Focus() Panel` | Возвращает текущую панель в фокусе. |
 | `SetFocus(panel Panel) tea.Cmd` | Устанавливает фокус на панель. |
