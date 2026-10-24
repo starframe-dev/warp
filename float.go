@@ -18,6 +18,9 @@ type FloatPane struct {
 
 	preferredWidth  int
 	preferredHeight int
+	contentWidth    int
+	contentHeight   int
+	contentSized    bool
 
 	dragging   bool
 	resizing   bool
@@ -42,6 +45,18 @@ const (
 	floatMinHeight = 3
 	floatTitleH    = 1
 )
+
+func (fp *FloatPane) resizeContent(force bool) tea.Cmd {
+	if fp == nil || isNilPanel(fp.Panel) {
+		return nil
+	}
+	width, height := max(0, fp.Width-2), max(0, fp.Height-2)
+	if !force && fp.contentSized && fp.contentWidth == width && fp.contentHeight == height {
+		return nil
+	}
+	fp.contentWidth, fp.contentHeight, fp.contentSized = width, height, true
+	return fp.Panel.Update(ResizeMsg{Width: width, Height: height})
+}
 
 // render renders the float pane into lines.
 func (fp *FloatPane) render(_, _ int) []string {

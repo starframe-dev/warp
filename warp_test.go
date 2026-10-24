@@ -349,7 +349,7 @@ func TestWindowSizeMsgBroadcast(t *testing.T) {
 		t.Errorf("warp size not updated: got %dx%d", w.width, w.height)
 	}
 	if p.lastWS.Width != 80 || p.lastWS.Height != 24 {
-		t.Errorf("panel did not receive WindowSizeMsg: got %+v", p.lastWS)
+		t.Errorf("panel did not receive legacy WindowSizeMsg: got %+v", p.lastWS)
 	}
 }
 

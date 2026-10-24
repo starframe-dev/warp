@@ -2,6 +2,7 @@ package warp
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -158,12 +159,24 @@ func (in *Input) renderLine(maxW int) string {
 	valueWidth := 0
 	writeCluster := func(cluster string, width int) {
 		runeCount := utf8.RuneCountInString(cluster)
+		var safe strings.Builder
+		for _, r := range cluster {
+			if unicode.IsControl(r) {
+				safe.WriteRune('\uFFFD')
+			} else {
+				safe.WriteRune(r)
+			}
+		}
+		safeCluster := safe.String()
+		if safeCluster != cluster {
+			width = ansi.StringWidth(safeCluster)
+		}
 		if cursor >= runePos && cursor < runePos+runeCount {
 			result.WriteString("\x1b[7m")
-			result.WriteString(cluster)
+			result.WriteString(safeCluster)
 			result.WriteString("\x1b[0m")
 		} else {
-			result.WriteString(cluster)
+			result.WriteString(safeCluster)
 		}
 		runePos += runeCount
 		valueWidth += width

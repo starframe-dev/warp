@@ -334,6 +334,7 @@ func (t *Tab) Float(panel Panel, x, y, width, height int) {
 	fp.clampPosition(t.width, t.height)
 	t.floats = append(t.floats, fp)
 	attachPanelOwnership(panel, ownership)
+	fp.resizeContent(true)
 }
 
 // CloseFloat removes a floating pane.
@@ -483,6 +484,13 @@ func (t *Tab) Update(msg tea.Msg) tea.Cmd {
 		var commands []tea.Cmd
 		t.appendResizeCommands(&commands, msg.Width, msg.Height)
 		return tea.Batch(commands...)
+	case tea.KeyMsg:
+		if t.focused != nil {
+			return t.handleKeys(msg)
+		}
+		return tea.Batch(t.broadcastMsg(msg)...)
+	case tea.MouseMsg:
+		return t.handleMouse(msg, 0, 0, t.width, t.height)
 	default:
 		// Forward unknown messages (PtyOutputMsg, PtyReadyMsg, etc.) to all
 		// leaf panels so emulators can receive them.
@@ -660,7 +668,14 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 		fp.clampPosition(cw, ch)
 		inside := mx >= fp.X && mx < fp.X+fp.Width && my >= fp.Y && my < fp.Y+fp.Height
 
+		oldWidth, oldHeight := fp.Width, fp.Height
 		cmd := fp.handleMouseWithin(msg, mx, my, cw, ch)
+		if (msg.Action == tea.MouseActionMotion || msg.Action == tea.MouseActionRelease) &&
+			(oldWidth != fp.Width || oldHeight != fp.Height) && !isNilPanel(fp.Panel) {
+			if resizeCmd := fp.resizeContent(false); resizeCmd != nil {
+				cmd = tea.Batch(cmd, resizeCmd)
+			}
+		}
 		if fp.CloseRequested {
 			t.CloseFloat(fp)
 			return nil
@@ -743,8 +758,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 			}
 		case tea.MouseActionMotion:
 			if t.dragging != nil || t.flexDragging != nil {
-				t.updateDragWithLayout(mx, my, cw, ch, layout)
-				return nil
+				return t.updateDragWithLayout(mx, my, cw, ch, layout)
 			}
 		case tea.MouseActionRelease:
 			wasDragging := t.dragging != nil || t.flexDragging != nil
@@ -759,8 +773,7 @@ func (t *Tab) handleMouse(msg tea.MouseMsg, offsetX, offsetY, cw, ch int) tea.Cm
 			}
 			// Do not forward the release event to a panel if it ends a drag.
 			if wasDragging {
-				t.broadcastResize(t.root, 0, 0, cw, ch)
-				return nil
+				return tea.Batch(t.broadcastResize(t.root, 0, 0, cw, ch)...)
 			}
 		}
 	}
@@ -1025,6 +1038,11 @@ func (t *Tab) appendResizeCommands(commands *[]tea.Cmd, width, height int) {
 	t.clampFloatsToViewport()
 	layout := newLayout(t.root, layoutRect{w: max(0, width), h: max(0, height)})
 	t.appendLayoutResize(commands, layout)
+	for _, fp := range t.floats {
+		if cmd := fp.resizeContent(false); cmd != nil {
+			*commands = append(*commands, cmd)
+		}
+	}
 }
 
 func (t *Tab) broadcastResize(node *Node, x, y, w, h int) []tea.Cmd {
@@ -1037,6 +1055,12 @@ func (t *Tab) appendBroadcastNode(commands *[]tea.Cmd, node *Node, msg tea.Msg) 
 		return
 	}
 	if node.IsLeaf() && !isNilPanel(node.Panel) {
+		if _, isWindowSize := msg.(tea.WindowSizeMsg); isWindowSize {
+			switch node.Panel.(type) {
+			case *TabGroup, *warpPanel:
+				return
+			}
+		}
 		if cmd := node.Panel.Update(msg); cmd != nil {
 			*commands = append(*commands, cmd)
 		}
@@ -1126,11 +1150,11 @@ func (t *Tab) toggleCollapsibleNode(node *Node, panel Panel) bool {
 	return false
 }
 
-func (t *Tab) updateDrag(mx, my, cw, ch int) {
-	t.updateDragWithLayout(mx, my, cw, ch, nil)
+func (t *Tab) updateDrag(mx, my, cw, ch int) tea.Cmd {
+	return t.updateDragWithLayout(mx, my, cw, ch, nil)
 }
 
-func (t *Tab) updateDragWithLayout(mx, my, cw, ch int, layout *layoutNode) {
+func (t *Tab) updateDragWithLayout(mx, my, cw, ch int, layout *layoutNode) tea.Cmd {
 	if t.dragging != nil {
 		t.updateSplitDrag(mx, my, cw, ch)
 	}
@@ -1138,7 +1162,7 @@ func (t *Tab) updateDragWithLayout(mx, my, cw, ch int, layout *layoutNode) {
 		t.updateFlexDrag(mx, my, layout)
 	}
 	// Send live ResizeMsg so panels update while dragging.
-	t.broadcastResize(t.root, 0, 0, cw, ch)
+	return tea.Batch(t.broadcastResize(t.root, 0, 0, cw, ch)...)
 }
 
 func (t *Tab) updateSplitDrag(mx, my, _, _ int) {

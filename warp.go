@@ -25,6 +25,7 @@ type Warp struct {
 	height         int
 	ownership      *panelOwnership
 	ownsDomainRoot bool
+	unmounted      map[panelInstanceKey]struct{}
 	setRootMu      sync.Mutex
 
 	httpServer         *http.Server
@@ -66,6 +67,21 @@ func (w *Warp) SetRoot(panel Panel) {
 	w.mu.Unlock()
 
 	candidates := collectPanelInstances(oldRoot)
+	w.mu.Lock()
+	for i := 0; i < len(candidates); {
+		key, ok := panelInstance(candidates[i])
+		if !ok {
+			i++
+			continue
+		}
+		if _, alreadyUnmounted := w.unmounted[key]; alreadyUnmounted {
+			candidates = append(candidates[:i], candidates[i+1:]...)
+			delete(w.unmounted, key)
+			continue
+		}
+		i++
+	}
+	w.mu.Unlock()
 	attachPanelOwnership(panel, ownership)
 
 	w.mu.Lock()

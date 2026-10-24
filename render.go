@@ -376,6 +376,13 @@ func distributeFlexGrow(amount int, sizes []int, items []*FlexItem, eligibleCoun
 	totalWeight := growTotal
 	if uniform {
 		totalWeight = float64(eligibleCount)
+	} else {
+		eligibleCount = 0
+		for _, item := range items {
+			if !flexItemCollapsed(item) && item.Grow > 0 {
+				eligibleCount++
+			}
+		}
 	}
 	if totalWeight <= 0 || math.IsInf(totalWeight, 0) || math.IsNaN(totalWeight) {
 		return
@@ -384,7 +391,7 @@ func distributeFlexGrow(amount int, sizes []int, items []*FlexItem, eligibleCoun
 	remaining := amount
 	position := 0
 	for index, item := range items {
-		if flexItemCollapsed(item) {
+		if flexItemCollapsed(item) || (!uniform && item.Grow <= 0) {
 			continue
 		}
 		weight := float64(max(0, item.Grow))

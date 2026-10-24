@@ -2,6 +2,7 @@ package warp
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -43,8 +44,11 @@ func (p *Popover) Overlay(lines []string, totalW, totalH int) []string {
 	if contentW <= 0 {
 		contentW = 20
 	}
-	if contentW > totalW {
-		contentW = totalW
+	// Reserve two cells for the border so the complete box fits the viewport.
+	contentW = min(contentW, max(0, totalW-2))
+	if contentW == 0 || totalW <= 0 || totalH <= 0 {
+		p.boxW, p.boxH = 0, 0
+		return lines
 	}
 
 	// Build menu content lines.
@@ -52,10 +56,14 @@ func (p *Popover) Overlay(lines []string, totalW, totalH int) []string {
 	for i, item := range p.Items {
 		var line string
 		name := sanitizeFrameworkLabel(item.Name)
+		if !utf8.ValidString(item.Name) {
+			name = "\uFFFD" + name
+		}
+		name = ansi.Truncate(" "+name, contentW, "")
 		if i == p.selected {
-			line = popoverSelectedStyle.Width(contentW).Render(" " + name)
+			line = popoverSelectedStyle.Width(contentW).Render(name)
 		} else {
-			line = popoverBaseStyle.Width(contentW).Render(" " + name)
+			line = popoverBaseStyle.Width(contentW).Render(name)
 		}
 		contentLines = append(contentLines, line)
 	}
@@ -73,9 +81,9 @@ func (p *Popover) Overlay(lines []string, totalW, totalH int) []string {
 		return lines
 	}
 
-	// Save actual box dimensions for hit-test.
-	p.boxW = lipgloss.Width(boxLines[0])
-	p.boxH = len(boxLines)
+	// Save dimensions clipped to the viewport for hit-testing.
+	p.boxW = min(lipgloss.Width(boxLines[0]), totalW)
+	p.boxH = min(len(boxLines), min(totalH, len(lines)))
 
 	boxW := p.boxW
 	boxH := p.boxH
@@ -106,7 +114,8 @@ func (p *Popover) Overlay(lines []string, totalW, totalH int) []string {
 	p.clampedY = menuY
 
 	// Place box lines, preserving original content left/right.
-	for i, boxLine := range boxLines {
+	for i := 0; i < p.boxH; i++ {
+		boxLine := boxLines[i]
 		idx := menuY + i
 		if idx >= len(lines) {
 			break

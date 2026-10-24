@@ -51,6 +51,13 @@ func (o *panelOwnership) unmountRemoved(candidates []Panel) {
 		}
 	}
 
+	var nestedWarps []*Warp
+	for _, panel := range candidates {
+		if adapter, ok := panel.(*warpPanel); ok && adapter.warp != nil {
+			nestedWarps = append(nestedWarps, adapter.warp)
+		}
+	}
+
 	seen := make(map[panelInstanceKey]struct{}, len(candidates))
 	for _, panel := range candidates {
 		key, ok := panelInstance(panel)
@@ -63,6 +70,16 @@ func (o *panelOwnership) unmountRemoved(candidates []Panel) {
 		seen[key] = struct{}{}
 		if _, stillOwned := retained[key]; stillOwned {
 			continue
+		}
+		for _, nested := range nestedWarps {
+			if containsPanelInstance(nested.Root(), key) {
+				nested.mu.Lock()
+				if nested.unmounted == nil {
+					nested.unmounted = make(map[panelInstanceKey]struct{})
+				}
+				nested.unmounted[key] = struct{}{}
+				nested.mu.Unlock()
+			}
 		}
 		if unmounter, ok := panel.(Unmounter); ok {
 			unmounter.Unmount()
@@ -92,6 +109,15 @@ func detachPanelOwnership(panel Panel, ownership *panelOwnership) {
 		}
 		current.warp.mu.Unlock()
 	}
+}
+
+func containsPanelInstance(root Panel, target panelInstanceKey) bool {
+	for _, panel := range collectPanelInstances(root) {
+		if key, ok := panelInstance(panel); ok && key == target {
+			return true
+		}
+	}
+	return false
 }
 
 func panelInstance(panel Panel) (panelInstanceKey, bool) {

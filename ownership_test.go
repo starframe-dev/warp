@@ -9,6 +9,23 @@ type ownershipTestPanel struct {
 
 func (p *ownershipTestPanel) Unmount() { p.unmounts++ }
 
+func TestNestedWarpCloseUnmountsOwnedPanelOnce(t *testing.T) {
+	leaf := &ownershipTestPanel{}
+	inner := New()
+	inner.SetRoot(leaf)
+	outer := New()
+	outer.ActiveTab().SetRootPanel(inner.AsPanel())
+	if err := outer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := inner.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if leaf.unmounts != 1 {
+		t.Fatalf("nested resource unmounted %d times, want exactly once", leaf.unmounts)
+	}
+}
+
 func TestPanelOwnershipRootAndNilReceivers(t *testing.T) {
 	var nilOwnership *panelOwnership
 	nilOwnership.setRoot(nil)

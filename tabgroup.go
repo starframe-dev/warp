@@ -120,6 +120,10 @@ func (tg *TabGroup) PrevTab() {
 
 func (tg *TabGroup) contentWidth(totalW int) int {
 	if tg.tabPosition == TabLeft || tg.tabPosition == TabRight {
+		if tg.verticalTabWidth == 0 {
+			tg.verticalTabWidth = tg.verticalTabBarWidth(totalW)
+		}
+		tg.verticalTabWidth = min(tg.verticalTabWidth, max(0, totalW))
 		return max(0, totalW-tg.verticalTabWidth)
 	}
 	return max(0, totalW)
@@ -358,21 +362,28 @@ func (tg *TabGroup) Update(msg tea.Msg) tea.Cmd {
 	case tea.WindowSizeMsg:
 		tg.width = msg.Width
 		tg.height = msg.Height
+		contentSize := ResizeMsg{Width: tg.contentWidth(msg.Width), Height: tg.contentHeight(msg.Height)}
 		var cmds []tea.Cmd
 		for _, tab := range tg.tabs {
-			if cmd := tab.Update(msg); cmd != nil {
+			if tab == nil {
+				continue
+			}
+			if cmd := tab.Update(contentSize); cmd != nil {
 				cmds = append(cmds, cmd)
 			}
+			// Preserve the legacy full-window message for panels that depend on it.
+			tab.appendBroadcastMsg(&cmds, msg)
 		}
 		return tea.Batch(cmds...)
 	case ResizeMsg:
-		// Forward ResizeMsg to tabs so they can broadcast to child panels
-		// with correct allocated sizes (via broadcastResize).
+		// ResizeMsg describes the allocated tab-group bounds; tabs receive only
+		// the content viewport after subtracting the bar.
 		tg.width = msg.Width
 		tg.height = msg.Height
+		contentSize := ResizeMsg{Width: tg.contentWidth(msg.Width), Height: tg.contentHeight(msg.Height)}
 		var cmds []tea.Cmd
 		for _, tab := range tg.tabs {
-			if cmd := tab.Update(msg); cmd != nil {
+			if cmd := tab.Update(contentSize); cmd != nil {
 				cmds = append(cmds, cmd)
 			}
 		}

@@ -222,7 +222,8 @@ func (s *Selectable) Update(msg tea.Msg) tea.Cmd {
 		// Selection keys — shift-modified arrows. Shift+Tab is intentionally
 		// excluded and proxied to the wrapped panel (terminal) so TUI apps
 		// inside the PTY receive it.
-		if strings.HasPrefix(key, "shift+") && key != "shift+tab" {
+		switch key {
+		case "shift+up", "shift+down", "shift+left", "shift+right":
 			if !s.HasSelection && !s.Selecting {
 				s.AnchorX = s.CursorX
 				s.AnchorY = s.CursorY
