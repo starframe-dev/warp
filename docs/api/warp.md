@@ -67,8 +67,9 @@ root.
 `func (w *Warp) AsPanel() Panel`
 
 Returns a `warpPanel` adapter implementing the `Panel` interface (i.e.
-`View(width, height)` and `Update(msg)`). This is how a `Warp` can be
-nested inside another panel or another `Warp`.
+`View(width, height)` and `Update(msg)`). Repeated calls for the same `Warp`
+reuse that adapter, so multiple placements share one ownership identity. This
+is how a `Warp` can be nested inside another panel or another `Warp`.
 
 ### Lifecycle
 

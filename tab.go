@@ -1055,6 +1055,13 @@ func (t *Tab) appendLegacyWindowSizePanel(commands *[]tea.Cmd, panel Panel, msg 
 		t.appendLegacyWindowSizePanel(commands, current.Content, msg)
 	case *Selectable:
 		t.appendLegacyWindowSizePanel(commands, current.Content, msg)
+	case *Tab:
+		t.appendLegacyWindowSizeNode(commands, current.root, msg)
+		for _, float := range current.floats {
+			if float != nil {
+				t.appendLegacyWindowSizePanel(commands, float.Panel, msg)
+			}
+		}
 	case *TabGroup:
 		for _, tab := range current.tabs {
 			if tab != nil {

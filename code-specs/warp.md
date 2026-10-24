@@ -38,7 +38,7 @@
 
 ### Вложенная панель
 
-`AsPanel() Panel` возвращает адаптер `warpPanel`.
+`AsPanel() Panel` возвращает один сохранённый адаптер `warpPanel` для Warp; повторные вызовы используют ту же identity, чтобы lifecycle учитывал все размещения одного вложенного Warp.
 
 - `warpPanel.View(width, height)` сохраняет размеры родителя во вложенном `Warp`, затем вызывает `Warp.View()`.
 - `warpPanel.Update(msg)` вызывает `Warp.Update(msg)` и возвращает команду.

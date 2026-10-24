@@ -19,6 +19,7 @@ import (
 // all messages to it without interception.
 type Warp struct {
 	root           Panel
+	panelAdapter   *warpPanel
 	rootRevision   uint64
 	stateRevision  uint64
 	width          int
@@ -226,8 +227,18 @@ func (w *Warp) refreshSnapshotAfterView(root Panel, width, height int, rootRevis
 }
 
 // AsPanel returns a Panel adapter for this Warp, enabling nested warps.
+// Repeated calls reuse the same adapter so ownership follows all placements.
 func (w *Warp) AsPanel() Panel {
-	return &warpPanel{warp: w}
+	if w == nil {
+		return &warpPanel{}
+	}
+	w.mu.Lock()
+	if w.panelAdapter == nil {
+		w.panelAdapter = &warpPanel{warp: w}
+	}
+	adapter := w.panelAdapter
+	w.mu.Unlock()
+	return adapter
 }
 
 // warpPanel adapts Warp to the Panel interface.
